@@ -252,9 +252,13 @@ class Component extends DCLogic {
     this._loadTO = setTimeout(() => { if (this.state.listLoading) this.setState({ listLoading: false }); }, 8000);
     this.connectLive();
     this.loadRuns();
+    // poll the run list so newly-created / state-changed runs surface live
+    // (the selected run's graph already streams via SSE); background refresh.
+    this._runsPoll = setInterval(() => this.loadRuns(), 15000);
   }
   componentWillUnmount() {
     clearInterval(this._t);
+    clearInterval(this._runsPoll);
     clearTimeout(this._loadTO);
     try { if (this._es) this._es.close(); } catch (e) {}
     window.removeEventListener('resize', this.onResize);
@@ -296,7 +300,7 @@ class Component extends DCLogic {
       this.facetDefs = Object.assign({}, this.facetDefs, { agent: uniq('agent'), repo: uniq('repo') });
       // NB: the graph load (applyState) owns currentRunId/selectedRunId — see below.
       this.setState({ listLoading: false, listError: false });
-    }).catch(() => this.setState({ listLoading: false, listError: true }));
+    }).catch(() => this.setState({ listLoading: false, listError: !this.runs.length }));  // keep the list on a transient poll failure
   }
   applyState(s) {
     if (!s || !Array.isArray(s.nodes)) return;
