@@ -1,36 +1,666 @@
 <!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>gitmoot dashboard</title>
-    <style>
-      body {
-        margin: 0;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        background: #0d1117;
-        color: #c9d1d9;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        height: 100vh;
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/elkjs@0.9.3/lib/elk.bundled.js"></script>
+<style>
+ html,body{margin:0;background:#07080f}
+ *{box-sizing:border-box}
+ @keyframes runpulse{0%,100%{box-shadow:0 0 0 0 var(--gc)}50%{box-shadow:0 0 28px 1px var(--gc)}}
+ @keyframes dotpulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.7);opacity:.45}}
+ @keyframes dashflow{to{stroke-dashoffset:-18}}
+ @keyframes livedot{0%,100%{opacity:1}50%{opacity:.3}}
+ @keyframes panelin{from{transform:translateX(22px);opacity:0}to{transform:translateX(0);opacity:1}}
+ @keyframes nodein{from{transform:scale(.9);opacity:0}to{transform:scale(1);opacity:1}}
+ ::-webkit-scrollbar{width:9px;height:9px}
+ ::-webkit-scrollbar-thumb{background:rgba(160,168,220,0.16);border-radius:6px}
+ ::-webkit-scrollbar-track{background:transparent}
+</style>
+</helmet>
+<div style="display:flex;height:100vh;width:100vw;overflow:hidden;background:#07080f;color:#a8aecf;font-family:Inter,system-ui,sans-serif;font-size:14px">
+
+  <aside style="width:216px;flex:none;border-right:1px solid rgba(160,168,220,0.08);background:#0a0b16;display:flex;flex-direction:column;padding:18px 12px 14px">
+    <div style="display:flex;align-items:center;gap:9px;padding:2px 8px 18px">
+      <span style="width:26px;height:26px;border-radius:7px;background:linear-gradient(150deg,#9ece6a,#5a8a3a);display:flex;align-items:center;justify-content:center;box-shadow:0 0 20px rgba(158,206,106,0.3)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#07080f" stroke-width="2.2"><circle cx="6" cy="12" r="2.2"/><circle cx="18" cy="6" r="2.2"/><circle cx="18" cy="18" r="2.2"/><path d="M8 11l8-4M8 13l8 4"/></svg>
+      </span>
+      <span style="font-family:'Space Grotesk';font-weight:700;font-size:16px;color:#eef0ff;letter-spacing:-0.02em">gitmoot</span>
+    </div>
+    <div style="font-family:'JetBrains Mono';font-size:9.5px;letter-spacing:0.14em;color:#5a6088;padding:0 10px 8px">ORCHESTRATION</div>
+
+    <a href="#" style="display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:9px;background:rgba(158,206,106,0.11);color:#eef0ff;font-size:13.5px;font-weight:500;text-decoration:none;border:1px solid rgba(158,206,106,0.2);position:relative">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="5" cy="12" r="2.4"/><circle cx="18" cy="6" r="2.4"/><circle cx="18" cy="18" r="2.4"/><path d="M7 11l9-4M7 13l9 4"/></svg>
+      <span style="flex:1">Graph</span>
+      <span style="width:5px;height:5px;border-radius:50%;background:#9ece6a;box-shadow:0 0 8px rgba(158,206,106,0.7)"></span>
+    </a>
+
+    <div title="Coming soon" style="display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:9px;color:#5a6088;font-size:13.5px;cursor:not-allowed;margin-top:2px">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8 6h11M8 12h11M8 18h11"/><circle cx="4" cy="6" r="1.1"/><circle cx="4" cy="12" r="1.1"/><circle cx="4" cy="18" r="1.1"/></svg>
+      <span style="flex:1">Jobs</span><span style="font-size:8.5px;font-family:'JetBrains Mono';color:#5a6088;border:1px solid rgba(160,168,220,0.12);padding:1px 5px;border-radius:5px">soon</span>
+    </div>
+    <div title="Coming soon" style="display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:9px;color:#5a6088;font-size:13.5px;cursor:not-allowed;margin-top:2px">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="7" y="7" width="10" height="10" rx="2"/><path d="M10 2.5v3M14 2.5v3M10 18.5v3M14 18.5v3M2.5 10h3M2.5 14h3M18.5 10h3M18.5 14h3"/></svg>
+      <span style="flex:1">Agents</span><span style="font-size:8.5px;font-family:'JetBrains Mono';color:#5a6088;border:1px solid rgba(160,168,220,0.12);padding:1px 5px;border-radius:5px">soon</span>
+    </div>
+    <div title="Coming soon" style="display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:9px;color:#5a6088;font-size:13.5px;cursor:not-allowed;margin-top:2px">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="4" y="12" width="3.2" height="8" rx="1" fill="currentColor"/><rect x="10.4" y="7" width="3.2" height="13" rx="1" fill="currentColor"/><rect x="16.8" y="4" width="3.2" height="16" rx="1" fill="currentColor"/></svg>
+      <span style="flex:1">Charts</span><span style="font-size:8.5px;font-family:'JetBrains Mono';color:#5a6088;border:1px solid rgba(160,168,220,0.12);padding:1px 5px;border-radius:5px">soon</span>
+    </div>
+    <div title="Coming soon" style="display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:9px;color:#5a6088;font-size:13.5px;cursor:not-allowed;margin-top:2px">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M3 12h4l2-6 4 12 2-6h6"/></svg>
+      <span style="flex:1">Health</span><span style="font-size:8.5px;font-family:'JetBrains Mono';color:#5a6088;border:1px solid rgba(160,168,220,0.12);padding:1px 5px;border-radius:5px">soon</span>
+    </div>
+
+    <div style="margin-top:auto;padding:10px;border-top:1px solid rgba(160,168,220,0.08);display:flex;align-items:center;gap:8px">
+      <span style="width:6px;height:6px;border-radius:50%;background:#9ece6a"></span>
+      <span style="font-family:'JetBrains Mono';font-size:10.5px;color:#5a6088">local · v0.4.2</span>
+    </div>
+  </aside>
+
+  <div style="flex:1;display:flex;flex-direction:column;min-width:0">
+
+    <header style="height:58px;flex:none;display:flex;align-items:center;gap:16px;padding:0 20px;border-bottom:1px solid rgba(160,168,220,0.08);background:rgba(10,11,22,0.55);backdrop-filter:blur(10px);z-index:20">
+      <div style="font-family:'Space Grotesk';font-weight:700;font-size:19px;color:#eef0ff;letter-spacing:-0.02em;display:flex;align-items:baseline">gitmoot<span style="color:#9ece6a">.</span></div>
+      <div style="width:1px;height:22px;background:rgba(160,168,220,0.12)"></div>
+
+      <div style="position:relative">
+        <button onClick="{{ toggleRun }}" style="display:flex;align-items:center;gap:9px;padding:7px 12px;background:#14172a;border:1px solid rgba(160,168,220,0.14);border-radius:9px;color:#eef0ff;font-size:12.5px;font-family:Inter;cursor:pointer">
+          <span style="width:7px;height:7px;border-radius:50%;background:#9ece6a;box-shadow:0 0 8px rgba(158,206,106,0.6)"></span>
+          <span style="font-family:'JetBrains Mono';font-size:12px">{{ runTitle }}</span>
+          <span style="color:#5a6088;font-size:10px">▾</span>
+        </button>
+        <sc-if value="{{ runOpen }}" hint-placeholder-val="{{ false }}">
+          <div style="position:absolute;top:44px;left:0;width:290px;background:rgba(15,17,32,0.96);border:1px solid rgba(160,168,220,0.14);border-radius:11px;padding:6px;box-shadow:0 24px 60px rgba(0,0,0,0.6);z-index:40;backdrop-filter:blur(12px)">
+            <div style="padding:10px 11px;border-radius:8px;background:rgba(158,206,106,0.1);border:1px solid rgba(158,206,106,0.18);display:flex;flex-direction:column;gap:3px">
+              <span style="font-size:12.5px;color:#eef0ff;font-weight:500">{{ runTitle }}</span>
+              <span style="font-family:'JetBrains Mono';font-size:10.5px;color:#868db5">run_8f2a1c · LIVE · {{ stat.elapsed }} elapsed</span>
+            </div>
+            <div style="padding:10px 11px;color:#5a6088;font-size:11.5px">No other active runs</div>
+          </div>
+        </sc-if>
+      </div>
+
+      <div style="margin-left:auto;display:flex;align-items:center;gap:8px;padding:6px 12px;border-radius:20px;background:rgba(158,206,106,0.1);border:1px solid rgba(158,206,106,0.22)">
+        <span style="width:7px;height:7px;border-radius:50%;background:#9ece6a;box-shadow:0 0 10px rgba(158,206,106,0.7);animation:livedot 1.6s ease-in-out infinite"></span>
+        <span style="font-family:'JetBrains Mono';font-size:11px;letter-spacing:0.08em;color:#c5f882;font-weight:600">LIVE</span>
+      </div>
+    </header>
+
+    <div style="flex:1;position:relative;min-height:0">
+      <div ref="{{ canvasRef }}" onPointerDown="{{ onDown }}" onPointerMove="{{ onMove }}" onPointerUp="{{ onUp }}" onPointerLeave="{{ onUp }}" onWheel="{{ onWheel }}" style="position:absolute;inset:0;overflow:hidden;cursor:grab;background:#050609;background-image:radial-gradient(rgba(160,168,220,0.09) 1px,transparent 1px);background-size:26px 26px;touch-action:none">
+        <div style="position:absolute;left:0;top:0;width:4200px;height:2600px;transform-origin:0 0;will-change:transform;transform:{{ worldTransform }}">
+          {{ edgesEl }}
+          {{ nodesEl }}
+        </div>
+      </div>
+
+      <div style="position:absolute;left:16px;bottom:16px;display:flex;flex-direction:column;gap:6px;z-index:6">
+        <button onClick="{{ zoomIn }}" style="width:34px;height:34px;background:rgba(15,17,32,0.85);border:1px solid rgba(160,168,220,0.14);border-radius:8px;color:#a8aecf;font-size:18px;cursor:pointer;backdrop-filter:blur(6px)">+</button>
+        <button onClick="{{ zoomOut }}" style="width:34px;height:34px;background:rgba(15,17,32,0.85);border:1px solid rgba(160,168,220,0.14);border-radius:8px;color:#a8aecf;font-size:18px;cursor:pointer;backdrop-filter:blur(6px)">−</button>
+        <button onClick="{{ fit }}" title="Fit to view" style="width:34px;height:34px;background:rgba(15,17,32,0.85);border:1px solid rgba(160,168,220,0.14);border-radius:8px;color:#a8aecf;font-size:14px;cursor:pointer;backdrop-filter:blur(6px)">⤢</button>
+      </div>
+
+      {{ minimapEl }}
+
+      <sc-if value="{{ hasSelected }}" hint-placeholder-val="{{ false }}">
+        <aside style="position:absolute;right:0;top:0;bottom:0;width:360px;background:rgba(15,17,32,0.9);border-left:1px solid rgba(160,168,220,0.14);backdrop-filter:blur(16px);z-index:15;display:flex;flex-direction:column;box-shadow:-30px 0 60px rgba(0,0,0,0.5);animation:panelin .28s cubic-bezier(.2,.8,.2,1)">
+          <div style="padding:18px 20px 14px;border-bottom:1px solid rgba(160,168,220,0.08)">
+            <div style="display:flex;align-items:flex-start;gap:10px">
+              <span style="{{ detail.dotStyle }}"></span>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:15px;font-weight:600;color:#eef0ff;font-family:Inter;line-height:1.3">{{ detail.title }}</div>
+                <div style="font-family:'JetBrains Mono';font-size:11px;color:#868db5;margin-top:3px">{{ detail.sub }}</div>
+              </div>
+              <button onClick="{{ closePanel }}" style="width:26px;height:26px;flex:none;background:rgba(160,168,220,0.08);border:1px solid rgba(160,168,220,0.12);border-radius:7px;color:#868db5;font-size:14px;cursor:pointer;line-height:1">✕</button>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+              <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:7px;font-family:'JetBrains Mono';font-size:11px;font-weight:600;color:{{ detail.stateColor }};background:{{ detail.stateBg }};border:1px solid {{ detail.stateBorder }}">{{ detail.stateLabel }}</span>
+              <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:7px;font-family:'JetBrains Mono';font-size:11px;color:#868db5;background:rgba(160,168,220,0.06);border:1px solid rgba(160,168,220,0.1)">▲ {{ detail.worker }}</span>
+            </div>
+          </div>
+
+          <div style="flex:1;overflow-y:auto;padding:16px 20px 24px">
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:20px">
+              <div style="background:rgba(10,11,22,0.6);border:1px solid rgba(160,168,220,0.08);border-radius:9px;padding:10px 11px">
+                <div style="font-size:10px;color:#5a6088;letter-spacing:0.04em;text-transform:uppercase">Started</div>
+                <div style="font-family:'JetBrains Mono';font-size:13px;color:#a8aecf;margin-top:4px">{{ detail.startedLabel }}</div>
+              </div>
+              <div style="background:rgba(10,11,22,0.6);border:1px solid rgba(160,168,220,0.08);border-radius:9px;padding:10px 11px">
+                <div style="font-size:10px;color:#5a6088;letter-spacing:0.04em;text-transform:uppercase">Elapsed</div>
+                <div style="font-family:'JetBrains Mono';font-size:13px;color:#eef0ff;margin-top:4px">{{ detail.elapsedLabel }}</div>
+              </div>
+              <div style="background:rgba(10,11,22,0.6);border:1px solid rgba(160,168,220,0.08);border-radius:9px;padding:10px 11px">
+                <div style="font-size:10px;color:#5a6088;letter-spacing:0.04em;text-transform:uppercase">Runtime</div>
+                <div style="font-family:'JetBrains Mono';font-size:13px;color:#a8aecf;margin-top:4px">{{ detail.runtime }}</div>
+              </div>
+            </div>
+
+            <div style="font-size:10.5px;color:#5a6088;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:10px">Events</div>
+            <div style="display:flex;flex-direction:column;gap:0;margin-bottom:22px">
+              <sc-for list="{{ detail.events }}" as="ev" hint-placeholder-count="3">
+                <div style="display:flex;gap:12px;align-items:flex-start;position:relative;padding-bottom:14px">
+                  <div style="display:flex;flex-direction:column;align-items:center;flex:none;padding-top:3px">
+                    <span style="width:7px;height:7px;border-radius:50%;background:{{ ev.color }};box-shadow:0 0 6px {{ ev.color }}"></span>
+                    <span style="width:1px;flex:1;background:rgba(160,168,220,0.12);margin-top:3px"></span>
+                  </div>
+                  <div style="flex:1;min-width:0;padding-bottom:2px">
+                    <div style="font-size:12.5px;color:#c7c9e5;line-height:1.35">{{ ev.label }}</div>
+                    <div style="font-family:'JetBrains Mono';font-size:10px;color:#5a6088;margin-top:2px">{{ ev.time }}</div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+
+            <button onClick="{{ togglePrompt }}" style="width:100%;display:flex;align-items:center;justify-content:space-between;background:none;border:none;padding:0 0 10px;cursor:pointer">
+              <span style="font-size:10.5px;color:#5a6088;letter-spacing:0.1em;text-transform:uppercase">Prompt</span>
+              <span style="color:#5a6088;font-size:11px;font-family:'JetBrains Mono'">{{ promptChev }}</span>
+            </button>
+            <sc-if value="{{ showPrompt }}" hint-placeholder-val="{{ true }}">
+              <div style="background:#0a0b16;border:1px solid rgba(160,168,220,0.1);border-radius:9px;padding:12px 13px;font-family:'JetBrains Mono';font-size:11.5px;line-height:1.6;color:#c7c9e5;white-space:pre-wrap;margin-bottom:18px">{{ detail.prompt }}</div>
+            </sc-if>
+
+            <button onClick="{{ toggleOutput }}" style="width:100%;display:flex;align-items:center;justify-content:space-between;background:none;border:none;padding:0 0 10px;cursor:pointer">
+              <span style="font-size:10.5px;color:#5a6088;letter-spacing:0.1em;text-transform:uppercase">Output</span>
+              <span style="color:#5a6088;font-size:11px;font-family:'JetBrains Mono'">{{ outputChev }}</span>
+            </button>
+            <sc-if value="{{ showOutput }}" hint-placeholder-val="{{ false }}">
+              <div style="background:#0a0b16;border:1px solid rgba(160,168,220,0.1);border-radius:9px;padding:12px 13px;font-family:'JetBrains Mono';font-size:11.5px;line-height:1.6;color:#c7c9e5;white-space:pre-wrap;margin-bottom:18px">{{ detail.output }}</div>
+            </sc-if>
+
+            <sc-if value="{{ detail.hasPr }}" hint-placeholder-val="{{ false }}">
+              <a href="{{ detail.prUrl }}" target="_blank" style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:rgba(158,206,106,0.1);border:1px solid rgba(158,206,106,0.24);border-radius:10px;color:#c5f882;text-decoration:none;font-size:13px;font-weight:500">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="6" cy="6" r="2.4"/><circle cx="6" cy="18" r="2.4"/><circle cx="18" cy="15" r="2.4"/><path d="M6 8.4v7.2M18 12.6V9a3 3 0 0 0-3-3h-4"/><path d="M12.5 4.5 11 6l1.5 1.5"/></svg>
+                <span style="flex:1;font-family:'JetBrains Mono';font-size:12px">{{ detail.prLabel }}</span>
+                <span style="color:#868db5">↗</span>
+              </a>
+            </sc-if>
+          </div>
+        </aside>
+      </sc-if>
+    </div>
+
+    <footer style="height:42px;flex:none;display:flex;align-items:center;gap:20px;padding:0 22px;border-top:1px solid rgba(160,168,220,0.08);background:#0a0b16;font-size:11.5px;color:#5a6088;z-index:20">
+      <div style="display:flex;align-items:center;gap:7px"><span>nodes</span><span style="font-family:'JetBrains Mono';font-size:12.5px;color:#a8aecf">{{ stat.total }}</span></div>
+      <div style="width:1px;height:14px;background:rgba(160,168,220,0.1)"></div>
+      <div style="display:flex;align-items:center;gap:7px"><span>running</span><span style="font-family:'JetBrains Mono';font-size:12.5px;color:#7aa2f7">{{ stat.running }}</span></div>
+      <div style="display:flex;align-items:center;gap:7px"><span>done</span><span style="font-family:'JetBrains Mono';font-size:12.5px;color:#9ece6a">{{ stat.done }}</span></div>
+      <div style="display:flex;align-items:center;gap:7px"><span>failed</span><span style="font-family:'JetBrains Mono';font-size:12.5px;color:#f7768e">{{ stat.failed }}</span></div>
+      <div style="width:1px;height:14px;background:rgba(160,168,220,0.1)"></div>
+      <div style="display:flex;align-items:center;gap:7px"><span>depth</span><span style="font-family:'JetBrains Mono';font-size:12.5px;color:#a8aecf">{{ stat.depth }}</span></div>
+      <div style="display:flex;align-items:center;gap:7px"><span>width</span><span style="font-family:'JetBrains Mono';font-size:12.5px;color:#a8aecf">{{ stat.width }}</span></div>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:7px"><span>elapsed</span><span style="font-family:'JetBrains Mono';font-size:12.5px;color:#eef0ff">{{ stat.elapsed }}</span></div>
+    </footer>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{
+  &quot;accent&quot;: {&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#9ece6a&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Theme&quot;},
+  &quot;showMinimap&quot;: {&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Canvas&quot;},
+  &quot;curvedEdges&quot;: {&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Canvas&quot;}
+}">
+class Component extends DCLogic {
+  W = 216; H = 96;
+
+  state = {
+    positions: {}, panX: 0, panY: 0, zoom: 1,
+    selectedId: null, collapsed: {}, clock: 0,
+    vw: 900, vh: 560, showPrompt: true, showOutput: false, runOpen: false
+  };
+
+  // ---- run data (a real SSE feed could replace this by pushing the same shapes) ----
+  base = [
+    { id:'n1', title:'project-lead', agent:'coordinator', runtime:'codex', model:'gpt-5.5', workerId:'wrk-0a1', hasChildren:true,
+      prompt:'You are project-lead. Break the request into parallel subtasks,\ndelegate to worker agents, then integrate and open a PR.',
+      output:'Planned 3 subtasks:\n  · implement: search\n  · implement: delete\n  · implement: export --json\nDelegated to 3 workers.',
+      events:[{t:0,label:'coordinator started'},{t:0.4,label:'planned 3 subtasks'},{t:2.2,label:'delegated to 3 workers'}] },
+    { id:'n2', parentId:'n1', title:'implement: search', agent:'worker', runtime:'claude', model:'claude-4.5', workerId:'wrk-1c2',
+      prompt:'Implement fuzzy search over the item index with ranked results.',
+      output:'src/search/index.ts  (+142)\nsrc/search/rank.ts   (+61)\ntests: 22 passed ✓',
+      events:[{t:2.2,label:'worker materialized'},{t:2.7,label:'reading repo'},{t:5.2,label:'succeeded · 2 files'}] },
+    { id:'n3', parentId:'n1', title:'implement: delete', agent:'worker', runtime:'kimi', model:'k2-0711', workerId:'wrk-2d3',
+      prompt:'Implement soft-delete with a 10s undo window.',
+      output:'src/store/delete.ts  (+88)\n[retry] flaky test isolated ✓\ntests: 14 passed ✓',
+      events:[{t:2.2,label:'worker materialized'},{t:5.0,label:'failed: flaky test'},{t:5.6,label:'retry started'},{t:8.0,label:'succeeded'}] },
+    { id:'n4', parentId:'n1', title:'implement: export --json', agent:'worker', runtime:'codex', model:'gpt-5.5', workerId:'wrk-3e4',
+      prompt:'Add an `export --json` CLI command with a stable schema.',
+      output:'src/cli/export.ts  (+96)\nschema.json        (+40)\ntests: 9 passed ✓',
+      events:[{t:2.2,label:'worker materialized'},{t:4.0,label:'writing schema'},{t:6.4,label:'succeeded · 2 files'}] },
+    { id:'n5', deps:['n2','n3','n4'], title:'integrate + review + open PR', agent:'finale', runtime:'codex', model:'gpt-5.5', workerId:'wrk-4f5',
+      prompt:'Integrate all worker branches, run review, resolve conflicts,\nand open a pull request.',
+      output:'✓ merged 3 branches\n✓ resolved 2 conflicts\n✓ review passed · 148 tests\n→ opened PR #482',
+      events:[{t:8.0,label:'deps satisfied'},{t:8.5,label:'merging branches'},{t:10.0,label:'review passed'},{t:11.5,label:'PR #482 opened'}] },
+    { id:'n6', deps:['n5'], title:'continuation / synthesize', agent:'worker', runtime:'claude', model:'claude-4.5', workerId:'wrk-5a6',
+      prompt:'Synthesize the results and propose follow-up work.',
+      output:'Summary drafted.\nProposed 3 follow-ups:\n  · pagination for search\n  · bulk delete\n  · export --csv',
+      events:[{t:11.5,label:'started'},{t:13.0,label:'drafting summary'},{t:14.5,label:'synthesis complete'}] }
+  ];
+  EDGES = [
+    {s:'n1',t:'n2'},{s:'n1',t:'n3'},{s:'n1',t:'n4'},
+    {s:'n2',t:'n5'},{s:'n3',t:'n5'},{s:'n4',t:'n5'},{s:'n5',t:'n6'}
+  ];
+  LOOP = 19;
+
+  componentDidMount() {
+    this.byId = Object.fromEntries(this.base.map(n => [n.id, n]));
+    this.startClock();
+    this.setState({ positions: this.fallbackLayout() }, () => this.fit());
+    this.initLayout(true);
+    window.addEventListener('resize', this.onResize);
+  }
+  componentWillUnmount() {
+    clearInterval(this._t);
+    window.removeEventListener('resize', this.onResize);
+  }
+
+  // wall-clock driven so it self-corrects and survives hot-reload / re-mount
+  startClock() {
+    if (this._t) return;
+    if (this._wall == null) this._wall = Date.now();
+    this._t = setInterval(() => {
+      const c = ((Date.now() - this._wall) / 1000) % this.LOOP;
+      this.setState({ clock: c });
+    }, 100);
+  }
+
+  onResize = () => {
+    const el = this._canvas;
+    if (el) { const r = el.getBoundingClientRect(); this.setState({ vw: r.width, vh: r.height }); }
+  };
+  canvasRef = (el) => {
+    if (el && !this._canvas) {
+      this._canvas = el;
+      const r = el.getBoundingClientRect();
+      this.setState({ vw: r.width, vh: r.height });
+    }
+  };
+
+  // ---- simulation: deterministic state of the run at virtual time p ----
+  simulate(p) {
+    const m = {};
+    m.n1 = p < 2.2 ? {s:'running',st:0} : {s:'succeeded',st:0,en:2.2};
+    m.n2 = p < 2.2 ? {s:'queued'} : p < 5.2 ? {s:'running',st:2.2} : {s:'succeeded',st:2.2,en:5.2};
+    m.n3 = p < 2.2 ? {s:'queued'} : p < 5.0 ? {s:'running',st:2.2} : p < 5.6 ? {s:'failed',st:2.2,en:5.0} : p < 8.0 ? {s:'running',st:5.6} : {s:'succeeded',st:2.2,en:8.0};
+    m.n4 = p < 2.2 ? {s:'queued'} : p < 6.4 ? {s:'running',st:2.2} : {s:'succeeded',st:2.2,en:6.4};
+    m.n5 = p < 8.0 ? {s:'blocked'} : p < 11.5 ? {s:'running',st:8.0} : {s:'succeeded',st:8.0,en:11.5,pr:'https://github.com/acme/webapp/pull/482'};
+    m.n6 = p < 11.5 ? {s:'queued'} : p < 14.5 ? {s:'running',st:11.5} : {s:'succeeded',st:11.5,en:14.5};
+    return m;
+  }
+
+  colors() {
+    const accent = this.props.accent || '#9ece6a';
+    return {
+      queued:{c:'#5a6088',g:'rgba(90,96,136,0.0)'},
+      running:{c:'#7aa2f7',g:'rgba(122,162,247,0.5)'},
+      succeeded:{c:accent,g:'rgba(158,206,106,0.42)'},
+      failed:{c:'#f7768e',g:'rgba(247,118,142,0.5)'},
+      blocked:{c:'#e0af68',g:'rgba(224,175,104,0.4)'},
+      cancelled:{c:'#5a6088',g:'rgba(90,96,136,0.0)'}
+    };
+  }
+
+  isHidden(n, collapsed) { return n.parentId && collapsed[n.parentId]; }
+  visibleNodes() { return this.base.filter(n => !this.isHidden(n, this.state.collapsed)); }
+  visibleEdges() {
+    const vis = new Set(this.visibleNodes().map(n => n.id));
+    return this.EDGES.filter(e => vis.has(e.s) && vis.has(e.t));
+  }
+
+  fallbackLayout() {
+    // synchronous depth-based grid so nodes never pile at 0,0 before elk resolves
+    const vis = this.visibleNodes();
+    const ids = new Set(vis.map(n => n.id));
+    const depth = {};
+    const getDepth = (n, seen) => {
+      if (depth[n.id] != null) return depth[n.id];
+      if (seen.has(n.id)) return 0;
+      seen.add(n.id);
+      const parents = [];
+      if (n.parentId && ids.has(n.parentId)) parents.push(n.parentId);
+      (n.deps || []).forEach(d => { if (ids.has(d)) parents.push(d); });
+      let d = 0;
+      parents.forEach(pid => { d = Math.max(d, getDepth(this.byId[pid], seen) + 1); });
+      depth[n.id] = d;
+      return d;
+    };
+    vis.forEach(n => getDepth(n, new Set()));
+    const cols = {};
+    vis.forEach(n => { (cols[depth[n.id]] = cols[depth[n.id]] || []).push(n.id); });
+    const gapX = this.W + 128, gapY = this.H + 38;
+    const pos = {};
+    Object.keys(cols).forEach(k => {
+      const col = cols[k];
+      col.forEach((id, i) => {
+        pos[id] = { x: (+k) * gapX, y: (i - (col.length - 1) / 2) * gapY };
+      });
+    });
+    return pos;
+  }
+
+  async computeLayout(nodeIds, edges) {
+    for (let i = 0; i < 40 && !window.ELK; i++) await new Promise(r => setTimeout(r, 80));
+    if (!window.ELK) return null;
+    const elk = new window.ELK();
+    const g = {
+      id: 'root',
+      layoutOptions: {
+        'elk.algorithm': 'layered', 'elk.direction': 'RIGHT',
+        'elk.layered.spacing.nodeNodeBetweenLayers': '128',
+        'elk.spacing.nodeNode': '38',
+        'elk.layered.spacing.edgeNodeBetweenLayers': '38',
+        'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX'
+      },
+      children: nodeIds.map(id => ({ id, width: this.W, height: this.H })),
+      edges: edges.map((e, i) => ({ id: 'e' + i, sources: [e.s], targets: [e.t] }))
+    };
+    const res = await elk.layout(g);
+    const pos = {};
+    (res.children || []).forEach(c => { pos[c.id] = { x: c.x, y: c.y }; });
+    return pos;
+  }
+
+  async initLayout(doFit) {
+    const pos = await this.computeLayout(this.visibleNodes().map(n => n.id), this.visibleEdges());
+    if (!pos) return;
+    this.setState({ positions: pos }, () => { if (doFit) this.fit(); });
+  }
+
+  fit = () => {
+    const ps = Object.values(this.state.positions);
+    if (!ps.length) return;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    ps.forEach(p => {
+      minX = Math.min(minX, p.x); minY = Math.min(minY, p.y);
+      maxX = Math.max(maxX, p.x + this.W); maxY = Math.max(maxY, p.y + this.H);
+    });
+    const cw = maxX - minX, ch = maxY - minY;
+    const padX = 90, padY = 70;
+    const rightRoom = this.state.selectedId ? 360 : 0;
+    let z = Math.min((this.state.vw - rightRoom - padX * 2) / cw, (this.state.vh - padY * 2) / ch);
+    z = Math.min(z, 1.05); z = Math.max(z, 0.3);
+    const panX = ((this.state.vw - rightRoom) - cw * z) / 2 - minX * z;
+    const panY = (this.state.vh - ch * z) / 2 - minY * z;
+    this.setState({ zoom: z, panX, panY });
+  };
+
+  // ---- pan / zoom ----
+  onDown = (e) => {
+    this._drag = { x: e.clientX, y: e.clientY, px: this.state.panX, py: this.state.panY, moved: false };
+    this._dragging = true;
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {}
+  };
+  onMove = (e) => {
+    if (!this._dragging) return;
+    const d = this._drag;
+    this.setState({ panX: d.px + (e.clientX - d.x), panY: d.py + (e.clientY - d.y) });
+  };
+  onUp = () => { this._dragging = false; };
+  onWheel = (e) => {
+    e.preventDefault();
+    const el = this._canvas; if (!el) return;
+    const r = el.getBoundingClientRect();
+    const mx = e.clientX - r.left, my = e.clientY - r.top;
+    const z = this.state.zoom;
+    const nz = Math.min(2.4, Math.max(0.3, z * (e.deltaY < 0 ? 1.1 : 0.9)));
+    const wx = (mx - this.state.panX) / z, wy = (my - this.state.panY) / z;
+    this.setState({ zoom: nz, panX: mx - wx * nz, panY: my - wy * nz });
+  };
+  zoomBy(f) {
+    const z = this.state.zoom, nz = Math.min(2.4, Math.max(0.3, z * f));
+    const cx = this.state.vw / 2, cy = this.state.vh / 2;
+    const wx = (cx - this.state.panX) / z, wy = (cy - this.state.panY) / z;
+    this.setState({ zoom: nz, panX: cx - wx * nz, panY: cy - wy * nz });
+  }
+  zoomIn = () => this.zoomBy(1.2);
+  zoomOut = () => this.zoomBy(0.83);
+
+  toggleRun = () => this.setState(s => ({ runOpen: !s.runOpen }));
+  closePanel = () => this.setState({ selectedId: null });
+  togglePrompt = () => this.setState(s => ({ showPrompt: !s.showPrompt }));
+  toggleOutput = () => this.setState(s => ({ showOutput: !s.showOutput }));
+  stop = (e) => e.stopPropagation();
+
+  fmtRun(p) {
+    const s = Math.floor(p);
+    return '00:' + String(s).padStart(2, '0');
+  }
+
+  renderVals() {
+    if (!this._t) this.startClock();
+    const R = React.createElement;
+    const p = this.state.clock;
+    const sim = this.simulate(p);
+    const CO = this.colors();
+    const pos = this.state.positions;
+    const collapsed = this.state.collapsed;
+    const vis = this.visibleNodes();
+    const curved = this.props.curvedEdges !== false;
+
+    // ---- nodes ----
+    const nodes = vis.map(n => {
+      const st = sim[n.id] || { s: 'queued' };
+      const s = st.s;
+      const col = CO[s] || CO.queued;
+      const P = pos[n.id] || { x: 0, y: 0 };
+      const running = s === 'running';
+      const dim = s === 'queued' || s === 'blocked';
+      let elapsed = '—';
+      if (st.st != null) {
+        let e = (st.en != null ? Math.min(st.en, p) : p) - st.st;
+        if (e < 0) e = 0;
+        elapsed = e.toFixed(1) + 's';
       }
-      main {
-        text-align: center;
+      const isSel = this.state.selectedId === n.id;
+      // card visuals only — no positioning (the foreignObject's x/y attrs place it)
+      const cardStyle = {
+        boxSizing: 'border-box', width: '100%', height: '100%', padding: '11px 13px',
+        display: 'flex', flexDirection: 'column', gap: '5px',
+        background: 'linear-gradient(180deg,#14172a,#0f1120)',
+        border: '1px solid rgba(160,168,220,0.12)',
+        borderLeft: '3px solid ' + col.c, borderRadius: '11px',
+        boxShadow: isSel
+          ? '0 0 0 1.5px ' + col.c + ',0 24px 60px rgba(0,0,0,0.55)'
+          : '0 12px 34px rgba(0,0,0,0.45)',
+        cursor: 'pointer', opacity: dim ? 0.62 : 1,
+        transition: 'opacity .5s ease, box-shadow .3s ease',
+        color: '#a8aecf', '--gc': col.g,
+        animation: running ? 'runpulse 1.9s ease-in-out infinite' : 'none'
+      };
+      const dotStyle = {
+        width: '9px', height: '9px', borderRadius: '50%', background: col.c, flex: 'none',
+        boxShadow: dim ? 'none' : '0 0 9px ' + col.g,
+        animation: running ? 'dotpulse 1.4s ease-in-out infinite' : 'none'
+      };
+      const childBadge = collapsed[n.id]
+        ? '+' + this.base.filter(x => x.parentId === n.id).length
+        : '';
+      return {
+        id: n.id, title: n.title, sub: n.runtime + ' · ' + (n.model || '—'),
+        elapsedLabel: elapsed, stateColor: col.c,
+        x: P.x, y: P.y, cardStyle, dotStyle,
+        showWorker: s !== 'queued' && s !== 'blocked', workerLabel: n.workerId,
+        hasChildren: !!n.hasChildren, collapsed: !!collapsed[n.id], childBadge,
+        chev: collapsed[n.id] ? '▸' : '▾',
+        stop: this.stop,
+        onClick: (e) => { e.stopPropagation(); if (this._drag && this._drag.moved) return; this.setState({ selectedId: n.id }); },
+        onToggle: (e) => {
+          e.stopPropagation();
+          this.setState(prev => {
+            const c = { ...prev.collapsed }; c[n.id] = !c[n.id]; return { collapsed: c };
+          }, () => this.initLayout(false));
+        }
+      };
+    });
+
+    // ---- edges (SVG element) ----
+    let maxX = 1200, maxY = 700;
+    Object.values(pos).forEach(P => { maxX = Math.max(maxX, P.x + this.W + 220); maxY = Math.max(maxY, P.y + this.H + 220); });
+    const eBase = 'rgba(160,168,220,0.2)';
+    const paths = this.visibleEdges().map((e, i) => {
+      const a = pos[e.s], b = pos[e.t];
+      if (!a || !b) return null;
+      const sx = a.x + this.W, sy = a.y + this.H / 2;
+      const tx = b.x, ty = b.y + this.H / 2;
+      const cp = Math.max(46, (tx - sx) * 0.5);
+      const d = curved
+        ? `M ${sx} ${sy} C ${sx + cp} ${sy}, ${tx - cp} ${ty}, ${tx} ${ty}`
+        : `M ${sx} ${sy} L ${sx + cp} ${sy} L ${sx + cp} ${ty} L ${tx} ${ty}`;
+      const tRun = (sim[e.t] || {}).s === 'running';
+      return R('path', {
+        key: i, d, fill: 'none',
+        stroke: tRun ? '#7aa2f7' : eBase,
+        strokeWidth: tRun ? 1.9 : 1.3,
+        strokeDasharray: tRun ? '5 7' : undefined,
+        strokeLinecap: 'round',
+        opacity: tRun ? 0.95 : 0.6,
+        style: tRun ? { animation: 'dashflow 0.8s linear infinite' } : undefined
+      });
+    }).filter(Boolean);
+    const edgesEl = R('svg', {
+      width: maxX, height: maxY,
+      style: { position: 'absolute', left: 0, top: 0, overflow: 'visible', pointerEvents: 'none' }
+    }, paths);
+
+    // Node cards live inside an SVG as <foreignObject>, positioned by x/y ATTRIBUTES.
+    // The runtime sanitizes CSS position/left/top/margin/transform on rendered elements,
+    // but SVG geometry attributes are untouched — this is the reliable way to place them.
+    const mono = 'JetBrains Mono';
+    const XH = 'http://www.w3.org/1999/xhtml';
+    const nodeFOs = nodes.map(n =>
+      R('foreignObject', { key: n.id, x: n.x, y: n.y, width: this.W, height: this.H, style: { overflow: 'visible' } },
+        R('div', { xmlns: XH, onPointerDown: n.stop, onClick: n.onClick, style: n.cardStyle }, [
+          R('div', { key: 'r1', xmlns: XH, style: { display: 'flex', alignItems: 'center', gap: '8px' } }, [
+            R('span', { key: 'dot', xmlns: XH, style: n.dotStyle }),
+            R('span', { key: 't', xmlns: XH, style: { flex: 1, minWidth: 0, fontSize: '13px', fontWeight: 600, color: '#eef0ff', fontFamily: 'Inter', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }, n.title),
+            n.hasChildren ? R('button', { key: 'c', xmlns: XH, onClick: n.onToggle, onPointerDown: n.stop, style: { width: '20px', height: '20px', flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(160,168,220,0.08)', border: '1px solid rgba(160,168,220,0.14)', borderRadius: '6px', color: '#868db5', fontSize: '10px', cursor: 'pointer', lineHeight: 1, padding: 0 } }, n.chev) : null
+          ]),
+          R('div', { key: 'r2', xmlns: XH, style: { fontFamily: mono, fontSize: '11px', color: '#868db5', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }, n.sub),
+          R('div', { key: 'r3', xmlns: XH, style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '1px', gap: '6px' } }, [
+            R('span', { key: 'e', xmlns: XH, style: { fontFamily: mono, fontSize: '11px', color: n.stateColor } }, n.elapsedLabel),
+            n.showWorker ? R('span', { key: 'w', xmlns: XH, style: { fontFamily: mono, fontSize: '9.5px', letterSpacing: '0.02em', color: '#7c83a8', background: 'rgba(160,168,220,0.07)', border: '1px solid rgba(160,168,220,0.12)', padding: '2px 6px', borderRadius: '5px', whiteSpace: 'nowrap' } }, '\u25B2 ' + n.workerLabel) : null
+          ]),
+          n.collapsed ? R('div', { key: 'b', xmlns: XH, style: { position: 'absolute', top: '-9px', right: '-9px', background: '#7aa2f7', color: '#050609', fontFamily: mono, fontSize: '10px', fontWeight: 600, padding: '2px 7px', borderRadius: '9px', boxShadow: '0 4px 12px rgba(0,0,0,0.4)' } }, n.childBadge) : null
+        ])
+      )
+    );
+    const nodesEl = R('svg', {
+      width: maxX, height: maxY,
+      style: { position: 'absolute', left: 0, top: 0, overflow: 'visible' }
+    }, nodeFOs);
+
+    // ---- minimap ----
+    let minimapEl = null;
+    if (this.props.showMinimap !== false && Object.keys(pos).length) {
+      const mmW = 178, mmH = 112, pad = 9;
+      let minX = Infinity, minY = Infinity, mxX = -Infinity, mxY = -Infinity;
+      vis.forEach(n => {
+        const P = pos[n.id]; if (!P) return;
+        minX = Math.min(minX, P.x); minY = Math.min(minY, P.y);
+        mxX = Math.max(mxX, P.x + this.W); mxY = Math.max(mxY, P.y + this.H);
+      });
+      const cw = Math.max(1, mxX - minX), ch = Math.max(1, mxY - minY);
+      const sc = Math.min((mmW - pad * 2) / cw, (mmH - pad * 2) / ch);
+      const rects = vis.map(n => {
+        const P = pos[n.id]; if (!P) return null;
+        const st = sim[n.id] || { s: 'queued' };
+        return R('rect', {
+          key: n.id, x: pad + (P.x - minX) * sc, y: pad + (P.y - minY) * sc,
+          width: this.W * sc, height: this.H * sc, rx: 2,
+          fill: (CO[st.s] || CO.queued).c, opacity: 0.85
+        });
+      }).filter(Boolean);
+      const z = this.state.zoom;
+      const vx = -this.state.panX / z, vy = -this.state.panY / z;
+      const vw2 = this.state.vw / z, vh2 = this.state.vh / z;
+      const vpRect = R('rect', {
+        key: 'vp', x: pad + (vx - minX) * sc, y: pad + (vy - minY) * sc,
+        width: vw2 * sc, height: vh2 * sc, rx: 2,
+        fill: 'rgba(158,206,106,0.08)', stroke: '#9ece6a', strokeWidth: 1
+      });
+      minimapEl = R('div', {
+        style: {
+          position: 'absolute', right: 16, bottom: 16, width: mmW, height: mmH,
+          background: 'rgba(10,11,22,0.85)', border: '1px solid rgba(160,168,220,0.14)',
+          borderRadius: 9, overflow: 'hidden', zIndex: 6, backdropFilter: 'blur(6px)',
+          boxShadow: '0 12px 34px rgba(0,0,0,0.4)'
+        }
+      }, R('svg', { width: mmW, height: mmH }, [...rects, vpRect]));
+    }
+
+    // ---- stats ----
+    const all = this.base.map(n => sim[n.id] || { s: 'queued' });
+    const running = all.filter(x => x.s === 'running').length;
+    const done = all.filter(x => x.s === 'succeeded').length;
+    const failed = all.filter(x => x.s === 'failed').length;
+    const cols = {};
+    vis.forEach(n => { const P = pos[n.id]; if (P) { const k = Math.round(P.x / 20); cols[k] = (cols[k] || 0) + 1; } });
+    const colVals = Object.values(cols);
+    const stat = {
+      total: this.base.length, running, done, failed,
+      depth: colVals.length || 4,
+      width: colVals.length ? Math.max(...colVals) : 3,
+      elapsed: this.fmtRun(p)
+    };
+
+    // ---- detail panel ----
+    const sel = this.state.selectedId ? this.byId[this.state.selectedId] : null;
+    let detail = {};
+    if (sel) {
+      const st = sim[sel.id] || { s: 'queued' };
+      const col = CO[st.s] || CO.queued;
+      let elapsed = '—';
+      if (st.st != null) {
+        let e = (st.en != null ? Math.min(st.en, p) : p) - st.st;
+        if (e < 0) e = 0; elapsed = e.toFixed(1) + 's';
       }
-      h1 {
-        font-weight: 600;
-        margin-bottom: 0.25rem;
-      }
-      p {
-        color: #8b949e;
-      }
-    </style>
-  </head>
-  <body>
-    <main>
-      <h1>gitmoot dashboard</h1>
-      <p>UI pending</p>
-    </main>
-  </body>
+      const runningNow = st.s === 'running';
+      const finished = st.s === 'succeeded' || st.s === 'failed';
+      const evShown = sel.events.filter(ev => ev.t <= p + 0.05).map(ev => ({
+        time: '+' + ev.t.toFixed(1) + 's',
+        label: ev.label,
+        color: /fail/i.test(ev.label) ? '#f7768e' : /succeed|opened|complete|passed/i.test(ev.label) ? (this.props.accent || '#9ece6a') : '#7aa2f7'
+      }));
+      detail = {
+        title: sel.title, sub: sel.runtime + ' · ' + (sel.model || '—'),
+        runtime: sel.runtime, worker: sel.workerId,
+        dotStyle: { width: '11px', height: '11px', borderRadius: '50%', background: col.c, flex: 'none', marginTop: '4px', boxShadow: '0 0 10px ' + col.g, animation: runningNow ? 'dotpulse 1.4s ease-in-out infinite' : 'none' },
+        stateLabel: st.s, stateColor: col.c,
+        stateBg: 'color-mix(in srgb,' + col.c + ' 12%, transparent)',
+        stateBorder: 'color-mix(in srgb,' + col.c + ' 30%, transparent)',
+        startedLabel: st.st != null ? '+' + st.st.toFixed(1) + 's' : '—',
+        elapsedLabel: elapsed,
+        events: evShown.length ? evShown : [{ time: '—', label: 'waiting to start', color: '#5a6088' }],
+        prompt: sel.prompt,
+        output: finished ? sel.output : (runningNow ? '… running …' : '… queued …'),
+        hasPr: !!st.pr, prUrl: st.pr || '#', prLabel: st.pr ? st.pr.replace('https://github.com/', '') : ''
+      };
+    }
+
+    return {
+      edgesEl, nodesEl, minimapEl, stat, detail,
+      worldTransform: `translate(${this.state.panX}px,${this.state.panY}px) scale(${this.state.zoom})`,
+      canvasRef: this.canvasRef,
+      onDown: this.onDown, onMove: this.onMove, onUp: this.onUp, onWheel: this.onWheel,
+      zoomIn: this.zoomIn, zoomOut: this.zoomOut, fit: this.fit,
+      toggleRun: this.toggleRun, runOpen: this.state.runOpen,
+      runTitle: 'acme/webapp',
+      hasSelected: !!sel,
+      closePanel: this.closePanel,
+      togglePrompt: this.togglePrompt, toggleOutput: this.toggleOutput,
+      showPrompt: this.state.showPrompt, showOutput: this.state.showOutput,
+      promptChev: this.state.showPrompt ? '▾' : '▸',
+      outputChev: this.state.showOutput ? '▾' : '▸'
+    };
+  }
+}
+</script>
+</body>
 </html>
