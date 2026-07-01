@@ -48,12 +48,30 @@ type State struct {
 	Nodes []Node `json:"nodes"` // edges are derived client-side from ParentID + Deps
 }
 
-// RunSummary is a lightweight listing entry for a run.
+// RunSummary is a lightweight listing entry for a run. Beyond identity/state it
+// carries enough shape for the Runs column to group, disambiguate, and search
+// runs without fetching each run's full graph: kind/significance drive the
+// Active/Orchestrations/one-shots sectioning, and the counts/snippet
+// disambiguate same-titled runs.
 type RunSummary struct {
-	RunID   string    `json:"runId"`
-	Title   string    `json:"title"`
-	State   NodeState `json:"state"`
-	Updated int64     `json:"updated"` // epoch milliseconds
+	RunID string    `json:"runId"`
+	Title string    `json:"title"`
+	State NodeState `json:"state"`
+	// Kind is the run's entrypoint: ask | review | implement | orchestrate | goal.
+	Kind string `json:"kind,omitempty"`
+	// Significance is "orchestration" for a multi-node delegation tree, else
+	// "one-shot" for a single-node ask/review (used to fold noise in the UI).
+	Significance string `json:"significance,omitempty"`
+	Agent        string `json:"agent,omitempty"` // coordinator/agent name
+	Repo         string `json:"repo,omitempty"`
+	PR           int    `json:"pr,omitempty"`
+	NodeCount    int    `json:"nodeCount"`          // jobs in the run tree
+	Depth        int    `json:"depth"`              // delegation levels (1-based)
+	DoneCount    int    `json:"doneCount"`          // finished (terminal) nodes
+	Snippet      string `json:"snippet,omitempty"`  // first line of the root prompt
+	Started      int64  `json:"started,omitempty"`  // epoch milliseconds
+	Updated      int64  `json:"updated"`            // epoch milliseconds
+	Duration     int64  `json:"duration,omitempty"` // milliseconds (updated-started)
 }
 
 // DataSource is the read-only feed the dashboard renders. Implementations must

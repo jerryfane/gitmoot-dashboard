@@ -43,6 +43,11 @@
       <span style="width:5px;height:5px;border-radius:50%;background:#9ece6a;box-shadow:0 0 8px rgba(158,206,106,0.7)"></span>
     </a>
 
+    <div onClick="{{ toggleRuns }}" title="Toggle the Runs column" style="{{ runsNavStyle }}">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="7" height="16" rx="1.5"/><path d="M13.5 7h7M13.5 12h7M13.5 17h4"/></svg>
+      <span style="flex:1">Runs</span>
+    </div>
+
     <div title="Coming soon" style="display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:9px;color:#5a6088;font-size:13.5px;cursor:not-allowed;margin-top:2px">
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8 6h11M8 12h11M8 18h11"/><circle cx="4" cy="6" r="1.1"/><circle cx="4" cy="12" r="1.1"/><circle cx="4" cy="18" r="1.1"/></svg>
       <span style="flex:1">Jobs</span><span style="font-size:8.5px;font-family:'JetBrains Mono';color:#5a6088;border:1px solid rgba(160,168,220,0.12);padding:1px 5px;border-radius:5px">soon</span>
@@ -66,35 +71,19 @@
     </div>
   </aside>
 
+  {{ runsColumnEl }}
+
   <div style="flex:1;display:flex;flex-direction:column;min-width:0">
 
     <header style="height:58px;flex:none;display:flex;align-items:center;gap:16px;padding:0 20px;border-bottom:1px solid rgba(160,168,220,0.08);background:rgba(10,11,22,0.55);backdrop-filter:blur(10px);z-index:20">
       <div style="font-family:'Space Grotesk';font-weight:700;font-size:19px;color:#eef0ff;letter-spacing:-0.02em;display:flex;align-items:baseline">gitmoot<span style="color:#9ece6a">.</span></div>
       <div style="width:1px;height:22px;background:rgba(160,168,220,0.12)"></div>
 
-      <div style="position:relative">
-        <button onClick="{{ toggleRun }}" style="display:flex;align-items:center;gap:9px;padding:7px 12px;background:#14172a;border:1px solid rgba(160,168,220,0.14);border-radius:9px;color:#eef0ff;font-size:12.5px;font-family:Inter;cursor:pointer">
-          <span style="width:7px;height:7px;border-radius:50%;background:#9ece6a;box-shadow:0 0 8px rgba(158,206,106,0.6)"></span>
-          <span style="font-family:'JetBrains Mono';font-size:12px">{{ runTitle }}</span>
-          <span style="color:#5a6088;font-size:10px">▾</span>
-        </button>
-        <sc-if value="{{ runOpen }}" hint-placeholder-val="{{ false }}">
-          <div style="position:absolute;top:44px;left:0;width:300px;background:rgba(15,17,32,0.96);border:1px solid rgba(160,168,220,0.14);border-radius:11px;padding:8px;box-shadow:0 24px 60px rgba(0,0,0,0.6);z-index:40;backdrop-filter:blur(12px)">
-            <input value="{{ runFilter }}" onInput="{{ setRunFilter }}" placeholder="Filter runs…" style="width:100%;box-sizing:border-box;padding:7px 10px;margin-bottom:7px;background:#0a0b16;border:1px solid rgba(160,168,220,0.14);border-radius:8px;color:#eef0ff;font-family:'JetBrains Mono';font-size:11.5px;outline:none">
-            <div style="max-height:320px;overflow-y:auto;display:flex;flex-direction:column;gap:2px">
-              <sc-for list="{{ runs }}" as="run" hint-placeholder-count="3">
-                <div onClick="{{ run.onClick }}" style="{{ run.rowStyle }}">
-                  <span style="{{ run.dotStyle }}"></span>
-                  <span style="flex:1;min-width:0;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:{{ run.titleColor }}">{{ run.title }}</span>
-                  <span style="font-family:'JetBrains Mono';font-size:10px;color:#5a6088;flex:none">{{ run.timeAgo }}</span>
-                </div>
-              </sc-for>
-            </div>
-            <sc-if value="{{ noRuns }}" hint-placeholder-val="{{ false }}">
-              <div style="padding:10px 11px;color:#5a6088;font-size:11.5px">No runs found</div>
-            </sc-if>
-          </div>
-        </sc-if>
+      <div style="display:flex;align-items:center;gap:9px;min-width:0">
+        <span style="font-family:'JetBrains Mono';font-size:12px;color:#868db5;white-space:nowrap">{{ crumbRepo }}</span>
+        <span style="color:#5a6088;font-size:12px">›</span>
+        <span style="{{ crumbDotStyle }}"></span>
+        <span style="font-family:'JetBrains Mono';font-size:12px;color:#eef0ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ crumbTitle }}</span>
       </div>
 
       <div style="margin-left:auto;display:flex;align-items:center;gap:8px;padding:6px 12px;border-radius:20px;background:rgba(158,206,106,0.1);border:1px solid rgba(158,206,106,0.22)">
@@ -221,122 +210,90 @@ class Component extends DCLogic {
   state = {
     positions: {}, panX: 0, panY: 0, zoom: 1,
     selectedId: null, collapsed: {}, clock: 0,
-    vw: 900, vh: 560, showPrompt: true, showOutput: false, runOpen: false, runFilter: ''
+    vw: 900, vh: 560, showPrompt: true, showOutput: false,
+    // Runs column
+    runsOpen: true, runsQuery: '', facets: { status: [], kind: [], agent: [], repo: [] },
+    openFacet: null, oneShotsExpanded: false, oneShotLimit: 6,
+    selectedRunId: null, hoverRun: null, listLoading: true, listError: false
   };
 
-  // ---- live run data (populated from /api/state + /events; see connectLive) ----
-  base = [];
-  EDGES = [];
-  live = false;
+  // ---- run data (a real SSE feed could replace this by pushing the same shapes) ----
+  // ---- live data (populated from /api/state + /api/runs + /events) ----
+  base = [];          // graph nodes for the selected run (see applyState)
+  EDGES = [];         // graph edges (parentId / deps) for the selected run
+  LOOP = 1;           // legacy replay period; unused under the live wall clock
+  runs = [];          // RunSummary[] from /api/runs (see loadRuns)
   runTitleLive = '';
-  runsList = [];        // [{runId,title,state,updated}] from /api/runs (see connectLive)
-  currentRunId = '';    // the run currently displayed (from ?run= or resolved most-recent)
-  LOOP = 19;
+  MIN = 60000; HR = 3600000; DAY = 86400000;   // relTime() units
+    facetDefs = {
+    status: ['running','succeeded','failed','blocked','cancelled'],
+    kind:   ['orchestrate','goal','implement','ask','review'],
+    agent:  ['codex','claude','kimi'],
+    repo:   ['acme/webapp','quant/pricing','ops/waybread','data/warehouse']
+  };
+  facetLabels = { status:'Status', kind:'Kind', agent:'Agent', repo:'Repo' };
+  kindColors = { orchestrate:'#9ece6a', goal:'#bb9af7', implement:'#7aa2f7', ask:'#7dcfff', review:'#e0af68' };
+
+  relTime(ago) {
+    if (ago < 45000) return 'just now';
+    if (ago < this.HR) return Math.max(1, Math.round(ago / this.MIN)) + 'm ago';
+    if (ago < this.DAY) return Math.round(ago / this.HR) + 'h ago';
+    return Math.round(ago / this.DAY) + 'd ago';
+  }
 
   componentDidMount() {
-    this.byId = Object.fromEntries(this.base.map(n => [n.id, n]));
+    this.byId = {};
     this.startClock();
-    this.setState({ positions: this.fallbackLayout() }, () => this.fit());
-    this.initLayout(true);
+    let open = true;
+    try { const v = localStorage.getItem('gitmoot.runsOpen'); if (v != null) open = v === '1'; } catch (e) {}
+    this.setState({ runsOpen: open });
     window.addEventListener('resize', this.onResize);
     this.connectLive();
+    this.loadRuns();
   }
   componentWillUnmount() {
     clearInterval(this._t);
+    try { if (this._es) this._es.close(); } catch (e) {}
     window.removeEventListener('resize', this.onResize);
   }
 
-  // wall-clock driven so it self-corrects and survives hot-reload / re-mount
-  startClock() {
-    if (this._t) return;
-    this._t = setInterval(() => { this.setState({ clock: Date.now() / 1000 }); }, 1000);
-  }
-
-  onResize = () => {
-    const el = this._canvas;
-    if (el) { const r = el.getBoundingClientRect(); this.setState({ vw: r.width, vh: r.height }); }
-  };
-  canvasRef = (el) => {
-    if (el && !this._canvas) {
-      this._canvas = el;
-      const r = el.getBoundingClientRect();
-      this.setState({ vw: r.width, vh: r.height });
-    }
-  };
-
-  // ---- live state: read each node's real state/timestamps from the feed ----
-  simulate(p) {
-    const m = {};
-    for (const n of this.base) {
-      m[n.id] = {
-        s: n.state || 'queued',
-        st: (n.startedAt && n.startedAt > 0) ? n.startedAt / 1000 : null,
-        en: (n.endedAt && n.endedAt > 0) ? n.endedAt / 1000 : null,
-        pr: n.prUrl || null
-      };
-    }
-    return m;
-  }
-
-  // ---- live feed: fetch /api/state, subscribe /events (SSE), list /api/runs ----
+  // ---- live feed: /api/state (graph) + /events (SSE) + /api/runs (list) ----
   connectLive() {
     this.currentRunId = new URLSearchParams(location.search).get('run') || '';
     this.loadState();
     this.subscribeEvents();
-    this.loadRuns();
   }
-  // (re)open the SSE stream for the run currently in the ?run= query
   subscribeEvents() {
-    try { if (this._es) this._es.close(); } catch (_) {}
+    try { if (this._es) this._es.close(); } catch (e) {}
     try {
-      const run = new URLSearchParams(location.search).get('run') || '';
+      const run = this.currentRunId || '';
       this._es = new EventSource('/events' + (run ? '?run=' + encodeURIComponent(run) : ''));
       this._es.onmessage = (e) => { try { this.applyState(JSON.parse(e.data)); } catch (_) {} };
-    } catch (_) {}
+    } catch (e) {}
   }
   loadState() {
-    const run = new URLSearchParams(location.search).get('run') || '';
-    fetch('/api/state' + (run ? '?run=' + encodeURIComponent(run) : '')).then(r => r.ok ? r.json() : null).then(s => { if (s) this.applyState(s); }).catch(() => {});
+    const run = this.currentRunId || '';
+    fetch('/api/state' + (run ? '?run=' + encodeURIComponent(run) : ''))
+      .then(r => r.ok ? r.json() : null).then(s => { if (s) this.applyState(s); }).catch(() => {});
   }
-  // fetch the run list for the top-bar picker
   loadRuns() {
-    fetch('/api/runs').then(r => r.json()).then(rs => {
-      if (!Array.isArray(rs)) return;
-      this.runsList = rs;
-      if (!this.currentRunId && rs[0] && rs[0].runId) this.currentRunId = rs[0].runId;
-      const cur = rs.find(x => x.runId === this.currentRunId) || rs[0];
-      if (cur && cur.title) this.runTitleLive = cur.title;
-      this.forceUpdate();
-    }).catch(() => {});
-  }
-  // switch the whole view to another run: update ?run=, reload state + resubscribe
-  switchRun = (runId) => {
-    if (!runId || runId === this.currentRunId) { this.setState({ runOpen: false }); return; }
-    this.currentRunId = runId;
-    try {
-      const url = new URL(location.href);
-      url.searchParams.set('run', runId);
-      history.replaceState(null, '', url);
-    } catch (_) {}
-    const r = (this.runsList || []).find(x => x.runId === runId);
-    if (r && r.title) this.runTitleLive = r.title;
-    this._fitted = false;           // let the next state snapshot re-fit the graph
-    this.loadState();
-    this.subscribeEvents();
-    this.loadRuns();
-    this.setState({ runOpen: false, runFilter: '' });
-  };
-  setRunFilter = (e) => { const v = e && e.target ? e.target.value : ''; this.setState({ runFilter: v }); };
-  relTime(ms) {
-    if (!ms) return '';
-    let s = Math.floor((Date.now() - ms) / 1000);
-    if (s < 0) s = 0;
-    if (s < 60) return s + 's ago';
-    const m = Math.floor(s / 60);
-    if (m < 60) return m + 'm ago';
-    const h = Math.floor(m / 60);
-    if (h < 24) return h + 'h ago';
-    return Math.floor(h / 24) + 'd ago';
+    fetch('/api/runs').then(r => r.ok ? r.json() : []).then(rs => {
+      if (!Array.isArray(rs)) { this.setState({ listLoading: false }); return; }
+      const now = Date.now();
+      this.runs = rs.map(r => ({
+        runId: r.runId, title: r.title || r.runId, state: r.state || 'queued',
+        kind: r.kind || '', significance: r.significance || 'one-shot',
+        agent: r.agent || '', repo: r.repo || '', pr: r.pr || 0,
+        nodeCount: r.nodeCount || 0, depth: r.depth || 1, doneCount: r.doneCount || 0,
+        snippet: r.snippet || '', ago: Math.max(0, now - (r.updated || now))
+      }));
+      const uniq = (k) => Array.from(new Set(this.runs.map(r => r[k]).filter(Boolean)));
+      this.facetDefs = Object.assign({}, this.facetDefs, { agent: uniq('agent'), repo: uniq('repo') });
+      if (!this.currentRunId && this.runs[0]) this.currentRunId = this.runs[0].runId;
+      const patch = { listLoading: false, listError: false };
+      if (!this.state.selectedRunId && this.currentRunId) patch.selectedRunId = this.currentRunId;
+      this.setState(patch);
+    }).catch(() => this.setState({ listLoading: false, listError: true }));
   }
   applyState(s) {
     if (!s || !Array.isArray(s.nodes)) return;
@@ -344,7 +301,7 @@ class Component extends DCLogic {
       id: n.id, parentId: n.parentId || null, deps: (n.deps && n.deps.length) ? n.deps : null,
       title: n.title || n.id, agent: n.agent || '', runtime: n.runtime || '', model: n.model || '',
       workerId: n.workerId || '', prompt: n.prompt || '', output: n.output || '',
-      events: Array.isArray(n.events) ? n.events.map(ev => ({ t: ev.t, label: ev.label })) : [],
+      events: Array.isArray(n.events) ? n.events.map(ev => ({ t: (ev.t > 1e11 ? ev.t / 1000 : ev.t), label: ev.label })) : [],
       state: n.state || 'queued', startedAt: n.startedAt || 0, endedAt: n.endedAt || 0, prUrl: n.prUrl || null
     }));
     const ids = new Set(nodes.map(n => n.id));
@@ -359,14 +316,81 @@ class Component extends DCLogic {
     this.base = nodes;
     this.EDGES = edges;
     this.byId = Object.fromEntries(nodes.map(n => [n.id, n]));
-    this.live = true;
     if (s.runId) this.currentRunId = s.runId;
     if (s.title) this.runTitleLive = s.title;
     if (setChanged) { this.initLayout(!this._fitted); this._fitted = true; }
     this.forceUpdate();
   }
 
-  colors() {
+  // ---- Runs column interactions ----  // ---- Runs column interactions ----
+  toggleRuns = () => {
+    this.setState(s => {
+      const open = !s.runsOpen;
+      try { localStorage.setItem('gitmoot.runsOpen', open ? '1' : '0'); } catch (e) {}
+      return { runsOpen: open, openFacet: null };
+    }, () => setTimeout(this.remeasureFit, 40));
+  };
+  remeasureFit = () => {
+    const el = this._canvas; if (!el) return;
+    const r = el.getBoundingClientRect();
+    this.setState({ vw: r.width, vh: r.height }, () => this.fit());
+  };
+  setQuery = (e) => this.setState({ runsQuery: e.target.value });
+  clearQuery = () => this.setState({ runsQuery: '' });
+  toggleFacetPanel = (cat) => this.setState(s => ({ openFacet: s.openFacet === cat ? null : cat }));
+  toggleFacet = (cat, val) => this.setState(s => {
+    const cur = s.facets[cat]; const has = cur.includes(val);
+    return { facets: { ...s.facets, [cat]: has ? cur.filter(x => x !== val) : [...cur, val] } };
+  });
+  clearFacets = () => this.setState({ facets: { status: [], kind: [], agent: [], repo: [] }, runsQuery: '', openFacet: null });
+  selectRun = (id) => {
+    if (!id || id === this.state.selectedRunId) return;
+    this.currentRunId = id;
+    try { const url = new URL(location.href); url.searchParams.set('run', id); history.replaceState(null, '', url); } catch (e) {}
+    const r = (this.runs || []).find(x => x.runId === id);
+    if (r && r.title) this.runTitleLive = r.title;
+    this._fitted = false;                 // let the next snapshot re-fit the graph
+    this.setState({ selectedRunId: id, selectedId: null });
+    this.loadState();
+    this.subscribeEvents();
+  };
+  toggleOneShots = () => this.setState(s => ({ oneShotsExpanded: !s.oneShotsExpanded }));
+  loadMoreOneShots = () => this.setState(s => ({ oneShotLimit: s.oneShotLimit + 6 }));
+  setHoverRun = (id) => { if (this.state.hoverRun !== id) this.setState({ hoverRun: id }); };
+
+  // wall-clock driven so it self-corrects and survives hot-reload / re-mount
+  startClock() {
+    if (this._t) return;
+    this._t = setInterval(() => { this.setState({ clock: Date.now() / 1000 }); }, 1000);
+  }
+
+    onResize = () => {
+    const el = this._canvas;
+    if (el) { const r = el.getBoundingClientRect(); this.setState({ vw: r.width, vh: r.height }); }
+  };
+  canvasRef = (el) => {
+    if (el && !this._canvas) {
+      this._canvas = el;
+      const r = el.getBoundingClientRect();
+      this.setState({ vw: r.width, vh: r.height });
+    }
+  };
+
+  // ---- live state: each node's real state/timestamps come from the feed ----
+  simulate(p) {
+    const m = {};
+    for (const n of this.base) {
+      m[n.id] = {
+        s: n.state || 'queued',
+        st: (n.startedAt && n.startedAt > 0) ? n.startedAt / 1000 : null,
+        en: (n.endedAt && n.endedAt > 0) ? n.endedAt / 1000 : null,
+        pr: n.prUrl || null
+      };
+    }
+    return m;
+  }
+
+    colors() {
     const accent = this.props.accent || '#9ece6a';
     return {
       queued:{c:'#5a6088',g:'rgba(90,96,136,0.0)'},
@@ -500,11 +524,7 @@ class Component extends DCLogic {
   stop = (e) => e.stopPropagation();
 
   fmtRun(p) {
-    const s = Math.floor(p);
-    return '00:' + String(s).padStart(2, '0');
-  }
-
-  fmtRunElapsed() {
+    // real run wall-clock: earliest node start -> latest end (or now if running)
     const starts = this.base.map(n => n.startedAt || 0).filter(v => v > 0);
     if (!starts.length) return '—';
     const minStart = Math.min(...starts);
@@ -512,8 +532,211 @@ class Component extends DCLogic {
     const ends = this.base.map(n => n.endedAt || 0).filter(v => v > 0);
     const end = (!anyRunning && ends.length) ? Math.max(...ends) : Date.now();
     let s = Math.max(0, Math.floor((end - minStart) / 1000));
+    const h = Math.floor(s / 3600); s -= h * 3600;
     const m = Math.floor(s / 60); s = s % 60;
-    return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+    const mm = String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+    return h > 0 ? h + ':' + mm : mm;
+  }
+
+  // ---- Runs column (createElement: data-heavy list with filters, sections, states) ----
+  buildRunsColumn(sim, CO) {
+    if (!this.state.runsOpen) return null;
+    const R = React.createElement;
+    const S = this.state;
+    const mono = 'JetBrains Mono';
+    const HAIR = 'rgba(160,168,220,0.12)';
+    const q = S.runsQuery.trim().toLowerCase();
+
+    // live done-count for the active run reflects the real simulation
+    const liveDone = this.base.filter(n => (sim[n.id] || {}).s === 'succeeded').length;
+    const selId = this.state.selectedRunId || this.currentRunId;
+    const runs = this.runs.map(r => r.runId === selId ? { ...r, doneCount: liveDone, nodeCount: this.base.length || r.nodeCount } : r);
+
+    // filter: query over title + snippet, facets AND across categories / OR within
+    const facetActive = Object.values(S.facets).some(a => a.length);
+    const filtered = runs.filter(r => {
+      if (q && !(r.title.toLowerCase().includes(q) || r.snippet.toLowerCase().includes(q))) return false;
+      for (const cat of ['status', 'kind', 'agent', 'repo']) {
+        const sel = S.facets[cat]; if (!sel.length) continue;
+        const val = cat === 'status' ? r.state : r[cat];
+        if (!sel.includes(val)) return false;
+      }
+      return true;
+    });
+    const byNew = (a, b) => a.ago - b.ago;
+    const active = filtered.filter(r => r.state === 'running' || r.state === 'queued').sort(byNew);
+    const activeIds = new Set(active.map(r => r.runId));
+    const orch = filtered.filter(r => !activeIds.has(r.runId) && r.significance === 'orchestration').sort(byNew);
+    const oneShots = filtered.filter(r => !activeIds.has(r.runId) && r.significance === 'one-shot').sort(byNew);
+
+    // ---------- header ----------
+    const header = R('div', { key: 'hd', style: { display: 'flex', alignItems: 'center', padding: '17px 14px 11px', flex: 'none' } }, [
+      R('span', { key: 'l', style: { fontFamily: mono, fontSize: '10.5px', letterSpacing: '0.16em', color: '#868db5', fontWeight: 600 } }, 'RUNS'),
+      R('span', { key: 'c', style: { marginLeft: '8px', fontFamily: mono, fontSize: '10.5px', color: '#5a6088' } }, '(' + filtered.length + ')'),
+      R('div', { key: 'sp', style: { flex: 1 } }),
+      R('button', { key: 'x', onClick: this.toggleRuns, title: 'Collapse', style: { width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(160,168,220,0.06)', border: '1px solid ' + HAIR, borderRadius: '7px', color: '#868db5', fontSize: '15px', cursor: 'pointer', lineHeight: 1, padding: 0 } }, '\u2039')
+    ]);
+
+    // ---------- search ----------
+    const search = R('div', { key: 'sr', style: { padding: '0 14px 11px', flex: 'none', position: 'relative' } },
+      R('div', { style: { position: 'relative', display: 'flex', alignItems: 'center' } }, [
+        R('span', { key: 'ic', style: { position: 'absolute', left: '11px', display: 'flex', pointerEvents: 'none', color: '#5a6088' } },
+          R('svg', { width: 14, height: 14, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2 }, [
+            R('circle', { key: 'c', cx: 11, cy: 11, r: 7 }), R('path', { key: 'p', d: 'M21 21l-4.3-4.3' })
+          ])),
+        R('input', {
+          key: 'in', value: S.runsQuery, onChange: this.setQuery, placeholder: 'Search runs & prompts\u2026',
+          style: { width: '100%', boxSizing: 'border-box', padding: '9px 30px 9px 32px', background: '#0f1120', border: '1px solid ' + HAIR, borderRadius: '9px', color: '#eef0ff', fontSize: '12.5px', fontFamily: 'Inter', outline: 'none' }
+        }),
+        q ? R('button', { key: 'cl', onClick: this.clearQuery, style: { position: 'absolute', right: '8px', width: '18px', height: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(160,168,220,0.1)', border: 'none', borderRadius: '5px', color: '#868db5', fontSize: '11px', cursor: 'pointer', padding: 0 } }, '\u2715') : null
+      ]));
+
+    // ---------- facets ----------
+    const catChip = (cat) => {
+      const n = S.facets[cat].length; const open = S.openFacet === cat; const on = n > 0 || open;
+      return R('button', { key: cat, onClick: () => this.toggleFacetPanel(cat), style: {
+        display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 9px', borderRadius: '7px', cursor: 'pointer', fontFamily: 'Inter', fontSize: '11.5px',
+        background: on ? 'rgba(158,206,106,0.12)' : 'rgba(160,168,220,0.05)',
+        border: '1px solid ' + (on ? 'rgba(158,206,106,0.28)' : HAIR),
+        color: on ? '#c5f882' : '#a8aecf'
+      } }, [
+        this.facetLabels[cat],
+        n ? R('span', { key: 'b', style: { fontFamily: mono, fontSize: '9.5px', minWidth: '15px', height: '15px', padding: '0 4px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px', background: '#9ece6a', color: '#07080f', fontWeight: 700 } }, String(n)) : null,
+        R('span', { key: 'ch', style: { fontSize: '8px', color: on ? '#9ece6a' : '#5a6088' } }, open ? '\u25B2' : '\u25BC')
+      ]);
+    };
+    let popover = null;
+    if (S.openFacet) {
+      const cat = S.openFacet;
+      const vals = this.facetDefs[cat].map(v => {
+        const on = S.facets[cat].includes(v);
+        const col = cat === 'status' ? (CO[v] || CO.queued).c : cat === 'kind' ? this.kindColors[v] : '#7aa2f7';
+        return R('button', { key: v, onClick: () => this.toggleFacet(cat, v), style: {
+          display: 'flex', alignItems: 'center', gap: '7px', padding: '5px 9px', borderRadius: '7px', cursor: 'pointer', fontSize: '11.5px', fontFamily: cat === 'repo' ? mono : 'Inter',
+          background: on ? 'rgba(158,206,106,0.14)' : 'rgba(160,168,220,0.05)',
+          border: '1px solid ' + (on ? 'rgba(158,206,106,0.3)' : HAIR), color: on ? '#eef0ff' : '#a8aecf'
+        } }, [
+          R('span', { key: 'd', style: { width: '7px', height: '7px', borderRadius: '2px', background: col, flex: 'none' } }),
+          v
+        ]);
+      });
+      popover = R('div', { key: 'pop', style: { position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 30, background: 'rgba(15,17,32,0.97)', border: '1px solid rgba(160,168,220,0.18)', borderRadius: '10px', padding: '10px', boxShadow: '0 20px 50px rgba(0,0,0,0.55)', backdropFilter: 'blur(12px)' } }, [
+        R('div', { key: 'h', style: { display: 'flex', alignItems: 'center', marginBottom: '9px' } }, [
+          R('span', { key: 'l', style: { fontFamily: mono, fontSize: '9.5px', letterSpacing: '0.12em', color: '#5a6088', textTransform: 'uppercase' } }, this.facetLabels[cat]),
+          R('div', { key: 's', style: { flex: 1 } }),
+          R('button', { key: 'x', onClick: () => this.setState({ openFacet: null }), style: { background: 'none', border: 'none', color: '#5a6088', fontSize: '12px', cursor: 'pointer', padding: 0 } }, '\u2715')
+        ]),
+        R('div', { key: 'v', style: { display: 'flex', flexWrap: 'wrap', gap: '6px' } }, vals)
+      ]);
+    }
+    const facetBar = R('div', { key: 'fc', style: { padding: '0 14px 12px', flex: 'none', position: 'relative', display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' } }, [
+      catChip('status'), catChip('kind'), catChip('agent'), catChip('repo'),
+      (facetActive || q) ? R('button', { key: 'clr', onClick: this.clearFacets, style: { marginLeft: 'auto', background: 'none', border: 'none', color: '#7aa2f7', fontSize: '11px', cursor: 'pointer', padding: '4px 2px', fontFamily: 'Inter' } }, 'Clear') : null,
+      popover
+    ]);
+
+    // ---------- a single run row ----------
+    const badge = (content, opts) => R('span', { key: opts.k, style: {
+      display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '2px 7px', borderRadius: '6px', fontFamily: opts.mono ? mono : 'Inter', fontSize: '10px', whiteSpace: 'nowrap',
+      color: opts.color || '#868db5', background: opts.bg || 'rgba(160,168,220,0.06)', border: '1px solid ' + (opts.border || HAIR)
+    } }, content);
+
+    const row = (r) => {
+      const col = (CO[r.state] || CO.queued).c;
+      const glow = (CO[r.state] || CO.queued).g;
+      const sel = S.selectedRunId === r.runId;
+      const hov = S.hoverRun === r.runId;
+      const running = r.state === 'running';
+      const kc = this.kindColors[r.kind] || '#868db5';
+      const meta = [];
+      meta.push(badge(r.kind, { k: 'kind', color: kc, bg: 'color-mix(in srgb,' + kc + ' 12%, transparent)', border: 'color-mix(in srgb,' + kc + ' 26%, transparent)' }));
+      meta.push(badge(r.pr ? 'PR #' + r.pr : r.repo, { k: 'repo', mono: true }));
+      if (r.significance === 'orchestration') meta.push(badge(r.nodeCount + ' nodes \u00B7 d' + r.depth, { k: 'nd', mono: true }));
+      if (running) meta.push(badge(r.doneCount + '/' + r.nodeCount + ' done', { k: 'prog', mono: true, color: '#c5f882', bg: 'rgba(158,206,106,0.12)', border: 'rgba(158,206,106,0.26)' }));
+
+      return R('div', {
+        key: r.runId, onClick: () => this.selectRun(r.runId),
+        onMouseEnter: () => this.setHoverRun(r.runId), onMouseLeave: () => this.setHoverRun(null),
+        style: {
+          position: 'relative', margin: '0 8px 5px', padding: '9px 11px 9px 13px', borderRadius: '9px', cursor: 'pointer',
+          background: sel ? 'rgba(158,206,106,0.09)' : hov ? 'rgba(160,168,220,0.05)' : 'transparent',
+          border: '1px solid ' + (sel ? 'rgba(158,206,106,0.22)' : hov ? HAIR : 'transparent'),
+          transition: 'background .12s ease, border-color .12s ease'
+        }
+      }, [
+        sel ? R('span', { key: 'bar', style: { position: 'absolute', left: '3px', top: '10px', bottom: '10px', width: '3px', borderRadius: '3px', background: col, boxShadow: '0 0 8px ' + glow } }) : null,
+        R('div', { key: 'l1', style: { display: 'flex', alignItems: 'center', gap: '8px' } }, [
+          R('span', { key: 'dot', style: { width: '8px', height: '8px', borderRadius: '50%', flex: 'none', background: col, boxShadow: running ? '0 0 8px ' + glow : 'none', animation: running ? 'dotpulse 1.4s ease-in-out infinite' : 'none' } }),
+          R('span', { key: 't', style: { flex: 1, minWidth: 0, fontSize: '12.5px', fontWeight: 600, color: sel ? '#eef0ff' : '#c7c9e5', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }, r.title),
+          R('span', { key: 'tm', style: { flex: 'none', fontFamily: mono, fontSize: '10px', color: '#5a6088' } }, this.relTime(r.ago))
+        ]),
+        R('div', { key: 'l2', style: { fontSize: '11px', color: '#7c83a8', margin: '4px 0 7px', lineHeight: 1.35, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }, r.snippet),
+        R('div', { key: 'l3', style: { display: 'flex', flexWrap: 'wrap', gap: '5px' } }, meta)
+      ]);
+    };
+
+    // ---------- sections ----------
+    const stickyHeader = (opts) => R('div', { key: opts.key, onClick: opts.onClick, style: {
+      position: 'sticky', top: 0, zIndex: 5, display: 'flex', alignItems: 'center', gap: '7px',
+      padding: '9px 16px 7px', margin: '2px 0 4px', background: '#0a0b16', cursor: opts.onClick ? 'pointer' : 'default',
+      borderBottom: '1px solid ' + HAIR
+    } }, [
+      opts.pulse ? R('span', { key: 'p', style: { width: '7px', height: '7px', borderRadius: '50%', background: '#9ece6a', boxShadow: '0 0 8px rgba(158,206,106,0.7)', animation: 'livedot 1.6s ease-in-out infinite' } }) : null,
+      opts.chevron != null ? R('span', { key: 'ch', style: { fontSize: '9px', color: '#5a6088', width: '10px' } }, opts.chevron) : null,
+      R('span', { key: 'l', style: { fontFamily: mono, fontSize: '10px', letterSpacing: '0.13em', color: opts.color || '#868db5', fontWeight: 600, textTransform: 'uppercase' } }, opts.label),
+      R('span', { key: 'c', style: { fontFamily: mono, fontSize: '10px', color: '#5a6088' } }, '(' + opts.count + ')')
+    ]);
+
+    let body;
+    if (S.listLoading) {
+      body = [0, 1, 2, 3, 4].map(i => R('div', { key: 'sk' + i, style: { margin: '0 8px 6px', padding: '11px 12px', borderRadius: '9px', border: '1px solid ' + HAIR, background: 'rgba(160,168,220,0.03)' } }, [
+        R('div', { key: 'a', style: { height: '9px', width: (55 + (i * 7) % 30) + '%', borderRadius: '4px', background: 'rgba(160,168,220,0.12)' } }),
+        R('div', { key: 'b', style: { height: '7px', width: (72 - (i * 9) % 26) + '%', borderRadius: '4px', background: 'rgba(160,168,220,0.07)', margin: '9px 0 8px' } }),
+        R('div', { key: 'c', style: { height: '13px', width: '46%', borderRadius: '5px', background: 'rgba(160,168,220,0.05)' } })
+      ]));
+    } else if (S.listError) {
+      body = R('div', { key: 'err', style: { margin: '30px 18px', textAlign: 'center', color: '#f7768e', fontSize: '12.5px' } }, [
+        R('div', { key: 'i', style: { fontSize: '22px', marginBottom: '8px' } }, '\u26A0'),
+        R('div', { key: 't' }, 'Failed to load runs'),
+        R('div', { key: 's', style: { color: '#5a6088', fontSize: '11px', marginTop: '6px' } }, 'Check the coordinator connection and retry.')
+      ]);
+    } else if (!filtered.length) {
+      body = R('div', { key: 'empty', style: { margin: '40px 18px', textAlign: 'center', color: '#5a6088', fontSize: '12.5px' } }, [
+        R('div', { key: 'i', style: { fontSize: '20px', marginBottom: '10px', opacity: 0.6 } }, '\u2205'),
+        R('div', { key: 't', style: { color: '#868db5' } }, 'No runs match'),
+        (facetActive || q) ? R('button', { key: 'c', onClick: this.clearFacets, style: { marginTop: '12px', background: 'rgba(160,168,220,0.06)', border: '1px solid ' + HAIR, borderRadius: '8px', color: '#a8aecf', fontSize: '11.5px', padding: '6px 13px', cursor: 'pointer' } }, 'Clear filters') : null
+      ]);
+    } else {
+      const secs = [];
+      if (active.length) {
+        secs.push(stickyHeader({ key: 'ah', label: 'Active', count: active.length, pulse: true, color: '#c5f882' }));
+        active.forEach(r => secs.push(row(r)));
+      }
+      if (orch.length) {
+        secs.push(stickyHeader({ key: 'oh', label: 'Orchestrations', count: orch.length }));
+        orch.forEach(r => secs.push(row(r)));
+      }
+      if (oneShots.length) {
+        // reveal matches even when the section is collapsed, if the user is searching/filtering
+        const osOpen = S.oneShotsExpanded || !!q || facetActive;
+        secs.push(stickyHeader({ key: 'sh', label: 'one-shots', count: oneShots.length, onClick: this.toggleOneShots, chevron: osOpen ? '\u25BE' : '\u25B8' }));
+        if (osOpen) {
+          const shown = oneShots.slice(0, S.oneShotLimit);
+          shown.forEach(r => secs.push(row(r)));
+          if (oneShots.length > shown.length) {
+            secs.push(R('button', { key: 'more', onClick: this.loadMoreOneShots, style: { display: 'block', margin: '4px 8px 8px', width: 'calc(100% - 16px)', padding: '8px', background: 'rgba(160,168,220,0.05)', border: '1px dashed ' + HAIR, borderRadius: '8px', color: '#7aa2f7', fontSize: '11.5px', cursor: 'pointer', fontFamily: 'Inter' } }, 'load more \u00B7 ' + (oneShots.length - shown.length) + ' older'));
+          }
+        }
+      }
+      body = secs;
+    }
+
+    const list = R('div', { key: 'ls', style: { flex: 1, overflowY: 'auto', overflowX: 'hidden', paddingBottom: '12px' } }, body);
+
+    return R('div', {
+      key: 'runscol',
+      style: { width: '320px', flex: 'none', background: '#0a0b16', borderRight: '1px solid rgba(160,168,220,0.08)', display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }
+    }, [header, search, facetBar, list]);
   }
 
   renderVals() {
@@ -522,31 +745,6 @@ class Component extends DCLogic {
     const p = this.state.clock;
     const sim = this.simulate(p);
     const CO = this.colors();
-
-    // ---- run picker list (top-bar dropdown) ----
-    const rFilter = (this.state.runFilter || '').trim().toLowerCase();
-    const runs = (this.runsList || [])
-      .filter(rn => !rFilter || (rn.title || rn.runId || '').toLowerCase().includes(rFilter))
-      .map(rn => {
-        const rc = CO[rn.state] || CO.queued;
-        const isCur = rn.runId === this.currentRunId;
-        const glow = rc.g && rc.g.indexOf(',0.0)') < 0;
-        return {
-          runId: rn.runId,
-          title: rn.title || rn.runId,
-          timeAgo: this.relTime(rn.updated),
-          titleColor: isCur ? '#eef0ff' : '#c7c9e5',
-          dotStyle: { width: '8px', height: '8px', borderRadius: '50%', background: rc.c, flex: 'none', boxShadow: glow ? '0 0 8px ' + rc.g : 'none' },
-          rowStyle: {
-            display: 'flex', alignItems: 'center', gap: '9px', padding: '9px 10px',
-            borderRadius: '8px', cursor: 'pointer',
-            background: isCur ? 'rgba(158,206,106,0.1)' : 'transparent',
-            border: '1px solid ' + (isCur ? 'rgba(158,206,106,0.18)' : 'transparent')
-          },
-          onClick: () => this.switchRun(rn.runId)
-        };
-      });
-
     const pos = this.state.positions;
     const collapsed = this.state.collapsed;
     const vis = this.visibleNodes();
@@ -562,15 +760,8 @@ class Component extends DCLogic {
       const dim = s === 'queued' || s === 'blocked';
       let elapsed = '—';
       if (st.st != null) {
-        // Only tick live while running; terminal nodes freeze at endedAt.
-        // A non-running node with no endedAt (queued/blocked/stale) shows '—'
-        // rather than a live-growing number that misreads a stale start.
         const end = st.en != null ? st.en : (running ? p : null);
-        if (end != null) {
-          let e = Math.min(end, p) - st.st;
-          if (e < 0) e = 0;
-          elapsed = e.toFixed(1) + 's';
-        }
+        if (end != null) { let e = Math.min(end, p) - st.st; if (e < 0) e = 0; elapsed = e.toFixed(1) + 's'; }
       }
       const isSel = this.state.selectedId === n.id;
       // card visuals only — no positioning (the foreignObject's x/y attrs place it)
@@ -721,7 +912,7 @@ class Component extends DCLogic {
       total: this.base.length, running, done, failed,
       depth: colVals.length || 4,
       width: colVals.length ? Math.max(...colVals) : 3,
-      elapsed: this.fmtRunElapsed()
+      elapsed: this.fmtRun(p)
     };
 
     // ---- detail panel ----
@@ -734,14 +925,12 @@ class Component extends DCLogic {
       let elapsed = '—';
       if (st.st != null) {
         const end = st.en != null ? st.en : (runningNow ? p : null);
-        if (end != null) {
-          let e = Math.min(end, p) - st.st;
-          if (e < 0) e = 0; elapsed = e.toFixed(1) + 's';
-        }
+        if (end != null) { let e = Math.min(end, p) - st.st; if (e < 0) e = 0; elapsed = e.toFixed(1) + 's'; }
       }
       const finished = st.s === 'succeeded' || st.s === 'failed';
+      const evBase = st.st != null ? st.st : (sel.events[0] ? sel.events[0].t : 0);
       const evShown = sel.events.filter(ev => ev.t <= p + 0.05).map(ev => ({
-        time: '+' + ev.t.toFixed(1) + 's',
+        time: '+' + Math.max(0, ev.t - evBase).toFixed(1) + 's',
         label: ev.label,
         color: /fail/i.test(ev.label) ? '#f7768e' : /succeed|opened|complete|passed/i.test(ev.label) ? (this.props.accent || '#9ece6a') : '#7aa2f7'
       }));
@@ -761,16 +950,28 @@ class Component extends DCLogic {
       };
     }
 
+    // ---- runs column + header breadcrumb ----
+    const runsColumnEl = this.buildRunsColumn(sim, CO);
+    const activeRun = this.runs.find(r => r.runId === this.state.selectedRunId) || this.runs[0] || { state: 'queued', repo: '', title: this.runTitleLive || 'orchestration' };
+    const crumbCol = (CO[activeRun.state] || CO.queued);
+    const runsOpen = this.state.runsOpen;
+    const runsNavStyle = {
+      display: 'flex', alignItems: 'center', gap: '11px', padding: '9px 11px', borderRadius: '9px',
+      fontSize: '13.5px', fontWeight: 500, cursor: 'pointer', marginTop: '2px',
+      background: runsOpen ? 'rgba(158,206,106,0.11)' : 'transparent',
+      color: runsOpen ? '#eef0ff' : '#a8aecf',
+      border: '1px solid ' + (runsOpen ? 'rgba(158,206,106,0.2)' : 'transparent')
+    };
+
     return {
-      edgesEl, nodesEl, minimapEl, stat, detail,
+      edgesEl, nodesEl, minimapEl, stat, detail, runsColumnEl,
       worldTransform: `translate(${this.state.panX}px,${this.state.panY}px) scale(${this.state.zoom})`,
       canvasRef: this.canvasRef,
       onDown: this.onDown, onMove: this.onMove, onUp: this.onUp, onWheel: this.onWheel,
       zoomIn: this.zoomIn, zoomOut: this.zoomOut, fit: this.fit,
-      toggleRun: this.toggleRun, runOpen: this.state.runOpen,
-      runTitle: this.runTitleLive || 'orchestration',
-      runs, hasRuns: runs.length > 0, noRuns: runs.length === 0,
-      runFilter: this.state.runFilter || '', setRunFilter: this.setRunFilter,
+      toggleRuns: this.toggleRuns, runsNavStyle,
+      crumbRepo: activeRun.repo, crumbTitle: activeRun.title,
+      crumbDotStyle: { width: '8px', height: '8px', borderRadius: '50%', flex: 'none', background: crumbCol.c, boxShadow: activeRun.state === 'running' ? '0 0 8px ' + crumbCol.g : 'none', animation: activeRun.state === 'running' ? 'dotpulse 1.4s ease-in-out infinite' : 'none' },
       hasSelected: !!sel,
       closePanel: this.closePanel,
       togglePrompt: this.togglePrompt, toggleOutput: this.toggleOutput,
