@@ -32,25 +32,8 @@ type server struct {
 	ds DataSource
 }
 
-// handleRuns serves GET /api/runs -> []RunSummary. Filled in by Task 3.
-func (s *server) handleRuns(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "not implemented", http.StatusNotImplemented)
-}
-
-// handleState serves GET /api/state?run=<id> -> State. Filled in by Task 3.
-func (s *server) handleState(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "not implemented", http.StatusNotImplemented)
-}
-
-// handleJob serves GET /api/job/{id} -> Node. Filled in by Task 3.
-func (s *server) handleJob(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "not implemented", http.StatusNotImplemented)
-}
-
-// handleEvents serves GET /events?run=<id> -> SSE stream of State. Filled in by Task 2.
-func (s *server) handleEvents(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "not implemented", http.StatusNotImplemented)
-}
+// The JSON API handlers (handleRuns/handleState/handleJob) live in api.go and
+// the SSE handler (handleEvents) lives in sse.go.
 
 // staticHandler serves the embedded web/dist assets. Requests that do not map
 // to an existing file fall back to index.html so the client-side router can
