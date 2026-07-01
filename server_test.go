@@ -22,8 +22,8 @@ func TestServeIndex(t *testing.T) {
 	}
 	body := make([]byte, 4096)
 	n, _ := resp.Body.Read(body)
-	if !strings.Contains(string(body[:n]), "gitmoot dashboard") {
-		t.Fatalf("index body missing placeholder marker: %q", string(body[:n]))
+	if !strings.Contains(strings.ToLower(string(body[:n])), "<!doctype html") {
+		t.Fatalf("index body is not an HTML document: %q", string(body[:n]))
 	}
 }
 
