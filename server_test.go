@@ -42,9 +42,9 @@ func TestServeSPAFallback(t *testing.T) {
 	}
 }
 
-// TestStateRouteRegistered asserts the /api/state route is wired into the mux.
-// The handler is a stub (501) until Task 3 fills it in, but it must not fall
-// through to the static handler (which would return 200).
+// TestStateRouteRegistered asserts the /api/state route is wired into the mux
+// and served by the JSON handler (not the static SPA fallback, which would
+// return an HTML index).
 func TestStateRouteRegistered(t *testing.T) {
 	srv := httptest.NewServer(Serve(NewFakeDataSource()))
 	defer srv.Close()
@@ -55,7 +55,10 @@ func TestStateRouteRegistered(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusNotImplemented {
-		t.Fatalf("GET /api/state status = %d, want 501 (route registered as stub)", resp.StatusCode)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET /api/state status = %d, want 200", resp.StatusCode)
+	}
+	if ct := resp.Header.Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
+		t.Fatalf("GET /api/state Content-Type = %q, want application/json", ct)
 	}
 }
