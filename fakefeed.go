@@ -57,7 +57,6 @@ func NewFakeDataSource() *FakeDataSource {
 // every downstream node queued.
 func initialFakeState() State {
 	now := time.Now().UnixMilli()
-	sec := now / 1000
 	return State{
 		RunID: fakeRunID,
 		Title: fakeRunTitle,
@@ -70,7 +69,7 @@ func initialFakeState() State {
 				Model:     "gpt-5.5",
 				State:     "running",
 				Depth:     0,
-				StartedAt: sec,
+				StartedAt: now,
 				WorkerID:  "codex-coordinator",
 				Events: []Event{
 					{T: now, Label: "queued"},
@@ -202,13 +201,13 @@ func (f *FakeDataSource) transition(id string, state NodeState, label string) {
 		}
 		n.State = state
 		if state == "running" && n.StartedAt == 0 {
-			n.StartedAt = now / 1000
+			n.StartedAt = now
 			if n.WorkerID == "" {
 				n.WorkerID = "codex-worker-" + id
 			}
 		}
 		if isTerminal(state) && n.EndedAt == 0 {
-			n.EndedAt = now / 1000
+			n.EndedAt = now
 		}
 		n.Events = append(n.Events, Event{T: now, Label: label})
 		return

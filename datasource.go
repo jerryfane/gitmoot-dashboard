@@ -9,8 +9,11 @@ import "context"
 type NodeState string // "queued" "running" "succeeded" "failed" "blocked" "cancelled"
 
 // Event is a timestamped label attached to a node's timeline.
+//
+// All timestamps in this package (Event.T, Node.StartedAt/EndedAt,
+// RunSummary.Updated) are epoch milliseconds (JS Date compatible).
 type Event struct {
-	T     int64  `json:"t"`
+	T     int64  `json:"t"` // epoch milliseconds
 	Label string `json:"label"`
 }
 
@@ -26,8 +29,8 @@ type Node struct {
 	Model     string    `json:"model,omitempty"`
 	State     NodeState `json:"state"`
 	Depth     int       `json:"depth"`
-	StartedAt int64     `json:"startedAt,omitempty"`
-	EndedAt   int64     `json:"endedAt,omitempty"`
+	StartedAt int64     `json:"startedAt,omitempty"` // epoch milliseconds
+	EndedAt   int64     `json:"endedAt,omitempty"`   // epoch milliseconds
 	WorkerID  string    `json:"workerId,omitempty"`
 	PRURL     string    `json:"prUrl,omitempty"`
 	Events    []Event   `json:"events"`
@@ -45,7 +48,7 @@ type RunSummary struct {
 	RunID   string    `json:"runId"`
 	Title   string    `json:"title"`
 	State   NodeState `json:"state"`
-	Updated int64     `json:"updated"`
+	Updated int64     `json:"updated"` // epoch milliseconds
 }
 
 // DataSource is the read-only feed the dashboard renders. Implementations must

@@ -8,10 +8,8 @@ import (
 )
 
 // Serve returns an http.Handler serving the read-only dashboard: the embedded
-// static UI (with SPA fallback to index.html) plus the JSON API and SSE stream.
-//
-// The API/SSE handlers are named stubs (handleRuns/handleState/handleJob/
-// handleEvents) that return 501 until later tasks fill them in.
+// static UI (with SPA fallback to index.html) plus the JSON API (handleRuns/
+// handleState/handleJob in api.go) and the SSE stream (handleEvents in sse.go).
 func Serve(ds DataSource) http.Handler {
 	s := &server{ds: ds}
 	mux := http.NewServeMux()
