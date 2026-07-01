@@ -1,0 +1,18 @@
+# Binaries
+/gitmoot-dashboard-dev
+*.exe
+*.test
+*.out
+
+# Go build/test artifacts
+/dist/
+coverage.txt
+
+# Node / UI build tooling (the React app lives under web/)
+web/node_modules/
+web/.vite/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
