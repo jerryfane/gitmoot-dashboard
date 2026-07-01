@@ -216,37 +216,11 @@ class Component extends DCLogic {
     vw: 900, vh: 560, showPrompt: true, showOutput: false, runOpen: false
   };
 
-  // ---- run data (a real SSE feed could replace this by pushing the same shapes) ----
-  base = [
-    { id:'n1', title:'project-lead', agent:'coordinator', runtime:'codex', model:'gpt-5.5', workerId:'wrk-0a1', hasChildren:true,
-      prompt:'You are project-lead. Break the request into parallel subtasks,\ndelegate to worker agents, then integrate and open a PR.',
-      output:'Planned 3 subtasks:\n  · implement: search\n  · implement: delete\n  · implement: export --json\nDelegated to 3 workers.',
-      events:[{t:0,label:'coordinator started'},{t:0.4,label:'planned 3 subtasks'},{t:2.2,label:'delegated to 3 workers'}] },
-    { id:'n2', parentId:'n1', title:'implement: search', agent:'worker', runtime:'claude', model:'claude-4.5', workerId:'wrk-1c2',
-      prompt:'Implement fuzzy search over the item index with ranked results.',
-      output:'src/search/index.ts  (+142)\nsrc/search/rank.ts   (+61)\ntests: 22 passed ✓',
-      events:[{t:2.2,label:'worker materialized'},{t:2.7,label:'reading repo'},{t:5.2,label:'succeeded · 2 files'}] },
-    { id:'n3', parentId:'n1', title:'implement: delete', agent:'worker', runtime:'kimi', model:'k2-0711', workerId:'wrk-2d3',
-      prompt:'Implement soft-delete with a 10s undo window.',
-      output:'src/store/delete.ts  (+88)\n[retry] flaky test isolated ✓\ntests: 14 passed ✓',
-      events:[{t:2.2,label:'worker materialized'},{t:5.0,label:'failed: flaky test'},{t:5.6,label:'retry started'},{t:8.0,label:'succeeded'}] },
-    { id:'n4', parentId:'n1', title:'implement: export --json', agent:'worker', runtime:'codex', model:'gpt-5.5', workerId:'wrk-3e4',
-      prompt:'Add an `export --json` CLI command with a stable schema.',
-      output:'src/cli/export.ts  (+96)\nschema.json        (+40)\ntests: 9 passed ✓',
-      events:[{t:2.2,label:'worker materialized'},{t:4.0,label:'writing schema'},{t:6.4,label:'succeeded · 2 files'}] },
-    { id:'n5', deps:['n2','n3','n4'], title:'integrate + review + open PR', agent:'finale', runtime:'codex', model:'gpt-5.5', workerId:'wrk-4f5',
-      prompt:'Integrate all worker branches, run review, resolve conflicts,\nand open a pull request.',
-      output:'✓ merged 3 branches\n✓ resolved 2 conflicts\n✓ review passed · 148 tests\n→ opened PR #482',
-      events:[{t:8.0,label:'deps satisfied'},{t:8.5,label:'merging branches'},{t:10.0,label:'review passed'},{t:11.5,label:'PR #482 opened'}] },
-    { id:'n6', deps:['n5'], title:'continuation / synthesize', agent:'worker', runtime:'claude', model:'claude-4.5', workerId:'wrk-5a6',
-      prompt:'Synthesize the results and propose follow-up work.',
-      output:'Summary drafted.\nProposed 3 follow-ups:\n  · pagination for search\n  · bulk delete\n  · export --csv',
-      events:[{t:11.5,label:'started'},{t:13.0,label:'drafting summary'},{t:14.5,label:'synthesis complete'}] }
-  ];
-  EDGES = [
-    {s:'n1',t:'n2'},{s:'n1',t:'n3'},{s:'n1',t:'n4'},
-    {s:'n2',t:'n5'},{s:'n3',t:'n5'},{s:'n4',t:'n5'},{s:'n5',t:'n6'}
-  ];
+  // ---- live run data (populated from /api/state + /events; see connectLive) ----
+  base = [];
+  EDGES = [];
+  live = false;
+  runTitleLive = '';
   LOOP = 19;
 
   componentDidMount() {
@@ -255,6 +229,7 @@ class Component extends DCLogic {
     this.setState({ positions: this.fallbackLayout() }, () => this.fit());
     this.initLayout(true);
     window.addEventListener('resize', this.onResize);
+    this.connectLive();
   }
   componentWillUnmount() {
     clearInterval(this._t);
@@ -264,11 +239,7 @@ class Component extends DCLogic {
   // wall-clock driven so it self-corrects and survives hot-reload / re-mount
   startClock() {
     if (this._t) return;
-    if (this._wall == null) this._wall = Date.now();
-    this._t = setInterval(() => {
-      const c = ((Date.now() - this._wall) / 1000) % this.LOOP;
-      this.setState({ clock: c });
-    }, 100);
+    this._t = setInterval(() => { this.setState({ clock: Date.now() / 1000 }); }, 1000);
   }
 
   onResize = () => {
@@ -283,16 +254,59 @@ class Component extends DCLogic {
     }
   };
 
-  // ---- simulation: deterministic state of the run at virtual time p ----
+  // ---- live state: read each node's real state/timestamps from the feed ----
   simulate(p) {
     const m = {};
-    m.n1 = p < 2.2 ? {s:'running',st:0} : {s:'succeeded',st:0,en:2.2};
-    m.n2 = p < 2.2 ? {s:'queued'} : p < 5.2 ? {s:'running',st:2.2} : {s:'succeeded',st:2.2,en:5.2};
-    m.n3 = p < 2.2 ? {s:'queued'} : p < 5.0 ? {s:'running',st:2.2} : p < 5.6 ? {s:'failed',st:2.2,en:5.0} : p < 8.0 ? {s:'running',st:5.6} : {s:'succeeded',st:2.2,en:8.0};
-    m.n4 = p < 2.2 ? {s:'queued'} : p < 6.4 ? {s:'running',st:2.2} : {s:'succeeded',st:2.2,en:6.4};
-    m.n5 = p < 8.0 ? {s:'blocked'} : p < 11.5 ? {s:'running',st:8.0} : {s:'succeeded',st:8.0,en:11.5,pr:'https://github.com/acme/webapp/pull/482'};
-    m.n6 = p < 11.5 ? {s:'queued'} : p < 14.5 ? {s:'running',st:11.5} : {s:'succeeded',st:11.5,en:14.5};
+    for (const n of this.base) {
+      m[n.id] = {
+        s: n.state || 'queued',
+        st: (n.startedAt && n.startedAt > 0) ? n.startedAt / 1000 : null,
+        en: (n.endedAt && n.endedAt > 0) ? n.endedAt / 1000 : null,
+        pr: n.prUrl || null
+      };
+    }
     return m;
+  }
+
+  // ---- live feed: fetch /api/state, subscribe /events (SSE) ----
+  connectLive() {
+    this.loadState();
+    try {
+      const run = new URLSearchParams(location.search).get('run') || '';
+      this._es = new EventSource('/events' + (run ? '?run=' + encodeURIComponent(run) : ''));
+      this._es.onmessage = (e) => { try { this.applyState(JSON.parse(e.data)); } catch (_) {} };
+    } catch (_) {}
+    fetch('/api/runs').then(r => r.json()).then(rs => { if (rs && rs[0] && rs[0].title) { this.runTitleLive = rs[0].title; this.forceUpdate(); } }).catch(() => {});
+  }
+  loadState() {
+    const run = new URLSearchParams(location.search).get('run') || '';
+    fetch('/api/state' + (run ? '?run=' + encodeURIComponent(run) : '')).then(r => r.ok ? r.json() : null).then(s => { if (s) this.applyState(s); }).catch(() => {});
+  }
+  applyState(s) {
+    if (!s || !Array.isArray(s.nodes)) return;
+    const nodes = s.nodes.map(n => ({
+      id: n.id, parentId: n.parentId || null, deps: (n.deps && n.deps.length) ? n.deps : null,
+      title: n.title || n.id, agent: n.agent || '', runtime: n.runtime || '', model: n.model || '',
+      workerId: n.workerId || '', prompt: n.prompt || '', output: n.output || '',
+      events: Array.isArray(n.events) ? n.events.map(ev => ({ t: ev.t, label: ev.label })) : [],
+      state: n.state || 'queued', startedAt: n.startedAt || 0, endedAt: n.endedAt || 0, prUrl: n.prUrl || null
+    }));
+    const ids = new Set(nodes.map(n => n.id));
+    const parents = new Set(nodes.filter(n => n.parentId && ids.has(n.parentId)).map(n => n.parentId));
+    nodes.forEach(n => { n.hasChildren = parents.has(n.id); });
+    const edges = [];
+    nodes.forEach(n => {
+      if (n.deps) { n.deps.forEach(d => { if (ids.has(d)) edges.push({ s: d, t: n.id }); }); }
+      else if (n.parentId && ids.has(n.parentId)) { edges.push({ s: n.parentId, t: n.id }); }
+    });
+    const setChanged = nodes.length !== this.base.length || nodes.some(n => !this.byId || !this.byId[n.id]);
+    this.base = nodes;
+    this.EDGES = edges;
+    this.byId = Object.fromEntries(nodes.map(n => [n.id, n]));
+    this.live = true;
+    if (s.title) this.runTitleLive = s.title;
+    if (setChanged) { this.initLayout(!this._fitted); this._fitted = true; }
+    this.forceUpdate();
   }
 
   colors() {
@@ -431,6 +445,18 @@ class Component extends DCLogic {
   fmtRun(p) {
     const s = Math.floor(p);
     return '00:' + String(s).padStart(2, '0');
+  }
+
+  fmtRunElapsed() {
+    const starts = this.base.map(n => n.startedAt || 0).filter(v => v > 0);
+    if (!starts.length) return '—';
+    const minStart = Math.min(...starts);
+    const anyRunning = this.base.some(n => n.state === 'running');
+    const ends = this.base.map(n => n.endedAt || 0).filter(v => v > 0);
+    const end = (!anyRunning && ends.length) ? Math.max(...ends) : Date.now();
+    let s = Math.max(0, Math.floor((end - minStart) / 1000));
+    const m = Math.floor(s / 60); s = s % 60;
+    return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
   }
 
   renderVals() {
@@ -607,7 +633,7 @@ class Component extends DCLogic {
       total: this.base.length, running, done, failed,
       depth: colVals.length || 4,
       width: colVals.length ? Math.max(...colVals) : 3,
-      elapsed: this.fmtRun(p)
+      elapsed: this.fmtRunElapsed()
     };
 
     // ---- detail panel ----
@@ -651,7 +677,7 @@ class Component extends DCLogic {
       onDown: this.onDown, onMove: this.onMove, onUp: this.onUp, onWheel: this.onWheel,
       zoomIn: this.zoomIn, zoomOut: this.zoomOut, fit: this.fit,
       toggleRun: this.toggleRun, runOpen: this.state.runOpen,
-      runTitle: 'acme/webapp',
+      runTitle: this.runTitleLive || 'orchestration',
       hasSelected: !!sel,
       closePanel: this.closePanel,
       togglePrompt: this.togglePrompt, toggleOutput: this.toggleOutput,

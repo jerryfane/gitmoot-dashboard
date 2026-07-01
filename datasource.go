@@ -36,6 +36,8 @@ type Node struct {
 	EndedAt   int64     `json:"endedAt,omitempty"`   // epoch milliseconds
 	WorkerID  string    `json:"workerId,omitempty"`
 	PRURL     string    `json:"prUrl,omitempty"`
+	Prompt    string    `json:"prompt,omitempty"`
+	Output    string    `json:"output,omitempty"`
 	Events    []Event   `json:"events"`
 }
 
