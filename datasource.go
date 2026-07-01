@@ -8,12 +8,15 @@ import "context"
 // NodeState is the lifecycle state of a single orchestration node.
 type NodeState string // "queued" "running" "succeeded" "failed" "blocked" "cancelled"
 
-// Event is a timestamped label attached to a node's timeline.
+// Event is a label attached to a node's timeline.
 //
-// All timestamps in this package (Event.T, Node.StartedAt/EndedAt,
-// RunSummary.Updated) are epoch milliseconds (JS Date compatible).
+// Wall-clock timestamps in this package (Node.StartedAt/EndedAt,
+// RunSummary.Updated) are epoch milliseconds (JS Date compatible). Event.T is a
+// monotonic ordering key for a node's timeline: epoch milliseconds where the
+// feed has per-event times, or a 1-based index otherwise. Clients should sort a
+// node's events by T rather than treat it as wall-clock.
 type Event struct {
-	T     int64  `json:"t"` // epoch milliseconds
+	T     int64  `json:"t"` // monotonic ordering key (see type doc)
 	Label string `json:"label"`
 }
 
