@@ -562,9 +562,15 @@ class Component extends DCLogic {
       const dim = s === 'queued' || s === 'blocked';
       let elapsed = '—';
       if (st.st != null) {
-        let e = (st.en != null ? Math.min(st.en, p) : p) - st.st;
-        if (e < 0) e = 0;
-        elapsed = e.toFixed(1) + 's';
+        // Only tick live while running; terminal nodes freeze at endedAt.
+        // A non-running node with no endedAt (queued/blocked/stale) shows '—'
+        // rather than a live-growing number that misreads a stale start.
+        const end = st.en != null ? st.en : (running ? p : null);
+        if (end != null) {
+          let e = Math.min(end, p) - st.st;
+          if (e < 0) e = 0;
+          elapsed = e.toFixed(1) + 's';
+        }
       }
       const isSel = this.state.selectedId === n.id;
       // card visuals only — no positioning (the foreignObject's x/y attrs place it)
@@ -724,12 +730,15 @@ class Component extends DCLogic {
     if (sel) {
       const st = sim[sel.id] || { s: 'queued' };
       const col = CO[st.s] || CO.queued;
+      const runningNow = st.s === 'running';
       let elapsed = '—';
       if (st.st != null) {
-        let e = (st.en != null ? Math.min(st.en, p) : p) - st.st;
-        if (e < 0) e = 0; elapsed = e.toFixed(1) + 's';
+        const end = st.en != null ? st.en : (runningNow ? p : null);
+        if (end != null) {
+          let e = Math.min(end, p) - st.st;
+          if (e < 0) e = 0; elapsed = e.toFixed(1) + 's';
+        }
       }
-      const runningNow = st.s === 'running';
       const finished = st.s === 'succeeded' || st.s === 'failed';
       const evShown = sel.events.filter(ev => ev.t <= p + 0.05).map(ev => ({
         time: '+' + ev.t.toFixed(1) + 's',
@@ -743,7 +752,7 @@ class Component extends DCLogic {
         stateLabel: st.s, stateColor: col.c,
         stateBg: 'color-mix(in srgb,' + col.c + ' 12%, transparent)',
         stateBorder: 'color-mix(in srgb,' + col.c + ' 30%, transparent)',
-        startedLabel: st.st != null ? '+' + st.st.toFixed(1) + 's' : '—',
+        startedLabel: st.st != null ? new Date(st.st * 1000).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—',
         elapsedLabel: elapsed,
         events: evShown.length ? evShown : [{ time: '—', label: 'waiting to start', color: '#5a6088' }],
         prompt: sel.prompt,
