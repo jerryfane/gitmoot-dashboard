@@ -248,11 +248,14 @@ class Component extends DCLogic {
     try { const v = localStorage.getItem('gitmoot.runsOpen'); if (v != null) open = v === '1'; } catch (e) {}
     this.setState({ runsOpen: open });
     window.addEventListener('resize', this.onResize);
+    // safety: never leave the Runs column stuck on skeletons if /api/runs hangs
+    this._loadTO = setTimeout(() => { if (this.state.listLoading) this.setState({ listLoading: false }); }, 8000);
     this.connectLive();
     this.loadRuns();
   }
   componentWillUnmount() {
     clearInterval(this._t);
+    clearTimeout(this._loadTO);
     try { if (this._es) this._es.close(); } catch (e) {}
     window.removeEventListener('resize', this.onResize);
   }
@@ -274,7 +277,9 @@ class Component extends DCLogic {
   loadState() {
     const run = this.currentRunId || '';
     fetch('/api/state' + (run ? '?run=' + encodeURIComponent(run) : ''))
-      .then(r => r.ok ? r.json() : null).then(s => { if (s) this.applyState(s); }).catch(() => {});
+      .then(r => r.ok ? r.json() : null)
+      .then(s => { if (s && (this.currentRunId || '') === run) this.applyState(s); })  // drop stale after a switch
+      .catch(() => {});
   }
   loadRuns() {
     fetch('/api/runs').then(r => r.ok ? r.json() : []).then(rs => {
@@ -285,14 +290,12 @@ class Component extends DCLogic {
         kind: r.kind || '', significance: r.significance || 'one-shot',
         agent: r.agent || '', repo: r.repo || '', pr: r.pr || 0,
         nodeCount: r.nodeCount || 0, depth: r.depth || 1, doneCount: r.doneCount || 0,
-        snippet: r.snippet || '', ago: Math.max(0, now - (r.updated || now))
+        snippet: r.snippet || '', ago: (r.updated && r.updated > 0) ? Math.max(0, now - r.updated) : Number.MAX_SAFE_INTEGER
       }));
       const uniq = (k) => Array.from(new Set(this.runs.map(r => r[k]).filter(Boolean)));
       this.facetDefs = Object.assign({}, this.facetDefs, { agent: uniq('agent'), repo: uniq('repo') });
-      if (!this.currentRunId && this.runs[0]) this.currentRunId = this.runs[0].runId;
-      const patch = { listLoading: false, listError: false };
-      if (!this.state.selectedRunId && this.currentRunId) patch.selectedRunId = this.currentRunId;
-      this.setState(patch);
+      // NB: the graph load (applyState) owns currentRunId/selectedRunId — see below.
+      this.setState({ listLoading: false, listError: false });
     }).catch(() => this.setState({ listLoading: false, listError: true }));
   }
   applyState(s) {
@@ -313,13 +316,23 @@ class Component extends DCLogic {
       else if (n.parentId && ids.has(n.parentId)) { edges.push({ s: n.parentId, t: n.id }); }
     });
     const setChanged = nodes.length !== this.base.length || nodes.some(n => !this.byId || !this.byId[n.id]);
+    const runChanged = (s.runId || this.currentRunId || '') !== (this.baseRunId || '');
     this.base = nodes;
     this.EDGES = edges;
     this.byId = Object.fromEntries(nodes.map(n => [n.id, n]));
     if (s.runId) this.currentRunId = s.runId;
+    this.baseRunId = s.runId || this.currentRunId;   // which run this.base belongs to
     if (s.title) this.runTitleLive = s.title;
-    if (setChanged) { this.initLayout(!this._fitted); this._fitted = true; }
-    this.forceUpdate();
+    // structural change (new run or new nodes) => pre-place synchronously so the
+    // switched-to graph never piles at 0,0, then let elk refine + re-fit.
+    const structural = setChanged || runChanged;
+    const done = () => { if (structural) { this.initLayout(!this._fitted); this._fitted = true; } };
+    const patch = {};
+    if (structural) patch.positions = this.fallbackLayout();
+    // the graph is the source of truth for the selected run: reconcile the column
+    // highlight + breadcrumb (which key off selectedRunId) with the loaded run.
+    if (this.baseRunId && this.state.selectedRunId !== this.baseRunId) patch.selectedRunId = this.baseRunId;
+    if (Object.keys(patch).length) this.setState(patch, done); else { done(); this.forceUpdate(); }
   }
 
   // ---- Runs column interactions ----  // ---- Runs column interactions ----
@@ -549,8 +562,10 @@ class Component extends DCLogic {
 
     // live done-count for the active run reflects the real simulation
     const liveDone = this.base.filter(n => (sim[n.id] || {}).s === 'succeeded').length;
-    const selId = this.state.selectedRunId || this.currentRunId;
-    const runs = this.runs.map(r => r.runId === selId ? { ...r, doneCount: liveDone, nodeCount: this.base.length || r.nodeCount } : r);
+    // overlay live counts only when the loaded graph belongs to the selected run,
+    // so a mid-switch row never shows the previous run's counts.
+    const selId = (this.baseRunId && this.baseRunId === this.state.selectedRunId) ? this.baseRunId : null;
+    const runs = this.runs.map(r => (selId && r.runId === selId) ? { ...r, doneCount: liveDone, nodeCount: this.base.length || r.nodeCount } : r);
 
     // filter: query over title + snippet, facets AND across categories / OR within
     const facetActive = Object.values(S.facets).some(a => a.length);
@@ -928,7 +943,8 @@ class Component extends DCLogic {
         if (end != null) { let e = Math.min(end, p) - st.st; if (e < 0) e = 0; elapsed = e.toFixed(1) + 's'; }
       }
       const finished = st.s === 'succeeded' || st.s === 'failed';
-      const evBase = st.st != null ? st.st : (sel.events[0] ? sel.events[0].t : 0);
+      const evEpoch = !!(sel.events[0] && sel.events[0].t > 1e6);   // epoch-seconds vs 1-based index
+      const evBase = evEpoch ? (st.st != null ? st.st : sel.events[0].t) : 0;
       const evShown = sel.events.filter(ev => ev.t <= p + 0.05).map(ev => ({
         time: '+' + Math.max(0, ev.t - evBase).toFixed(1) + 's',
         label: ev.label,
