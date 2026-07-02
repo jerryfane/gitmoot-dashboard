@@ -12,6 +12,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/elkjs@0.9.3/lib/elk.bundled.js"></script>
+<script src="https://unpkg.com/force-graph@1.43.5/dist/force-graph.min.js"></script>
 <style>
  html,body{margin:0;background:#07080f}
  *{box-sizing:border-box}
@@ -37,11 +38,17 @@
     </div>
     <div style="font-family:'JetBrains Mono';font-size:9.5px;letter-spacing:0.14em;color:#5a6088;padding:0 10px 8px">ORCHESTRATION</div>
 
-    <a href="#" style="display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:9px;background:rgba(158,206,106,0.11);color:#eef0ff;font-size:13.5px;font-weight:500;text-decoration:none;border:1px solid rgba(158,206,106,0.2);position:relative">
+    <div onClick="{{ showGraph }}" title="Per-run delegation graph" style="{{ graphNavStyle }}">
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="5" cy="12" r="2.4"/><circle cx="18" cy="6" r="2.4"/><circle cx="18" cy="18" r="2.4"/><path d="M7 11l9-4M7 13l9 4"/></svg>
       <span style="flex:1">Graph</span>
-      <span style="width:5px;height:5px;border-radius:50%;background:#9ece6a;box-shadow:0 0 8px rgba(158,206,106,0.7)"></span>
-    </a>
+      <span style="{{ graphNavDotStyle }}"></span>
+    </div>
+
+    <div onClick="{{ showGalaxy }}" title="Cross-run galaxy view" style="{{ galaxyNavStyle }}">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="5" cy="6" r="1.7" fill="currentColor" stroke="none"/><circle cx="12.5" cy="12.5" r="1.7" fill="currentColor" stroke="none"/><circle cx="18.5" cy="7" r="1.7" fill="currentColor" stroke="none"/><circle cx="16.5" cy="17.5" r="1.7" fill="currentColor" stroke="none"/><circle cx="6.5" cy="17" r="1.7" fill="currentColor" stroke="none"/><path d="M5 6l7.5 6.5M12.5 12.5l6-5.5M12.5 12.5l4 5M12.5 12.5l-6 4.5" opacity="0.5"/></svg>
+      <span style="flex:1">Galaxy</span>
+      <span style="{{ galaxyNavDotStyle }}"></span>
+    </div>
 
     <div onClick="{{ toggleRuns }}" title="Toggle the Runs column" style="{{ runsNavStyle }}">
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="7" height="16" rx="1.5"/><path d="M13.5 7h7M13.5 12h7M13.5 17h4"/></svg>
@@ -211,6 +218,7 @@ class Component extends DCLogic {
     positions: {}, panX: 0, panY: 0, zoom: 1,
     selectedId: null, collapsed: {}, clock: 0,
     vw: 900, vh: 560, showPrompt: true, showOutput: false,
+    view: 'graph', // 'graph' (per-run DAG) | 'galaxy' (cross-run force graph)
     // Runs column
     runsOpen: true, runsQuery: '', facets: { status: [], kind: [], agent: [], repo: [] },
     openFacet: null, oneShotsExpanded: false, oneShotLimit: 6,
@@ -260,8 +268,349 @@ class Component extends DCLogic {
     clearInterval(this._t);
     clearInterval(this._runsPoll);
     clearTimeout(this._loadTO);
+    this.stopGalaxyPoll();
     try { if (this._es) this._es.close(); } catch (e) {}
     window.removeEventListener('resize', this.onResize);
+    try { window.removeEventListener('resize', this._galaxyResize); } catch (e) {}
+    try { if (this._galaxyRoot) this._galaxyRoot.remove(); } catch (e) {}
+  }
+
+  // ============================================================
+  // Galaxy view: cross-run force-directed graph rendered
+  // IMPERATIVELY via the `force-graph` UMD lib (window.ForceGraph)
+  // into a body-appended container, so the DC runtime's style
+  // sanitizer never touches the canvas. Created lazily on first
+  // show and reused; toggled via display only. See applyView().
+  // ============================================================
+  showGraph = () => this.setState({ view: 'graph' });
+  showGalaxy = () => this.setState({ view: 'galaxy' });
+
+  applyView() {
+    if (this.state.view === 'galaxy') {
+      const root = this.ensureGalaxyDom();
+      root.style.display = 'block';
+      this.initGalaxyGraph();
+      this.startGalaxyPoll();
+    } else {
+      this.stopGalaxyPoll();
+      if (this._galaxyRoot) this._galaxyRoot.style.display = 'none';
+    }
+  }
+
+  // Feature 4: live auto-refresh while the Galaxy view is active.
+  startGalaxyPoll() {
+    if (this._galaxyPoll) return;
+    this._galaxyPoll = setInterval(() => {
+      if (this.state.view !== 'galaxy' || !this._galaxyGraph) return;
+      this.fetchGalaxy(this._galaxyRepo || '', true);
+    }, 12000);
+  }
+  stopGalaxyPoll() {
+    try { clearInterval(this._galaxyPoll); } catch (e) {}
+    this._galaxyPoll = null;
+  }
+
+  ensureGalaxyDom() {
+    if (this._galaxyRoot) return this._galaxyRoot;
+    // one-time scoped styles (chips + tooltip); mirrors the approved prototype
+    const st = document.createElement('style');
+    st.textContent = [
+      "#galaxy-root{font-family:Inter,system-ui,sans-serif;color:#c8cce6}",
+      "#galaxy-root #g-graph{position:absolute;inset:0}",
+      "#galaxy-root .g-chip{position:absolute;z-index:10;background:rgba(14,16,30,.72);border:1px solid rgba(125,207,255,.18);border-radius:12px;backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px);box-shadow:0 6px 30px rgba(0,0,0,.55)}",
+      "#galaxy-root #g-title{top:18px;left:18px;padding:11px 15px 12px}",
+      "#galaxy-root #g-title .g-brand{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:17px;letter-spacing:.2px;background:linear-gradient(90deg,#7dcfff,#bb9af7 65%);-webkit-background-clip:text;background-clip:text;color:transparent}",
+      "#galaxy-root #g-title .g-brand .g-dot{color:#7f86ad;-webkit-text-fill-color:#7f86ad;margin:0 5px}",
+      "#galaxy-root #g-title .g-sub{margin-top:3px;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#7f86ad;letter-spacing:.3px}",
+      "#galaxy-root #g-count{margin-top:7px;font-family:'JetBrains Mono',monospace;font-size:11px;color:#c8cce6}",
+      "#galaxy-root #g-count b{color:#7dcfff;font-weight:500}",
+      "#galaxy-root #g-filterWrap{top:18px;right:18px;padding:10px 12px}",
+      "#galaxy-root #g-filterWrap label{display:block;font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:1.2px;color:#7f86ad;margin-bottom:6px}",
+      "#galaxy-root #g-repoFilter{appearance:none;-webkit-appearance:none;background:rgba(7,8,15,.85);color:#c8cce6;border:1px solid rgba(125,207,255,.18);border-radius:8px;font-family:'JetBrains Mono',monospace;font-size:12px;padding:7px 30px 7px 11px;min-width:210px;cursor:pointer;outline:none;background-image:url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'><path d='M1 3l4 4 4-4' stroke='%237dcfff' stroke-width='1.4' fill='none'/></svg>\");background-repeat:no-repeat;background-position:right 11px center}",
+      "#galaxy-root #g-repoFilter:hover{border-color:rgba(125,207,255,.4)}",
+      "#galaxy-root #g-legend{bottom:18px;left:18px;padding:13px 15px;max-width:230px}",
+      "#galaxy-root #g-legend .grp{margin-bottom:11px}",
+      "#galaxy-root #g-legend .grp:last-child{margin-bottom:0}",
+      "#galaxy-root #g-legend .h{font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:1.2px;color:#7f86ad;margin-bottom:7px}",
+      "#galaxy-root #g-legend .row{display:flex;align-items:center;gap:8px;font-size:12px;line-height:1.9;color:#c8cce6}",
+      "#galaxy-root #g-legend .swatch{width:11px;height:11px;border-radius:50%;flex:0 0 auto;box-shadow:0 0 8px 1px currentColor}",
+      "#galaxy-root #g-legend .items{display:grid;grid-template-columns:1fr 1fr;gap:1px 14px}",
+      "#galaxy-root #g-loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:20;font-family:'JetBrains Mono',monospace;font-size:13px;color:#7f86ad;letter-spacing:.5px;pointer-events:none;transition:opacity .5s}",
+      "#galaxy-root #g-loading.hidden{opacity:0}",
+      ".graph-tooltip{font-family:'Inter',sans-serif!important;font-size:12px!important;background:rgba(9,11,22,.94)!important;color:#c8cce6!important;border:1px solid rgba(125,207,255,.18)!important;border-radius:10px!important;padding:9px 12px!important;box-shadow:0 8px 30px rgba(0,0,0,.6)!important;backdrop-filter:blur(6px);max-width:320px;line-height:1.5}",
+      ".graph-tooltip .tt-title{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:12.5px;margin-bottom:4px}",
+      ".graph-tooltip .tt-row{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#7f86ad}",
+      ".graph-tooltip .tt-row b{font-weight:500}"
+    ].join('\n');
+    document.head.appendChild(st);
+
+    const root = document.createElement('div');
+    root.id = 'galaxy-root';
+    // fill the content area (right of the 216px nav rail); opaque so it fully
+    // covers the per-run canvas / minimap / detail panel underneath.
+    root.style.cssText = 'position:fixed;left:216px;top:0;right:0;bottom:0;z-index:40;background:#07080f;display:none';
+    root.innerHTML = [
+      '<div id="g-graph"></div>',
+      '<div id="g-loading">summoning the galaxy…</div>',
+      '<div id="g-title" class="g-chip">',
+      '  <div class="g-brand">gitmoot<span class="g-dot">·</span>galaxy</div>',
+      '  <div class="g-sub">delegation graph · force-directed</div>',
+      '  <div id="g-count">showing <b id="g-nCount">0</b> nodes / <b id="g-lCount">0</b> links</div>',
+      '</div>',
+      '<div id="g-filterWrap" class="g-chip">',
+      '  <label for="g-repoFilter">repository</label>',
+      '  <select id="g-repoFilter"><option value="">All repos</option></select>',
+      '</div>',
+      '<div id="g-legend" class="g-chip">',
+      '  <div class="grp"><div class="h">nodes</div>',
+      '    <div class="row"><span class="swatch" style="color:#7dcfff;background:#7dcfff"></span>repo hub</div>',
+      '    <div class="row"><span class="swatch" style="color:#bb9af7;background:#bb9af7"></span>agent hub</div></div>',
+      '  <div class="grp"><div class="h">job state</div><div class="items">',
+      '    <div class="row"><span class="swatch" style="color:#9ece6a;background:#9ece6a"></span>succeeded</div>',
+      '    <div class="row"><span class="swatch" style="color:#7aa2f7;background:#7aa2f7"></span>running</div>',
+      '    <div class="row"><span class="swatch" style="color:#f7768e;background:#f7768e"></span>failed</div>',
+      '    <div class="row"><span class="swatch" style="color:#e0af68;background:#e0af68"></span>blocked</div>',
+      '    <div class="row"><span class="swatch" style="color:#5a6088;background:#5a6088"></span>other</div>',
+      '  </div></div>',
+      '</div>'
+    ].join('\n');
+    document.body.appendChild(root);
+
+    this._galaxyRoot = root;
+    this._galaxyGraphEl = root.querySelector('#g-graph');
+    const sel = root.querySelector('#g-repoFilter');
+    sel.addEventListener('change', () => { this._galaxyRepo = sel.value; this.fetchGalaxy(sel.value); });
+    this._galaxyResize = () => {
+      if (this.state.view !== 'galaxy' || !this._galaxyGraph) return;
+      const r = this._galaxyGraphEl.getBoundingClientRect();
+      this._galaxyGraph.width(r.width).height(r.height);
+    };
+    window.addEventListener('resize', this._galaxyResize);
+    return root;
+  }
+
+  initGalaxyGraph() {
+    if (this._galaxyGraph) { // reuse: just re-fit to the (possibly resized) container
+      const r = this._galaxyGraphEl.getBoundingClientRect();
+      this._galaxyGraph.width(r.width).height(r.height);
+      try { this._galaxyGraph.zoomToFit(400, 60); } catch (e) {}
+      return;
+    }
+    let tries = 0;
+    const poll = () => {
+      if (typeof window.ForceGraph === 'function') { this.buildGalaxyGraph(); return; }
+      if (tries++ > 200) { const l = this._galaxyRoot.querySelector('#g-loading'); if (l) l.textContent = 'failed to load graph library'; return; }
+      setTimeout(poll, 50);
+    };
+    poll();
+  }
+
+  buildGalaxyGraph() {
+    const STATE_COLOR = { succeeded:'#9ece6a', running:'#7aa2f7', failed:'#f7768e', blocked:'#e0af68', cancelled:'#5a6088', queued:'#5a6088' };
+    const nodeColor = (n) => n.type === 'repo' ? '#7dcfff' : n.type === 'agent' ? '#bb9af7' : (STATE_COLOR[n.state] || '#5a6088');
+    const nodeRadius = (n) => n.type === 'repo' ? 8.5 : n.type === 'agent' ? 4.6 : 3.0;
+    const linkStyle = (kind) => {
+      switch (kind) {
+        case 'repo':  return { color:'#7dcfff', alpha:0.16, width:0.5 };
+        case 'agent': return { color:'#bb9af7', alpha:0.13, width:0.5 };
+        case 'dep':   return { color:'#a0a8dc', alpha:0.55, width:0.9 };
+        default:      return { color:'#a0a8dc', alpha:0.35, width:0.7 };
+      }
+    };
+    const hexToRgb = (h) => { const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(h); return m ? [parseInt(m[1],16),parseInt(m[2],16),parseInt(m[3],16)] : [160,168,220]; };
+    const rgba = (h,a) => { const c = hexToRgb(h); return 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + a + ')'; };
+    const esc = (s) => String(s == null ? '' : s).replace(/[&<>]/g, (c) => c === '&' ? '&amp;' : c === '<' ? '&lt;' : '&gt;');
+    const tooltip = (n) => {
+      let parts = '<div class="tt-title">' + esc(n.label || n.id) + '</div>';
+      if (n.type === 'repo') parts += '<div class="tt-row">type <b>repo hub</b></div>';
+      else if (n.type === 'agent') parts += '<div class="tt-row">type <b>agent hub</b></div>';
+      else {
+        parts += '<div class="tt-row">type <b>job</b> · state <b style="color:' + nodeColor(n) + '">' + esc(n.state) + '</b></div>';
+        parts += '<div class="tt-row">agent <b>' + esc(n.agent) + '</b></div>';
+        parts += '<div class="tt-row">repo <b>' + esc(n.repo) + '</b></div>';
+      }
+      return parts;
+    };
+
+    const G = window.ForceGraph()(this._galaxyGraphEl)
+      .backgroundColor('#07080f')
+      .nodeRelSize(1)
+      .nodeLabel(tooltip)
+      .cooldownTicks(180)
+      .warmupTicks(0)
+      .d3AlphaDecay(0.022)
+      .d3VelocityDecay(0.32)
+      .nodeCanvasObjectMode(() => 'replace')
+      .nodeCanvasObject((n, ctx, scale) => {
+        // Feature 1: hover highlight — dim non-neighbors, brighten hovered + neighbors.
+        const hov = this._galaxyHover;
+        let dim = 1, hi = false;
+        if (hov) {
+          if (n.id === hov.id || hov.neighbors.has(n.id)) hi = true;
+          else dim = 0.12;
+        }
+        let r = nodeRadius(n); const col = nodeColor(n);
+        // Feature 3: running job nodes breathe (needs continuous redraw — provided by particles).
+        const isRun = n.type === 'job' && n.state === 'running';
+        let pulse = 1;
+        if (isRun) { pulse = 0.5 + 0.5 * Math.sin(Date.now() / 300); r *= (0.85 + 0.4 * pulse); }
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.shadowColor = col;
+        let blur = this._galaxyBig ? 0 : (n.type === 'repo' ? 26 : n.type === 'agent' ? 15 : 9);
+        if (isRun) blur = (this._galaxyBig ? 6 : 12) * (0.6 + 0.7 * pulse);
+        if (hi) blur = Math.max(blur, this._galaxyBig ? 8 : 16);
+        ctx.shadowBlur = blur;
+        ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 2 * Math.PI);
+        ctx.fillStyle = col; ctx.globalAlpha = 0.92 * dim; ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.beginPath(); ctx.arc(n.x, n.y, r * 0.5, 0, 2 * Math.PI);
+        ctx.fillStyle = '#ffffff'; ctx.globalAlpha = 0.55 * dim; ctx.fill();
+        if (hi) { // brighter ring on hovered node + its neighbors
+          ctx.beginPath(); ctx.arc(n.x, n.y, r + 1.6, 0, 2 * Math.PI);
+          ctx.strokeStyle = col; ctx.lineWidth = 0.9; ctx.globalAlpha = 0.9; ctx.stroke();
+        }
+        ctx.restore();
+        if (n.type !== 'job' && scale > 1.5) {
+          ctx.save();
+          ctx.globalAlpha = Math.min(1, (scale - 1.5) / 1.2) * dim;
+          ctx.font = (n.type === 'repo' ? '600 ' : '500 ') + (n.type === 'repo' ? 4.4 : 3.4) + "px 'Space Grotesk',sans-serif";
+          ctx.fillStyle = col; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+          const txt = n.type === 'repo' ? (n.label || '').split('/').pop() : n.label;
+          ctx.fillText(txt || '', n.x, n.y + r + 1.5);
+          ctx.restore();
+        }
+      })
+      .nodePointerAreaPaint((n, color, ctx) => {
+        ctx.fillStyle = color; ctx.beginPath(); ctx.arc(n.x, n.y, nodeRadius(n) + 2, 0, 2 * Math.PI); ctx.fill();
+      })
+      .linkColor(() => 'rgba(0,0,0,0)')
+      .linkCanvasObject((l, ctx) => {
+        const s = l.source, t = l.target;
+        if (!s || !t || s.x == null || t.x == null) return;
+        const style = linkStyle(l.kind);
+        let alpha = style.alpha, width = style.width;
+        const hov = this._galaxyHover; // Feature 1: emphasize hovered node's links, dim the rest.
+        if (hov) {
+          const sid = (s.id != null ? s.id : s), tid = (t.id != null ? t.id : t);
+          if (hov.links.has(sid + ' ' + tid)) { alpha = Math.min(1, style.alpha + 0.5); width = style.width + 0.8; }
+          else alpha = 0.04;
+        }
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.strokeStyle = rgba(style.color, alpha);
+        ctx.lineWidth = width;
+        ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(t.x, t.y); ctx.stroke();
+        ctx.restore();
+      })
+      // Feature 2: flowing particles — bright/fast on links touching a running job,
+      // one subtle slow particle on ordinary delegation links, none on repo/agent spokes.
+      .linkDirectionalParticles((l) => {
+        const s = l.source, t = l.target;
+        if ((s && s.state === 'running') || (t && t.state === 'running')) return 3;
+        return (l.kind === 'parent' || l.kind === 'dep') ? 1 : 0;
+      })
+      .linkDirectionalParticleSpeed((l) => {
+        const s = l.source, t = l.target;
+        return ((s && s.state === 'running') || (t && t.state === 'running')) ? 0.012 : 0.004;
+      })
+      .linkDirectionalParticleWidth((l) => {
+        const s = l.source, t = l.target;
+        return ((s && s.state === 'running') || (t && t.state === 'running')) ? 2.2 : 1.1;
+      })
+      .linkDirectionalParticleColor((l) => {
+        const s = l.source, t = l.target;
+        return ((s && s.state === 'running') || (t && t.state === 'running')) ? '#7aa2f7' : 'rgba(187,154,247,0.30)';
+      })
+      .onNodeHover((node) => {
+        if (node && this._galaxyAdj) {
+          this._galaxyHover = {
+            id: node.id,
+            neighbors: this._galaxyAdj.neighbors[node.id] || new Set(),
+            links: this._galaxyAdj.nodeLinks[node.id] || new Set()
+          };
+        } else {
+          this._galaxyHover = null;
+        }
+        try { this._galaxyGraphEl.style.cursor = node ? 'pointer' : 'default'; } catch (e) {}
+      })
+      .onEngineStop(() => {
+        if (this._galaxyNeedFit && !this._galaxyFitDone) {
+          this._galaxyFitDone = true; this._galaxyNeedFit = false;
+          try { G.zoomToFit(700, 60); } catch (e) {}
+        }
+      });
+    try {
+      G.d3Force('charge').strength(-70).distanceMax(360);
+      G.d3Force('link').distance((l) => l.kind === 'repo' ? 26 : l.kind === 'agent' ? 22 : 18).strength(0.5);
+    } catch (e) {}
+    const r = this._galaxyGraphEl.getBoundingClientRect();
+    G.width(r.width).height(r.height);
+    this._galaxyGraph = G;
+    this.fetchGalaxy(this._galaxyRepo || '');
+  }
+
+  fetchGalaxy(repo, isPoll) {
+    const url = '/api/graph' + (repo ? '?repo=' + encodeURIComponent(repo) : '');
+    fetch(url, { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)))
+      .then(json => {
+        this._galaxyRaw = json || { nodes: [], links: [], repos: [] };
+        if (!this._galaxyFilterFilled) this.fillGalaxyFilter(this._galaxyRaw.repos || []);
+        this.renderGalaxy(isPoll);
+        const l = this._galaxyRoot.querySelector('#g-loading');
+        if (l) { l.classList.add('hidden'); setTimeout(() => { l.style.display = 'none'; }, 600); }
+      })
+      .catch(err => {
+        if (isPoll) return; // keep the current galaxy on a transient poll failure
+        const l = this._galaxyRoot.querySelector('#g-loading');
+        if (l) { l.classList.remove('hidden'); l.style.display = 'flex'; l.textContent = 'could not load /api/graph (' + err.message + ')'; }
+      });
+  }
+
+  fillGalaxyFilter(repos) {
+    const sel = this._galaxyRoot.querySelector('#g-repoFilter');
+    (repos || []).forEach(rp => {
+      const o = document.createElement('option');
+      o.value = rp; o.textContent = rp.split('/').pop() + '  ·  ' + rp;
+      sel.appendChild(o);
+    });
+    this._galaxyFilterFilled = true;
+  }
+
+  renderGalaxy(isPoll) {
+    if (!this._galaxyGraph) return;
+    const raw = this._galaxyRaw || { nodes: [], links: [] };
+    // fresh clones so force-graph can mutate x/y and resolve source/target refs
+    const nodes = (raw.nodes || []).map(n => ({ id: n.id, type: n.type, label: n.label, state: n.state, agent: n.agent, repo: n.repo, run: n.run }));
+    const links = (raw.links || []).map(l => ({ source: (l.source && l.source.id) || l.source, target: (l.target && l.target.id) || l.target, kind: l.kind }));
+    // Feature 4: preserve layout across poll refreshes — copy live positions onto matching
+    // new nodes so the graph doesn't re-scatter/re-fit. New nodes keep undefined coords and
+    // animate in from the simulation.
+    if (isPoll) {
+      const prev = {};
+      try { (this._galaxyGraph.graphData().nodes || []).forEach(pn => { prev[pn.id] = pn; }); } catch (e) {}
+      nodes.forEach(n => { const p = prev[n.id]; if (p) { n.x = p.x; n.y = p.y; n.vx = p.vx; n.vy = p.vy; } });
+    }
+    const nc = this._galaxyRoot.querySelector('#g-nCount'); if (nc) nc.textContent = nodes.length;
+    const lc = this._galaxyRoot.querySelector('#g-lCount'); if (lc) lc.textContent = links.length;
+    // Feature 1: adjacency index (id -> neighbor ids, id -> connected link keys) built once
+    // per graphData for cheap hover highlight lookups. Link key = "sourceId targetId".
+    const neighbors = {}, nodeLinks = {};
+    nodes.forEach(n => { neighbors[n.id] = new Set(); nodeLinks[n.id] = new Set(); });
+    links.forEach(l => {
+      const s = l.source, t = l.target, key = s + ' ' + t;
+      if (neighbors[s]) { neighbors[s].add(t); nodeLinks[s].add(key); }
+      if (neighbors[t]) { neighbors[t].add(s); nodeLinks[t].add(key); }
+    });
+    this._galaxyAdj = { neighbors: neighbors, nodeLinks: nodeLinks };
+    // Large graphs (whole-history, thousands of nodes) can't afford per-node
+    // shadowBlur every frame — additive 'lighter' blend still glows via overlap.
+    this._galaxyBig = nodes.length > 500;
+    // Only fit on first load / repo-filter change — never on a poll refresh (Feature 4).
+    if (!isPoll) { this._galaxyNeedFit = true; this._galaxyFitDone = false; }
+    this._galaxyGraph.graphData({ nodes: nodes, links: links });
+    if (!isPoll) setTimeout(() => { if (!this._galaxyFitDone) { try { this._galaxyGraph.zoomToFit(700, 60); } catch (e) {} } }, 1600);
   }
 
   // ---- live feed: /api/state (graph) + /events (SSE) + /api/runs (list) ----
@@ -557,7 +906,7 @@ class Component extends DCLogic {
 
   // ---- Runs column (createElement: data-heavy list with filters, sections, states) ----
   buildRunsColumn(sim, CO) {
-    if (!this.state.runsOpen) return null;
+    if (!this.state.runsOpen || this.state.view === 'galaxy') return null;
     const R = React.createElement;
     const S = this.state;
     const mono = 'JetBrains Mono';
@@ -760,6 +1109,11 @@ class Component extends DCLogic {
 
   renderVals() {
     if (!this._t) this.startClock();
+    // apply view side-effects (galaxy mount/show/hide) out of the render phase
+    if (this._appliedView !== this.state.view) {
+      this._appliedView = this.state.view;
+      setTimeout(() => this.applyView(), 0);
+    }
     const R = React.createElement;
     const p = this.state.clock;
     const sim = this.simulate(p);
@@ -975,13 +1329,14 @@ class Component extends DCLogic {
     const activeRun = this.runs.find(r => r.runId === this.state.selectedRunId) || this.runs[0] || { state: 'queued', repo: '', title: this.runTitleLive || 'orchestration' };
     const crumbCol = (CO[activeRun.state] || CO.queued);
     const runsOpen = this.state.runsOpen;
-    const runsNavStyle = {
-      display: 'flex', alignItems: 'center', gap: '11px', padding: '9px 11px', borderRadius: '9px',
-      fontSize: '13.5px', fontWeight: 500, cursor: 'pointer', marginTop: '2px',
-      background: runsOpen ? 'rgba(158,206,106,0.11)' : 'transparent',
-      color: runsOpen ? '#eef0ff' : '#a8aecf',
-      border: '1px solid ' + (runsOpen ? 'rgba(158,206,106,0.2)' : 'transparent')
-    };
+    const isGraph = this.state.view !== 'galaxy';
+    // shared nav-item base; active items pick up the green highlight
+    const navBase = { display: 'flex', alignItems: 'center', gap: '11px', padding: '9px 11px', borderRadius: '9px', fontSize: '13.5px', fontWeight: 500, cursor: 'pointer', marginTop: '2px' };
+    const navActive = (on) => ({ ...navBase, background: on ? 'rgba(158,206,106,0.11)' : 'transparent', color: on ? '#eef0ff' : '#a8aecf', border: '1px solid ' + (on ? 'rgba(158,206,106,0.2)' : 'transparent') });
+    const runsNavStyle = navActive(runsOpen && isGraph);
+    const graphNavStyle = { ...navActive(isGraph), marginTop: 0, position: 'relative' };
+    const galaxyNavStyle = { ...navActive(!isGraph), position: 'relative' };
+    const navDot = (on) => ({ width: '5px', height: '5px', borderRadius: '50%', background: on ? '#9ece6a' : 'transparent', boxShadow: on ? '0 0 8px rgba(158,206,106,0.7)' : 'none' });
 
     return {
       edgesEl, nodesEl, minimapEl, stat, detail, runsColumnEl,
@@ -990,9 +1345,12 @@ class Component extends DCLogic {
       onDown: this.onDown, onMove: this.onMove, onUp: this.onUp, onWheel: this.onWheel,
       zoomIn: this.zoomIn, zoomOut: this.zoomOut, fit: this.fit,
       toggleRuns: this.toggleRuns, runsNavStyle,
+      showGraph: this.showGraph, showGalaxy: this.showGalaxy,
+      graphNavStyle, galaxyNavStyle,
+      graphNavDotStyle: navDot(isGraph), galaxyNavDotStyle: navDot(!isGraph),
       crumbRepo: activeRun.repo, crumbTitle: activeRun.title,
       crumbDotStyle: { width: '8px', height: '8px', borderRadius: '50%', flex: 'none', background: crumbCol.c, boxShadow: activeRun.state === 'running' ? '0 0 8px ' + crumbCol.g : 'none', animation: activeRun.state === 'running' ? 'dotpulse 1.4s ease-in-out infinite' : 'none' },
-      hasSelected: !!sel,
+      hasSelected: !!sel && isGraph,
       closePanel: this.closePanel,
       togglePrompt: this.togglePrompt, toggleOutput: this.toggleOutput,
       showPrompt: this.state.showPrompt, showOutput: this.state.showOutput,
