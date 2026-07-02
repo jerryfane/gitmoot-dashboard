@@ -495,7 +495,9 @@ class Component extends DCLogic {
         }
       })
       .nodePointerAreaPaint((n, color, ctx) => {
-        ctx.fillStyle = color; ctx.beginPath(); ctx.arc(n.x, n.y, nodeRadius(n) + 2, 0, 2 * Math.PI); ctx.fill();
+        // Bigger hit target than the visual dot so the tiny, dense nodes are
+        // easy to hover/select without pixel-perfect aim.
+        ctx.fillStyle = color; ctx.beginPath(); ctx.arc(n.x, n.y, Math.max(nodeRadius(n) + 3.5, 5), 0, 2 * Math.PI); ctx.fill();
       })
       .linkColor(() => 'rgba(0,0,0,0)')
       .linkCanvasObject((l, ctx) => {
@@ -557,6 +559,7 @@ class Component extends DCLogic {
         } else {
           this._galaxyHover = null;
         }
+        if (this._galaxyWake) this._galaxyWake(); // repaint so the dim shows/clears
         try { this._galaxyGraphEl.style.cursor = node ? 'pointer' : 'default'; } catch (e) {}
       })
       .onEngineStop(() => {
@@ -564,6 +567,9 @@ class Component extends DCLogic {
           this._galaxyFitDone = true; this._galaxyNeedFit = false;
           try { G.zoomToFit(700, 60); } catch (e) {}
         }
+        // Pin every node once the layout settles, so waking the render loop for
+        // hover (via d3ReheatSimulation) repaints WITHOUT drifting positions.
+        try { (G.graphData().nodes || []).forEach((n) => { if (n.x != null) { n.fx = n.x; n.fy = n.y; } }); } catch (e) {}
       });
     try {
       G.d3Force('charge').strength(-70).distanceMax(360);
@@ -572,6 +578,27 @@ class Component extends DCLogic {
     const r = this._galaxyGraphEl.getBoundingClientRect();
     G.width(r.width).height(r.height);
     this._galaxyGraph = G;
+    // The perf fix lets force-graph's render loop STOP when the graph is idle
+    // (no particles, cooled sim). But the hover highlight is a custom-canvas
+    // effect (dim the rest) that needs a repaint — a stopped loop shows the
+    // tooltip but never redraws the dim, which looks glitchy / like hover does
+    // nothing. So: wake the loop while the pointer is over the canvas (cheap
+    // per-frame draw now), and idle again shortly after it leaves — unless jobs
+    // are running, which animate anyway.
+    try {
+      const el = this._galaxyGraphEl;
+      // resumeAnimation() alone does NOT restart a cooldown-stopped loop; a light
+      // d3ReheatSimulation() does (nodes are pinned above, so nothing moves — it
+      // just drives repaints so the hover dim/highlight shows).
+      this._galaxyWake = () => { try { G.resumeAnimation(); G.d3ReheatSimulation(); } catch (e) {} };
+      el.addEventListener('pointermove', this._galaxyWake);
+      el.addEventListener('pointerenter', this._galaxyWake);
+      el.addEventListener('pointerleave', () => {
+        this._galaxyHover = null;
+        this._galaxyWake();
+        setTimeout(() => { try { if (!this._galaxyHasRunning) G.pauseAnimation(); } catch (e) {} }, 450);
+      });
+    } catch (e) {}
     this.fetchGalaxy(this._galaxyRepo || '');
   }
 
