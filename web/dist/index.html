@@ -451,10 +451,10 @@ class Component extends DCLogic {
     const nodeRadius = (n) => n.type === 'repo' ? 8.5 : n.type === 'agent' ? 4.6 : 3.0;
     const linkStyle = (kind) => {
       switch (kind) {
-        case 'repo':  return { color:'#8ad6ff', alpha:0.22, width:0.5 };
-        case 'agent': return { color:'#c4a9ff', alpha:0.18, width:0.5 };
-        case 'dep':   return { color:'#9dbcff', alpha:0.78, width:1.0 };
-        default:      return { color:'#b3bbef', alpha:0.55, width:0.8 };
+        case 'repo':  return { color:'#7dcfff', alpha:0.16, width:0.5 };
+        case 'agent': return { color:'#bb9af7', alpha:0.13, width:0.5 };
+        case 'dep':   return { color:'#a0a8dc', alpha:0.55, width:0.9 };
+        default:      return { color:'#a0a8dc', alpha:0.35, width:0.7 };
       }
     };
     const hexToRgb = (h) => { const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(h); return m ? [parseInt(m[1],16),parseInt(m[2],16),parseInt(m[3],16)] : [160,168,220]; };
@@ -553,9 +553,11 @@ class Component extends DCLogic {
         if (live && this._galaxyHasRunning) {
           const p = 0.5 + 0.5 * Math.sin(Date.now() / 300);
           color = '#7aa2f7'; alpha = 0.7 + 0.25 * p; width = Math.max(style.width + 1.4, 3.0 / scale);
-        } else {
-          width = Math.max(width, 0.5 / scale); // mild floor so the web reads when zoomed out
         }
+        // NOTE: ordinary (non-live) links keep their thin graph-unit width and are NOT
+        // pixel-floored — at fit zoom they recede to a faint web so the galaxy isn't a
+        // bright hairball. Only the live delegation links (above) + the flowing packets +
+        // the running-node beacons pop. (Reverts the all-links brightening that read messy.)
         const hov = this._galaxyHover || this._galaxySelected; // Feature 1: emphasize hovered/selected node's links, dim the rest.
         if (hov) {
           const sid = (s.id != null ? s.id : s), tid = (t.id != null ? t.id : t);
