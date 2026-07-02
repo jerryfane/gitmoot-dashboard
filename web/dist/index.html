@@ -526,7 +526,7 @@ class Component extends DCLogic {
       .nodePointerAreaPaint((n, color, ctx) => {
         // Bigger hit target than the visual dot so the tiny, dense nodes are
         // easy to hover/select without pixel-perfect aim.
-        ctx.fillStyle = color; ctx.beginPath(); ctx.arc(n.x, n.y, Math.max(nodeRadius(n) + 3.5, 5), 0, 2 * Math.PI); ctx.fill();
+        ctx.fillStyle = color; ctx.beginPath(); ctx.arc(n.x, n.y, nodeRadius(n) + 2, 0, 2 * Math.PI); ctx.fill();
       })
       .linkColor(() => 'rgba(0,0,0,0)')
       .linkCanvasObject((l, ctx) => {
@@ -596,55 +596,78 @@ class Component extends DCLogic {
           this._galaxyFitDone = true; this._galaxyNeedFit = false;
           try { G.zoomToFit(700, 60); } catch (e) {}
         }
-        // Pin every node once the layout settles, so waking the render loop for
-        // hover (via d3ReheatSimulation) repaints WITHOUT drifting positions.
-        try { (G.graphData().nodes || []).forEach((n) => { if (n.x != null) { n.fx = n.x; n.fy = n.y; } }); } catch (e) {}
-        // FIX-A: layout has now settled & pinned. Only from here on may _galaxyWake
-        // reheat the sim (a reheat before this point would reset alpha to 1 and
-        // restart the settle, so onEngineStop would never fire and nodes never pin).
+        // FLOAT: pin every node once the layout settles, and record its HOME
+        // position + a random phase. The pin (fx/fy) is what pointer hit-testing
+        // uses (node.x = fx), so the onEngineTick below bobs the PIN itself to keep
+        // the drawn dot and the hit-map aligned. Bounded oscillation → never drifts.
+        // Nodes that ALREADY have a home (a poll-resettle re-fired onEngineStop) keep it,
+        // so the tiny bob offset present at resettle time never ratchets the home; only
+        // freshly-settled nodes adopt their current position as home.
+        try { (G.graphData().nodes || []).forEach((n) => { if (n.__hx != null) { n.fx = n.__hx; n.fy = n.__hy; } else if (n.x != null) { n.__hx = n.x; n.__hy = n.y; if (n.__ph == null) n.__ph = Math.random() * Math.PI * 2; n.fx = n.__hx; n.fy = n.__hy; } }); } catch (e) {}
         this._galaxyPinned = true;
+        // FLOAT: keep the render loop running perpetually so the gentle float (and
+        // hover-highlight repaints + a fresh pointer hit-map every frame) never idle.
+        // This means onEngineStop won't fire again — new nodes get homed in onEngineTick.
+        try { G.cooldownTicks(Infinity); G.d3ReheatSimulation(); } catch (e) {}
+        // PERF: now that every node is pinned (fx/fy) and moved ONLY by the onEngineTick
+        // bob, the layout forces (charge/link/center) do no useful work — they just burn
+        // ~116ms/4s of long-tasks every frame. Strip them so the perpetual loop is just
+        // the cheap bob + render (0 long-tasks idle). The poll path re-applies charge/link
+        // (applyGalaxyForces) + a finite cooldown when NEW nodes arrive that need laying out.
+        try { G.d3Force('charge', null); G.d3Force('link', null); G.d3Force('center', null); } catch (e) {}
+      })
+      .onEngineTick(() => {
+        // FLOAT: gentle bounded "alive" bob (Obsidian-like). Move each homed node's
+        // PIN (fx/fy) — not just x/y — so pointer coords stay aligned with the drawing.
+        // Fixed-amplitude oscillation around each node's HOME → can never run away.
+        if (!this._galaxyPinned) return;
+        const AMP = 3.5, SP = 0.4, t = Date.now() / 1000;
+        try {
+          (G.graphData().nodes || []).forEach((n) => {
+            // New nodes (from the poll) arrive unpinned; once the sim gives them a
+            // position AND a pin, adopt that as home and start floating them too.
+            if (n.__hx == null && n.x != null && n.fx != null) { n.__hx = n.x; n.__hy = n.y; n.__ph = Math.random() * Math.PI * 2; }
+            if (n.__hx != null) {
+              n.fx = n.__hx + AMP * Math.sin(t * SP + n.__ph);
+              n.fy = n.__hy + AMP * Math.cos(t * SP * 0.9 + n.__ph);
+            }
+          });
+        } catch (e) {}
       })
       // FIX-B: click a node -> open the detail panel; keep it lit via the hover
       // highlight mechanism. Click the empty background -> close.
       .onNodeClick((node) => { this.openGalaxyDetail(node); })
       .onBackgroundClick(() => { this.closeGalaxyDetail(); });
+    this.applyGalaxyForces(G);
+    const r = this._galaxyGraphEl.getBoundingClientRect();
+    G.width(r.width).height(r.height);
+    this._galaxyGraph = G;
+    // FLOAT: the render loop now runs perpetually (cooldownTicks(Infinity) in
+    // onEngineStop), so the gentle float, hover-highlight dim/brighten, and a fresh
+    // pointer hit-map all repaint on their own every frame — no wake/reheat needed.
+    // _galaxyWake is kept as a harmless no-op so existing call sites (onNodeHover,
+    // open/closeGalaxyDetail) don't error. The old pointermove→d3ReheatSimulation
+    // wake is removed: that reheat was what kept resetting alpha and never settling.
+    this._galaxyWake = () => {};
+    try {
+      const el = this._galaxyGraphEl;
+      // Still clear the hover highlight when the pointer leaves the canvas; the
+      // always-on loop repaints the cleared state on the next frame.
+      el.addEventListener('pointerleave', () => { this._galaxyHover = null; });
+    } catch (e) {}
+    this.fetchGalaxy(this._galaxyRepo || '');
+  }
+
+  // PERF: (re)apply the layout forces. Shared by buildGalaxyGraph (initial layout)
+  // and the poll path (when new nodes arrive and need laying out) so the config can
+  // never drift. onEngineStop strips these forces once the graph settles (all nodes
+  // pinned + bobbed by onEngineTick), which drops idle long-tasks to 0; this restores
+  // them for a finite resettle. Config must stay identical to the original inline setup.
+  applyGalaxyForces(G) {
     try {
       G.d3Force('charge').strength(-70).distanceMax(360);
       G.d3Force('link').distance((l) => l.kind === 'repo' ? 26 : l.kind === 'agent' ? 22 : 18).strength(0.5);
     } catch (e) {}
-    const r = this._galaxyGraphEl.getBoundingClientRect();
-    G.width(r.width).height(r.height);
-    this._galaxyGraph = G;
-    // The perf fix lets force-graph's render loop STOP when the graph is idle
-    // (no particles, cooled sim). But the hover highlight is a custom-canvas
-    // effect (dim the rest) that needs a repaint — a stopped loop shows the
-    // tooltip but never redraws the dim, which looks glitchy / like hover does
-    // nothing. So: wake the loop while the pointer is over the canvas (cheap
-    // per-frame draw now), and idle again shortly after it leaves — unless jobs
-    // are running, which animate anyway.
-    try {
-      const el = this._galaxyGraphEl;
-      // resumeAnimation() alone does NOT restart a cooldown-stopped loop; a light
-      // d3ReheatSimulation() does (nodes are pinned above, so nothing moves — it
-      // just drives repaints so the hover dim/highlight shows).
-      this._galaxyWake = () => {
-        // FIX-A: do NOT reheat until the layout has settled & pinned. Before the pin
-        // the simulation is already running and rendering every frame (so hover still
-        // shows), and reheating on pointermove would reset alpha to 1 and restart the
-        // ~180-tick settle — so onEngineStop would never fire and nodes never pin. After
-        // the pin, a reheat repaints a fully-pinned graph → redraws without moving anything.
-        if (!this._galaxyPinned) return;
-        try { G.resumeAnimation(); G.d3ReheatSimulation(); } catch (e) {}
-      };
-      el.addEventListener('pointermove', this._galaxyWake);
-      el.addEventListener('pointerenter', this._galaxyWake);
-      el.addEventListener('pointerleave', () => {
-        this._galaxyHover = null;
-        this._galaxyWake();
-        setTimeout(() => { try { if (!this._galaxyHasRunning) G.pauseAnimation(); } catch (e) {} }, 450);
-      });
-    } catch (e) {}
-    this.fetchGalaxy(this._galaxyRepo || '');
   }
 
   fetchGalaxy(repo, isPoll) {
@@ -698,6 +721,7 @@ class Component extends DCLogic {
     // Feature 4: preserve layout across poll refreshes — copy live positions onto matching
     // new nodes so the graph doesn't re-scatter/re-fit. New nodes keep undefined coords and
     // animate in from the simulation.
+    let pollHasNewNodes = false;
     if (isPoll) {
       const prev = {};
       try { (this._galaxyGraph.graphData().nodes || []).forEach(pn => { prev[pn.id] = pn; }); } catch (e) {}
@@ -705,7 +729,7 @@ class Component extends DCLogic {
       // jiggle the existing ~1600 nodes every 12s. Brand-new nodes stay unpinned
       // (no fx/fy) so they settle in near their hub. First-load / repo-filter
       // change (isPoll false) lay out fresh and unpinned.
-      nodes.forEach(n => { const p = prev[n.id]; if (p) { n.x = p.x; n.y = p.y; n.vx = p.vx; n.vy = p.vy; n.fx = p.x; n.fy = p.y; } });
+      nodes.forEach(n => { const p = prev[n.id]; if (p) { n.x = p.x; n.y = p.y; n.vx = p.vx; n.vy = p.vy; n.fx = p.x; n.fy = p.y; } else { pollHasNewNodes = true; } });
     }
     const nc = this._galaxyRoot.querySelector('#g-nCount'); if (nc) nc.textContent = nodes.length;
     const lc = this._galaxyRoot.querySelector('#g-lCount'); if (lc) lc.textContent = links.length;
@@ -731,7 +755,19 @@ class Component extends DCLogic {
     // not reheat until this settle completes & onEngineStop re-pins (else continuous mouse
     // movement over the canvas keeps reheating and the graph never settles).
     if (!isPoll) { this._galaxyNeedFit = true; this._galaxyFitDone = false; this._galaxyPinned = false; this.closeGalaxyDetail(); }
+    // PERF: a poll that introduces brand-new node ids needs the layout forces (which
+    // onEngineStop stripped for the idle 0-longtask state) to place them. Re-apply the
+    // same charge/link config, un-pin (pause the bob so the resettle isn't fought), and
+    // use a FINITE cooldown so the sim settles and onEngineStop fires again — which re-homes
+    // ALL nodes (new included), strips the forces, and returns to the perpetual bob loop.
+    // Existing nodes stay put (pinned via fx/fy); only the new unpinned nodes settle.
+    if (isPoll && pollHasNewNodes) {
+      this._galaxyPinned = false;
+      this.applyGalaxyForces(this._galaxyGraph);
+      try { this._galaxyGraph.cooldownTicks(180); } catch (e) {}
+    }
     this._galaxyGraph.graphData({ nodes: nodes, links: links });
+    if (isPoll && pollHasNewNodes) { try { this._galaxyGraph.d3ReheatSimulation(); } catch (e) {} }
     if (!isPoll) setTimeout(() => { if (!this._galaxyFitDone) { try { this._galaxyGraph.zoomToFit(700, 60); } catch (e) {} } }, 1600);
   }
 
