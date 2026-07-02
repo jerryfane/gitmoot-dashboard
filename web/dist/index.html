@@ -394,18 +394,30 @@ class Component extends DCLogic {
       const r = this._galaxyGraphEl.getBoundingClientRect();
       this._galaxyGraph.width(r.width).height(r.height);
       try { this._galaxyGraph.zoomToFit(400, 60); } catch (e) {}
+      // Feature 4: leaving Galaxy stops the poll, so the reused graph shows a
+      // pre-departure snapshot; refresh immediately (the poll is restarted by
+      // the caller) so re-entry doesn't display stale data for up to 12s.
+      this.fetchGalaxy(this._galaxyRepo || '', true);
       return;
     }
+    // Re-entrancy guard: while window.ForceGraph is still downloading and
+    // _galaxyGraph is unset, toggling Galaxy→Graph→Galaxy would otherwise start
+    // another poll loop each time and mount multiple ForceGraph instances on the
+    // same element once the lib lands. Start the build-and-poll-wait at most once.
+    if (this._galaxyBuilding) return;
+    this._galaxyBuilding = true;
     let tries = 0;
     const poll = () => {
+      if (this._galaxyGraph) return; // already built by an earlier poll
       if (typeof window.ForceGraph === 'function') { this.buildGalaxyGraph(); return; }
-      if (tries++ > 200) { const l = this._galaxyRoot.querySelector('#g-loading'); if (l) l.textContent = 'failed to load graph library'; return; }
+      if (tries++ > 200) { this._galaxyBuilding = false; const l = this._galaxyRoot.querySelector('#g-loading'); if (l) l.textContent = 'failed to load graph library'; return; }
       setTimeout(poll, 50);
     };
     poll();
   }
 
   buildGalaxyGraph() {
+    if (this._galaxyGraph) return; // guard: only ever mount one ForceGraph instance
     const STATE_COLOR = { succeeded:'#9ece6a', running:'#7aa2f7', failed:'#f7768e', blocked:'#e0af68', cancelled:'#5a6088', queued:'#5a6088' };
     const nodeColor = (n) => n.type === 'repo' ? '#7dcfff' : n.type === 'agent' ? '#bb9af7' : (STATE_COLOR[n.state] || '#5a6088');
     const nodeRadius = (n) => n.type === 'repo' ? 8.5 : n.type === 'agent' ? 4.6 : 3.0;
@@ -506,9 +518,12 @@ class Component extends DCLogic {
       // Feature 2: flowing particles — bright/fast on links touching a running job,
       // one subtle slow particle on ordinary delegation links, none on repo/agent spokes.
       .linkDirectionalParticles((l) => {
+        // Only delegation (parent) / dep links flow; repo/agent hub spokes never
+        // emit particles even when they touch a running job. Kind check first.
+        if (l.kind !== 'parent' && l.kind !== 'dep') return 0;
         const s = l.source, t = l.target;
         if ((s && s.state === 'running') || (t && t.state === 'running')) return 3;
-        return (l.kind === 'parent' || l.kind === 'dep') ? 1 : 0;
+        return 1;
       })
       .linkDirectionalParticleSpeed((l) => {
         const s = l.source, t = l.target;
@@ -590,7 +605,11 @@ class Component extends DCLogic {
     if (isPoll) {
       const prev = {};
       try { (this._galaxyGraph.graphData().nodes || []).forEach(pn => { prev[pn.id] = pn; }); } catch (e) {}
-      nodes.forEach(n => { const p = prev[n.id]; if (p) { n.x = p.x; n.y = p.y; n.vx = p.vx; n.vy = p.vy; } });
+      // Copy live positions AND pin them (fx/fy) so graphData()'s sim reheat can't
+      // jiggle the existing ~1600 nodes every 12s. Brand-new nodes stay unpinned
+      // (no fx/fy) so they settle in near their hub. First-load / repo-filter
+      // change (isPoll false) lay out fresh and unpinned.
+      nodes.forEach(n => { const p = prev[n.id]; if (p) { n.x = p.x; n.y = p.y; n.vx = p.vx; n.vy = p.vy; n.fx = p.x; n.fy = p.y; } });
     }
     const nc = this._galaxyRoot.querySelector('#g-nCount'); if (nc) nc.textContent = nodes.length;
     const lc = this._galaxyRoot.querySelector('#g-lCount'); if (lc) lc.textContent = links.length;
