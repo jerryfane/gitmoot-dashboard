@@ -327,3 +327,43 @@ func (f *FakeDataSource) Subscribe(ctx context.Context, runID string) (<-chan St
 	}()
 	return ch, cancel, nil
 }
+
+// Graph implements DataSource. The fake feed has a single run, so the galaxy is
+// that run's jobs plus a repo hub and per-agent hubs — enough to exercise the
+// Galaxy view standalone.
+func (f *FakeDataSource) Graph(ctx context.Context, repo string) (Graph, error) {
+	f.mu.Lock()
+	snap := f.cloneStateLocked()
+	f.mu.Unlock()
+	const fakeRepo = "acme/webapp"
+	g := Graph{Nodes: []GraphNode{}, Links: []GraphLink{}, Repos: []string{fakeRepo}}
+	if repo != "" && repo != fakeRepo {
+		return g, nil
+	}
+	ids := map[string]bool{}
+	for _, n := range snap.Nodes {
+		ids[n.ID] = true
+	}
+	agents := map[string]bool{}
+	for _, n := range snap.Nodes {
+		g.Nodes = append(g.Nodes, GraphNode{ID: n.ID, Type: "job", Label: n.Title, State: n.State, Agent: n.Agent, Repo: fakeRepo, Run: snap.RunID})
+		if n.ParentID != "" && ids[n.ParentID] {
+			g.Links = append(g.Links, GraphLink{Source: n.ParentID, Target: n.ID, Kind: "parent"})
+		}
+		for _, d := range n.Deps {
+			if ids[d] {
+				g.Links = append(g.Links, GraphLink{Source: d, Target: n.ID, Kind: "dep"})
+			}
+		}
+		g.Links = append(g.Links, GraphLink{Source: n.ID, Target: "repo::" + fakeRepo, Kind: "repo"})
+		if n.Agent != "" {
+			agents[n.Agent] = true
+			g.Links = append(g.Links, GraphLink{Source: n.ID, Target: "agent::" + n.Agent, Kind: "agent"})
+		}
+	}
+	g.Nodes = append(g.Nodes, GraphNode{ID: "repo::" + fakeRepo, Type: "repo", Label: fakeRepo, Repo: fakeRepo})
+	for a := range agents {
+		g.Nodes = append(g.Nodes, GraphNode{ID: "agent::" + a, Type: "agent", Label: a, Agent: a})
+	}
+	return g, nil
+}

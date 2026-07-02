@@ -68,3 +68,14 @@ func (s *server) handleJob(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, node)
 }
+
+// handleGraph serves GET /api/graph -> Graph, the whole-history galaxy view.
+// An optional ?repo= scopes the graph to a single repository.
+func (s *server) handleGraph(w http.ResponseWriter, r *http.Request) {
+	g, err := s.ds.Graph(r.Context(), r.URL.Query().Get("repo"))
+	if err != nil {
+		http.Error(w, err.Error(), statusForError(err))
+		return
+	}
+	writeJSON(w, http.StatusOK, g)
+}

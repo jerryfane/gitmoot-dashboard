@@ -74,11 +74,45 @@ type RunSummary struct {
 	Duration     int64  `json:"duration,omitempty"` // milliseconds (updated-started)
 }
 
+// GraphNode is a node in the whole-history "galaxy" graph. Type is "job" (a real
+// job, colored by State), "repo" (a repository hub) or "agent" (an agent hub);
+// the hubs are synthetic grouping nodes that cluster jobs by repo/agent and give
+// the force-directed graph its structure.
+type GraphNode struct {
+	ID    string    `json:"id"`
+	Type  string    `json:"type"` // job | repo | agent
+	Label string    `json:"label"`
+	State NodeState `json:"state,omitempty"`
+	Agent string    `json:"agent,omitempty"`
+	Repo  string    `json:"repo,omitempty"`
+	Run   string    `json:"run,omitempty"`
+}
+
+// GraphLink is an edge in the galaxy graph. Kind is "parent"/"dep" (delegation
+// and sibling links between jobs), "repo" (job -> its repo hub) or "agent"
+// (job -> its agent hub).
+type GraphLink struct {
+	Source string `json:"source"`
+	Target string `json:"target"`
+	Kind   string `json:"kind"`
+}
+
+// Graph is the whole-history galaxy view: every job across every run, plus
+// repo/agent hub nodes, unioned into one force-directed graph.
+type Graph struct {
+	Nodes []GraphNode `json:"nodes"`
+	Links []GraphLink `json:"links"`
+	Repos []string    `json:"repos"` // distinct repos, for the filter
+}
+
 // DataSource is the read-only feed the dashboard renders. Implementations must
 // be safe for concurrent use.
 type DataSource interface {
 	Runs(ctx context.Context) ([]RunSummary, error)
 	State(ctx context.Context, runID string) (State, error) // runID "" => active/most-recent
 	Job(ctx context.Context, jobID string) (Node, error)
+	// Graph returns the whole-history galaxy graph. Empty repo => all runs; a
+	// non-empty repo scopes to that repository's jobs (and their hubs).
+	Graph(ctx context.Context, repo string) (Graph, error)
 	Subscribe(ctx context.Context, runID string) (<-chan State, func(), error) // for SSE
 }

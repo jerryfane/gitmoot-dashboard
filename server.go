@@ -17,6 +17,7 @@ func Serve(ds DataSource) http.Handler {
 	mux.HandleFunc("GET /api/runs", s.handleRuns)
 	mux.HandleFunc("GET /api/state", s.handleState)
 	mux.HandleFunc("GET /api/job/{id}", s.handleJob)
+	mux.HandleFunc("GET /api/graph", s.handleGraph)
 	mux.HandleFunc("GET /events", s.handleEvents)
 
 	// Everything else is served from the embedded static assets, with an SPA
