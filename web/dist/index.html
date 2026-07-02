@@ -578,19 +578,13 @@ class Component extends DCLogic {
       // callbacks now only touch per-element state; this wraps the whole frame.
       .onRenderFramePre((ctx) => { ctx.save(); ctx.globalCompositeOperation = 'lighter'; })
       .onRenderFramePost((ctx) => { ctx.restore(); })
-      .onNodeHover((node) => {
-        if (node && this._galaxyAdj) {
-          this._galaxyHover = {
-            id: node.id,
-            neighbors: this._galaxyAdj.neighbors[node.id] || new Set(),
-            links: this._galaxyAdj.nodeLinks[node.id] || new Set()
-          };
-        } else {
-          this._galaxyHover = null;
-        }
-        if (this._galaxyWake) this._galaxyWake(); // repaint so the dim shows/clears
-        try { this._galaxyGraphEl.style.cursor = node ? 'pointer' : 'default'; } catch (e) {}
-      })
+      // Hover + click are driven by CUSTOM screen-space hit-testing (galaxyNodeAt +
+      // the pointer listeners installed below), NOT force-graph's built-in detection.
+      // force-graph@1.43.5's nodePointerAreaPaint hit-map is unusable at this scale/zoom:
+      // even a 45-graph-unit painted radius only registered a ~2px effective hit area
+      // (verified — independent of autoPauseRedraw), so tiny dense nodes and repo hubs
+      // were unclickable. We compute the nearest node in SCREEN space with a generous
+      // per-type pixel radius instead, which makes every node reliably selectable.
       .onEngineStop(() => {
         if (this._galaxyNeedFit && !this._galaxyFitDone) {
           this._galaxyFitDone = true; this._galaxyNeedFit = false;
@@ -639,10 +633,10 @@ class Component extends DCLogic {
           });
         } catch (e) {}
       })
-      // FIX-B: click a node -> open the detail panel; keep it lit via the hover
-      // highlight mechanism. Click the empty background -> close.
-      .onNodeClick((node) => { this.openGalaxyDetail(node); })
-      .onBackgroundClick(() => { this.closeGalaxyDetail(); });
+      // Node hover/click come from the custom pointer listeners below (see galaxyNodeAt).
+      // Disable force-graph's node drag so a press-drag pans the view instead of grabbing
+      // a node; zoom/pan stay enabled.
+      .enableNodeDrag(false);
     this.applyGalaxyForces(G);
     const r = this._galaxyGraphEl.getBoundingClientRect();
     G.width(r.width).height(r.height);
@@ -654,13 +648,92 @@ class Component extends DCLogic {
     // open/closeGalaxyDetail) don't error. The old pointermove→d3ReheatSimulation
     // wake is removed: that reheat was what kept resetting alpha and never settling.
     this._galaxyWake = () => {};
+    // CUSTOM HIT-TESTING: force-graph's own pointer detection is unusable here (see the
+    // comment where onNodeHover used to be), so we drive hover + click ourselves from
+    // pointer events on the container. galaxyNodeAt() finds the nearest node in SCREEN
+    // space within a generous per-type pixel radius, so imprecise aim still selects.
     try {
       const el = this._galaxyGraphEl;
-      // Still clear the hover highlight when the pointer leaves the canvas; the
-      // always-on loop repaints the cleared state on the next frame.
-      el.addEventListener('pointerleave', () => { this._galaxyHover = null; });
+      let downX = 0, downY = 0, dragged = false;
+      const setHover = (node) => {
+        const id = node ? node.id : null;
+        const curId = this._galaxyHover ? this._galaxyHover.id : null;
+        if (id === curId) return;
+        if (node && this._galaxyAdj) {
+          this._galaxyHover = {
+            id: node.id,
+            neighbors: this._galaxyAdj.neighbors[node.id] || new Set(),
+            links: this._galaxyAdj.nodeLinks[node.id] || new Set()
+          };
+        } else {
+          this._galaxyHover = null;
+        }
+      };
+      el.addEventListener('pointerdown', (e) => { downX = e.clientX; downY = e.clientY; dragged = false; });
+      el.addEventListener('pointermove', (e) => {
+        // Any meaningful movement with a button held = a pan/drag, not a click.
+        if (e.buttons && (Math.abs(e.clientX - downX) > 4 || Math.abs(e.clientY - downY) > 4)) dragged = true;
+        this._galaxyPointer = { x: e.clientX, y: e.clientY };
+        if (this._galaxyHoverRAF) return; // coalesce to one hit-test per frame
+        this._galaxyHoverRAF = requestAnimationFrame(() => {
+          this._galaxyHoverRAF = 0;
+          const p = this._galaxyPointer; if (!p) return;
+          const node = this.galaxyNodeAt(p.x, p.y);
+          setHover(node);
+          try { el.style.cursor = node ? 'pointer' : 'default'; } catch (e2) {}
+        });
+      });
+      el.addEventListener('pointerup', (e) => {
+        if (dragged) return; // was a pan — don't treat as a click
+        const node = this.galaxyNodeAt(e.clientX, e.clientY);
+        if (node) this.openGalaxyDetail(node); else this.closeGalaxyDetail();
+      });
+      el.addEventListener('pointerleave', () => {
+        // Cancel any queued hit-test and drop the stale pointer position, otherwise a
+        // rAF queued by the last pointermove would run after we leave, re-find the node
+        // under the (now stale) inside-canvas point, and re-light it — leaving the node
+        // highlighted AND frozen (onEngineTick freezes _galaxyHover.id) until the next hover.
+        if (this._galaxyHoverRAF) { try { cancelAnimationFrame(this._galaxyHoverRAF); } catch (e2) {} this._galaxyHoverRAF = 0; }
+        this._galaxyPointer = null;
+        this._galaxyHover = null;
+        try { el.style.cursor = 'default'; } catch (e2) {}
+      });
     } catch (e) {}
     this.fetchGalaxy(this._galaxyRepo || '');
+  }
+
+  // CUSTOM HIT-TESTING: return the node nearest to a client (screen) point, within a
+  // per-type pixel radius, or null. We project every node to screen coords and pick the
+  // one whose distance/threshold ratio is smallest — so a large repo hub (big radius)
+  // still yields to a job dot the cursor is directly over, but wins when the cursor is
+  // near a cluster's centre. Screen-space thresholds are constant px at any zoom, so
+  // clicking stays easy whether zoomed in or fit-to-view. This replaces force-graph's
+  // built-in nodePointerAreaPaint detection, which only registered a ~2px hit area here.
+  galaxyNodeAt(clientX, clientY) {
+    const G = this._galaxyGraph;
+    if (!G) return null;
+    let el = null;
+    try { el = this._galaxyGraphEl.querySelector('canvas'); } catch (e) {}
+    if (!el) el = this._galaxyGraphEl;
+    if (!el) return null;
+    const rect = el.getBoundingClientRect();
+    const cx = clientX - rect.left, cy = clientY - rect.top;
+    let nodes = null;
+    try { nodes = (G.graphData() || {}).nodes; } catch (e) {}
+    if (!nodes) return null;
+    let best = null, bestScore = Infinity;
+    for (let i = 0; i < nodes.length; i++) {
+      const n = nodes[i];
+      if (n.x == null || n.y == null) continue;
+      let sp; try { sp = G.graph2ScreenCoords(n.x, n.y); } catch (e) { continue; }
+      const dx = sp.x - cx, dy = sp.y - cy;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      const thr = n.type === 'repo' ? 26 : n.type === 'agent' ? 18 : 12; // hit radius in CSS px
+      if (d > thr) continue;
+      const score = d / thr; // "how deep inside its own hit-circle" — lets hubs win near centre
+      if (score < bestScore) { bestScore = score; best = n; }
+    }
+    return best;
   }
 
   // PERF: (re)apply the layout forces. Shared by buildGalaxyGraph (initial layout)
