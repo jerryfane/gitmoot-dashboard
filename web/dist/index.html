@@ -526,7 +526,7 @@ class Component extends DCLogic {
       .nodePointerAreaPaint((n, color, ctx) => {
         // Bigger hit target than the visual dot so the tiny, dense nodes are
         // easy to hover/select without pixel-perfect aim.
-        ctx.fillStyle = color; ctx.beginPath(); ctx.arc(n.x, n.y, nodeRadius(n) + 2, 0, 2 * Math.PI); ctx.fill();
+        ctx.fillStyle = color; ctx.beginPath(); ctx.arc(n.x, n.y, nodeRadius(n) + 4, 0, 2 * Math.PI); ctx.fill();
       })
       .linkColor(() => 'rgba(0,0,0,0)')
       .linkCanvasObject((l, ctx) => {
@@ -621,13 +621,18 @@ class Component extends DCLogic {
         // PIN (fx/fy) — not just x/y — so pointer coords stay aligned with the drawing.
         // Fixed-amplitude oscillation around each node's HOME → can never run away.
         if (!this._galaxyPinned) return;
-        const AMP = 3.5, SP = 0.4, t = Date.now() / 1000;
+        const AMP = 2, SP = 0.4, t = Date.now() / 1000;
+        // Freeze the node under the cursor (hovered) or the selected one so it holds
+        // still and is easy to click — the float otherwise makes a small node a
+        // moving target that drifts out from under the pointer.
+        const held = (this._galaxyHover && this._galaxyHover.id) || (this._galaxySelected && this._galaxySelected.id) || null;
         try {
           (G.graphData().nodes || []).forEach((n) => {
             // New nodes (from the poll) arrive unpinned; once the sim gives them a
             // position AND a pin, adopt that as home and start floating them too.
             if (n.__hx == null && n.x != null && n.fx != null) { n.__hx = n.x; n.__hy = n.y; n.__ph = Math.random() * Math.PI * 2; }
             if (n.__hx != null) {
+              if (n.id === held) { n.fx = n.__hx; n.fy = n.__hy; return; }
               n.fx = n.__hx + AMP * Math.sin(t * SP + n.__ph);
               n.fy = n.__hy + AMP * Math.cos(t * SP * 0.9 + n.__ph);
             }
