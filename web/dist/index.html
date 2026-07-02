@@ -465,32 +465,33 @@ class Component extends DCLogic {
         // Feature 3: running job nodes breathe (needs continuous redraw — provided by particles).
         const isRun = n.type === 'job' && n.state === 'running';
         let pulse = 1;
-        if (isRun) { pulse = 0.5 + 0.5 * Math.sin(Date.now() / 300); r *= (0.85 + 0.4 * pulse); }
-        ctx.save();
-        ctx.globalCompositeOperation = 'lighter';
-        ctx.shadowColor = col;
+        // FIX-2: only apply the time-varying pulse when the data actually has a running
+        // job — otherwise a static (all-historical) graph produces identical frames and
+        // the render loop can idle. When nothing runs, pulse stays 1 (constant).
+        if (isRun && this._galaxyHasRunning) { pulse = 0.5 + 0.5 * Math.sin(Date.now() / 300); r *= (0.85 + 0.4 * pulse); }
+        // FIX-3: no per-node ctx.save()/restore() or globalCompositeOperation — the
+        // additive 'lighter' blend is set ONCE per frame in onRenderFramePre/Post below.
+        // Only touch per-element state (fillStyle/globalAlpha), and shadowBlur solely
+        // for the small-graph glow path (reset to 0 right after the glow fill).
         let blur = this._galaxyBig ? 0 : (n.type === 'repo' ? 26 : n.type === 'agent' ? 15 : 9);
         if (isRun) blur = (this._galaxyBig ? 6 : 12) * (0.6 + 0.7 * pulse);
         if (hi) blur = Math.max(blur, this._galaxyBig ? 8 : 16);
-        ctx.shadowBlur = blur;
+        if (blur) { ctx.shadowColor = col; ctx.shadowBlur = blur; }
         ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 2 * Math.PI);
         ctx.fillStyle = col; ctx.globalAlpha = 0.92 * dim; ctx.fill();
-        ctx.shadowBlur = 0;
+        if (blur) ctx.shadowBlur = 0;
         ctx.beginPath(); ctx.arc(n.x, n.y, r * 0.5, 0, 2 * Math.PI);
         ctx.fillStyle = '#ffffff'; ctx.globalAlpha = 0.55 * dim; ctx.fill();
         if (hi) { // brighter ring on hovered node + its neighbors
           ctx.beginPath(); ctx.arc(n.x, n.y, r + 1.6, 0, 2 * Math.PI);
           ctx.strokeStyle = col; ctx.lineWidth = 0.9; ctx.globalAlpha = 0.9; ctx.stroke();
         }
-        ctx.restore();
         if (n.type !== 'job' && scale > 1.5) {
-          ctx.save();
           ctx.globalAlpha = Math.min(1, (scale - 1.5) / 1.2) * dim;
           ctx.font = (n.type === 'repo' ? '600 ' : '500 ') + (n.type === 'repo' ? 4.4 : 3.4) + "px 'Space Grotesk',sans-serif";
           ctx.fillStyle = col; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
           const txt = n.type === 'repo' ? (n.label || '').split('/').pop() : n.label;
           ctx.fillText(txt || '', n.x, n.y + r + 1.5);
-          ctx.restore();
         }
       })
       .nodePointerAreaPaint((n, color, ctx) => {
@@ -508,12 +509,11 @@ class Component extends DCLogic {
           if (hov.links.has(sid + ' ' + tid)) { alpha = Math.min(1, style.alpha + 0.5); width = style.width + 0.8; }
           else alpha = 0.04;
         }
-        ctx.save();
-        ctx.globalCompositeOperation = 'lighter';
+        // FIX-3: no per-link save/restore or globalCompositeOperation — additive blend
+        // is set once per frame in onRenderFramePre/Post. Only per-element state here.
         ctx.strokeStyle = rgba(style.color, alpha);
         ctx.lineWidth = width;
         ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(t.x, t.y); ctx.stroke();
-        ctx.restore();
       })
       // Feature 2: flowing particles — bright/fast on links touching a running job,
       // one subtle slow particle on ordinary delegation links, none on repo/agent spokes.
@@ -522,8 +522,13 @@ class Component extends DCLogic {
         // emit particles even when they touch a running job. Kind check first.
         if (l.kind !== 'parent' && l.kind !== 'dep') return 0;
         const s = l.source, t = l.target;
-        if ((s && s.state === 'running') || (t && t.state === 'running')) return 3;
-        return 1;
+        const live = (s && s.state === 'running') || (t && t.state === 'running');
+        // FIX-1: on a big (whole-history) graph, ONLY links touching a running job
+        // flow — historical parent/dep links get 0 so an idle galaxy with no running
+        // jobs emits zero particles and force-graph's rAF loop can stop. Small/filtered
+        // views keep the fuller look (running=3, other parent/dep=1 slow particle).
+        if (this._galaxyBig) return live ? 3 : 0;
+        return live ? 3 : 1;
       })
       .linkDirectionalParticleSpeed((l) => {
         const s = l.source, t = l.target;
@@ -537,6 +542,11 @@ class Component extends DCLogic {
         const s = l.source, t = l.target;
         return ((s && s.state === 'running') || (t && t.state === 'running')) ? '#7aa2f7' : 'rgba(187,154,247,0.30)';
       })
+      // FIX-3: set the additive 'lighter' blend ONCE per frame (was per node + per link,
+      // i.e. thousands of save()/restore() + composite swaps per frame). node/link draw
+      // callbacks now only touch per-element state; this wraps the whole frame.
+      .onRenderFramePre((ctx) => { ctx.save(); ctx.globalCompositeOperation = 'lighter'; })
+      .onRenderFramePost((ctx) => { ctx.restore(); })
       .onNodeHover((node) => {
         if (node && this._galaxyAdj) {
           this._galaxyHover = {
@@ -599,6 +609,20 @@ class Component extends DCLogic {
     // fresh clones so force-graph can mutate x/y and resolve source/target refs
     const nodes = (raw.nodes || []).map(n => ({ id: n.id, type: n.type, label: n.label, state: n.state, agent: n.agent, repo: n.repo, run: n.run }));
     const links = (raw.links || []).map(l => ({ source: (l.source && l.source.id) || l.source, target: (l.target && l.target.id) || l.target, kind: l.kind }));
+    // FIX-4: cheap signature of the fetched graph (counts + a rolling hash over each
+    // node's id+state). On a poll refresh, if it matches the last rendered signature the
+    // data is unchanged — skip graphData() entirely so the sim isn't reheated / re-laid-out
+    // every 12s (which was keeping the rAF loop hot). State transitions (e.g. queued→running)
+    // change the hash, so live updates still render. First load / repo-filter change (isPoll
+    // false) always renders. id+state also covers particle/pulse-relevant changes.
+    let h = 0;
+    for (let i = 0; i < nodes.length; i++) {
+      const str = (nodes[i].id || '') + ':' + (nodes[i].state || '');
+      for (let j = 0; j < str.length; j++) { h = (h * 31 + str.charCodeAt(j)) | 0; }
+    }
+    const sig = nodes.length + '/' + links.length + '/' + h;
+    if (isPoll && this._galaxySig === sig) return; // unchanged — leave the layout (and the idle loop) alone
+    this._galaxySig = sig;
     // Feature 4: preserve layout across poll refreshes — copy live positions onto matching
     // new nodes so the graph doesn't re-scatter/re-fit. New nodes keep undefined coords and
     // animate in from the simulation.
@@ -626,6 +650,10 @@ class Component extends DCLogic {
     // Large graphs (whole-history, thousands of nodes) can't afford per-node
     // shadowBlur every frame — additive 'lighter' blend still glows via overlap.
     this._galaxyBig = nodes.length > 500;
+    // FIX-2: does the current data have any running job? Drives the time-varying pulse
+    // in nodeCanvasObject — when false, running-node draws use no Date.now() term so a
+    // static graph renders identical frames and the loop can idle.
+    this._galaxyHasRunning = nodes.some(n => n.type === 'job' && n.state === 'running');
     // Only fit on first load / repo-filter change — never on a poll refresh (Feature 4).
     if (!isPoll) { this._galaxyNeedFit = true; this._galaxyFitDone = false; }
     this._galaxyGraph.graphData({ nodes: nodes, links: links });
