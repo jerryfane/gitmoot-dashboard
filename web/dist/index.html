@@ -580,8 +580,10 @@ class Component extends DCLogic {
         // flow — historical parent/dep links get 0 so an idle galaxy with no running
         // jobs emits zero particles and force-graph's rAF loop can stop. Small/filtered
         // views keep the fuller look (running=3, other parent/dep=1 slow particle).
-        if (this._galaxyBig) return live ? 4 : 0;
-        return live ? 4 : 1;
+        // Built-in particles are graph-unit sized → sub-pixel / nearly invisible at fit
+        // zoom. Disabled here; we custom-draw big SCREEN-sized packet dots in
+        // onRenderFramePost instead so the packets between agents are visible at any zoom.
+        return 0;
       })
       .linkDirectionalParticleSpeed((l) => {
         const s = l.source, t = l.target;
@@ -599,7 +601,51 @@ class Component extends DCLogic {
       // i.e. thousands of save()/restore() + composite swaps per frame). node/link draw
       // callbacks now only touch per-element state; this wraps the whole frame.
       .onRenderFramePre((ctx) => { ctx.save(); ctx.globalCompositeOperation = 'lighter'; })
-      .onRenderFramePost((ctx) => { ctx.restore(); })
+      .onRenderFramePost((ctx, scale) => {
+        // PACKETS: bright, SCREEN-sized dots flowing along every link that touches a running
+        // job — the "packets sent between agents". Drawn here (additive 'lighter' still
+        // active, restore is last) so they glow, and sized in screen px (radius = px/scale)
+        // so they stay big and visible whether the galaxy is zoomed out or in. force-graph's
+        // own particles are graph-unit sized and vanish at fit zoom, so they're disabled above.
+        if (this._galaxyHasRunning && this._galaxyGraph) {
+          const t = Date.now() / 1000;
+          const R = 4.2 / scale;   // packet radius in CSS px, constant at any zoom
+          const NP = 3;            // packets in flight per link
+          const pulse = 0.75 + 0.25 * Math.sin(t * 2 * Math.PI); // subtle brightness breathe
+          // Cache the (small) set of live delegation links, recomputed ONLY when the graph
+          // signature changes — scanning all ~3300 links every frame caused idle long-tasks.
+          if (this._galaxyLiveSig !== this._galaxySig) {
+            this._galaxyLiveSig = this._galaxySig;
+            let all = null; try { all = this._galaxyGraph.graphData().links; } catch (e) {}
+            const live = [];
+            if (all) for (let i = 0; i < all.length; i++) {
+              const l = all[i];
+              if (l.kind !== 'parent' && l.kind !== 'dep') continue;
+              const s = l.source, d = l.target;
+              if (!s || !d) continue;
+              if (!(s.state === 'running' || d.state === 'running')) continue;
+              if (l.__pf == null) l.__pf = (i * 0.6180339887) % 1; // stable per-link phase offset
+              live.push(l);
+            }
+            this._galaxyLiveLinks = live;
+          }
+          const links = this._galaxyLiveLinks || [];
+          for (let i = 0; i < links.length; i++) {
+            const l = links[i];
+            const s = l.source, d = l.target;
+            if (!s || !d || s.x == null || d.x == null) continue;
+            for (let k = 0; k < NP; k++) {
+              const ph = (t * 0.5 + k / NP + l.__pf) % 1;
+              const x = s.x + (d.x - s.x) * ph, y = s.y + (d.y - s.y) * ph;
+              ctx.beginPath(); ctx.arc(x, y, R, 0, 2 * Math.PI); ctx.fillStyle = '#7aa2f7'; ctx.globalAlpha = 0.5 * pulse; ctx.fill();      // outer glow
+              ctx.beginPath(); ctx.arc(x, y, R * 0.6, 0, 2 * Math.PI); ctx.fillStyle = '#bcd6ff'; ctx.globalAlpha = 0.9 * pulse; ctx.fill(); // mid
+              ctx.beginPath(); ctx.arc(x, y, R * 0.3, 0, 2 * Math.PI); ctx.fillStyle = '#ffffff'; ctx.globalAlpha = 1; ctx.fill();          // hot core
+            }
+          }
+          ctx.globalAlpha = 1;
+        }
+        ctx.restore();
+      })
       // Hover + click are driven by CUSTOM screen-space hit-testing (galaxyNodeAt +
       // the pointer listeners installed below), NOT force-graph's built-in detection.
       // force-graph@1.43.5's nodePointerAreaPaint hit-map is unusable at this scale/zoom:
