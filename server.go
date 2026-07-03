@@ -9,8 +9,8 @@ import (
 
 // Serve returns an http.Handler serving the read-only dashboard: the embedded
 // static UI (with SPA fallback to index.html) plus the JSON API (handleRuns/
-// handleJobs/handleAgents/handleState/handleJob in api.go) and the SSE stream
-// (handleEvents in sse.go).
+// handleJobs/handleAgents/handleCharts/handleHealth/handleState/handleJob/
+// handleGraph in api.go) and the SSE stream (handleEvents in sse.go).
 func Serve(ds DataSource) http.Handler {
 	s := &server{ds: ds}
 	mux := http.NewServeMux()
@@ -18,6 +18,8 @@ func Serve(ds DataSource) http.Handler {
 	mux.HandleFunc("GET /api/runs", s.handleRuns)
 	mux.HandleFunc("GET /api/jobs", s.handleJobs)
 	mux.HandleFunc("GET /api/agents", s.handleAgents)
+	mux.HandleFunc("GET /api/charts", s.handleCharts)
+	mux.HandleFunc("GET /api/health", s.handleHealth)
 	mux.HandleFunc("GET /api/state", s.handleState)
 	mux.HandleFunc("GET /api/job/{id}", s.handleJob)
 	mux.HandleFunc("GET /api/graph", s.handleGraph)
@@ -34,8 +36,9 @@ type server struct {
 	ds DataSource
 }
 
-// The JSON API handlers (handleRuns/handleJobs/handleAgents/handleState/
-// handleJob) live in api.go and the SSE handler (handleEvents) lives in sse.go.
+// The JSON API handlers (handleRuns/handleJobs/handleAgents/handleCharts/
+// handleHealth/handleState/handleJob/handleGraph) live in api.go and the SSE
+// handler (handleEvents) lives in sse.go.
 
 // staticHandler serves the embedded web/dist assets. Requests that do not map
 // to an existing file fall back to index.html so the client-side router can

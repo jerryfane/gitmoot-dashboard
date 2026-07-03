@@ -150,6 +150,117 @@ type Graph struct {
 	Repos []string    `json:"repos"` // distinct repos, for the filter
 }
 
+// ChartDay is one UTC day bucket. Jobs bucket by their Started day; token sums
+// are that day's jobs' usage. Explicit state fields keep the JSON deterministic.
+type ChartDay struct {
+	Date      string `json:"date"` // UTC YYYY-MM-DD
+	Succeeded int    `json:"succeeded"`
+	Failed    int    `json:"failed"`
+	Cancelled int    `json:"cancelled"`
+	Blocked   int    `json:"blocked"`
+	Queued    int    `json:"queued"`
+	Running   int    `json:"running"`
+	TokensIn  int    `json:"tokensIn"`
+	TokensOut int    `json:"tokensOut"`
+}
+
+// ChartAgent is one agent's aggregate activity over the charted range.
+type ChartAgent struct {
+	Name      string `json:"name"`
+	Runtime   string `json:"runtime,omitempty"`
+	Jobs      int    `json:"jobs"`
+	TokensOut int    `json:"tokensOut,omitempty"`
+}
+
+// ChartRepo is one repository's job count over the charted range.
+type ChartRepo struct {
+	Repo string `json:"repo"`
+	Jobs int    `json:"jobs"`
+}
+
+// ChartTotals rolls up the whole charted range into headline figures.
+type ChartTotals struct {
+	Jobs         int `json:"jobs"`
+	Succeeded    int `json:"succeeded"`
+	Failed       int `json:"failed"`
+	TokensIn     int `json:"tokensIn"`
+	TokensOut    int `json:"tokensOut"`
+	ActiveAgents int `json:"activeAgents"` // distinct agents with >=1 job in range
+}
+
+// Charts is the data behind the Charts page: a per-day time series plus
+// top-agent/top-repo breakdowns and range totals.
+type Charts struct {
+	Days   []ChartDay   `json:"days"`   // oldest->newest, continuous zero-filled range
+	Agents []ChartAgent `json:"agents"` // top 12 by Jobs desc, name tie-break
+	Repos  []ChartRepo  `json:"repos"`  // top 12 by Jobs desc, repo tie-break
+	Totals ChartTotals  `json:"totals"`
+}
+
+// HealthDaemon reports the orchestration daemon's liveness.
+type HealthDaemon struct {
+	Running   bool  `json:"running"`
+	PID       int   `json:"pid,omitempty"`
+	StartedAt int64 `json:"startedAt,omitempty"` // epoch ms, 0 when unknown
+}
+
+// HealthTotals is the current fleet-wide job-state snapshot.
+type HealthTotals struct {
+	Queued    int `json:"queued"`
+	Running   int `json:"running"`
+	Blocked   int `json:"blocked"`
+	Succeeded int `json:"succeeded"`
+	Failed    int `json:"failed"`
+	Cancelled int `json:"cancelled"`
+}
+
+// HealthLock is a held branch/checkout lock.
+type HealthLock struct {
+	Repo       string `json:"repo"`
+	Branch     string `json:"branch"`
+	Owner      string `json:"owner"`
+	AcquiredAt int64  `json:"acquiredAt,omitempty"` // epoch ms
+}
+
+// HealthResourceLock is a held non-branch resource lock (runtime session, etc.).
+type HealthResourceLock struct {
+	Key        string `json:"key"`
+	Owner      string `json:"owner,omitempty"`
+	AcquiredAt int64  `json:"acquiredAt,omitempty"`
+	ExpiresAt  int64  `json:"expiresAt,omitempty"`
+}
+
+// HealthStuckJob is a job that appears wedged: blocked, or queued too long.
+type HealthStuckJob struct {
+	ID     string `json:"id"`
+	Title  string `json:"title"`
+	Agent  string `json:"agent,omitempty"`
+	Repo   string `json:"repo,omitempty"`
+	State  string `json:"state"`
+	Reason string `json:"reason,omitempty"`
+	Since  int64  `json:"since,omitempty"` // epoch ms
+}
+
+// HealthFailure is a recently failed job.
+type HealthFailure struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
+	Agent string `json:"agent,omitempty"`
+	Repo  string `json:"repo,omitempty"`
+	At    int64  `json:"at,omitempty"` // epoch ms
+}
+
+// Health is the data behind the Health page: daemon liveness, fleet totals, held
+// locks, wedged jobs and recent failures.
+type Health struct {
+	Daemon         HealthDaemon         `json:"daemon"`
+	Totals         HealthTotals         `json:"totals"`
+	Locks          []HealthLock         `json:"locks"`          // branch/checkout locks, oldest first
+	ResourceLocks  []HealthResourceLock `json:"resourceLocks"`  // runtime-session etc., oldest first
+	Stuck          []HealthStuckJob     `json:"stuck"`          // blocked jobs + queued older than 10 min, oldest first
+	RecentFailures []HealthFailure      `json:"recentFailures"` // last 10 failed, newest first
+}
+
 // DataSource is the read-only feed the dashboard renders. Implementations must
 // be safe for concurrent use.
 type DataSource interface {
@@ -164,5 +275,13 @@ type DataSource interface {
 	// Graph returns the whole-history galaxy graph. Empty repo => all runs; a
 	// non-empty repo scopes to that repository's jobs (and their hubs).
 	Graph(ctx context.Context, repo string) (Graph, error)
+	// Charts returns the per-day time series plus top-agent/top-repo/totals
+	// breakdowns for the Charts page. days selects the window: 7, 30 or 90; a
+	// days of 0 means all history. Days is oldest->newest and zero-filled
+	// continuous across the whole window.
+	Charts(ctx context.Context, days int) (Charts, error)
+	// Health returns the daemon liveness, fleet totals, held locks, wedged jobs
+	// and recent failures behind the Health page.
+	Health(ctx context.Context) (Health, error)
 	Subscribe(ctx context.Context, runID string) (<-chan State, func(), error) // for SSE
 }

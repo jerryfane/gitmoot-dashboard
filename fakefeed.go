@@ -571,3 +571,355 @@ func (f *FakeDataSource) Agents(ctx context.Context) ([]AgentSummary, error) {
 	})
 	return out, nil
 }
+
+// fakeChartsNow is the fixed reference instant the Charts/Health fake views
+// treat as "now". Unlike the live-advancing run state (Runs/State/Jobs/Agents,
+// which embed time.Now() and evolve as the background goroutine ticks), the
+// Charts and Health views must be byte-stable across polls so their handlers'
+// repeat-call equality tests hold. Every relative value they derive — day
+// buckets, "queued older than 10 min", recent-failure ordering, lock ages — is
+// anchored on this constant rather than time.Now(). It is an arbitrary fixed
+// UTC instant and is the max timestamp in the seeded charts/health fixture.
+var fakeChartsNow = time.Date(2026, 6, 27, 14, 30, 0, 0, time.UTC)
+
+// fakeJobRecord is one synthetic job in the fixed Charts/Health fixture. All
+// fields are constant (derived from fakeChartsNow, never time.Now()) so the two
+// views are deterministic and identical across calls.
+type fakeJobRecord struct {
+	ID        string
+	Title     string
+	Agent     string
+	Runtime   string
+	Repo      string
+	State     NodeState
+	Started   int64 // epoch ms
+	TokensIn  int
+	TokensOut int
+}
+
+// fakeChartRepos are the repositories the fixture spreads jobs across (more than
+// one so the Charts top-repos breakdown has something to rank).
+var fakeChartRepos = []string{fakeRepo, "jerryfane/noted", "acme/api"}
+
+// fakeChartAgents pairs the fixture's agents with their runtimes (a subset of
+// fakeAgents so agent names line up with the Agents page).
+var fakeChartAgents = []struct{ name, runtime string }{
+	{"project-lead", "codex"},
+	{"implementer", "codex"},
+	{"integrator", "codex"},
+	{"researcher", "claude"},
+	{"reviewer-kimi", "kimi"},
+	{"ci-runner", "shell"},
+}
+
+// fakeUTCDayStart returns UTC midnight of the day that is daysAgo days before
+// fakeChartsNow.
+func fakeUTCDayStart(daysAgo int) time.Time {
+	d := fakeChartsNow.UTC()
+	day := time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, time.UTC)
+	return day.AddDate(0, 0, -daysAgo)
+}
+
+// fakeHistory builds the fixed set of jobs behind Charts and Health. Days 9..1
+// hold terminal history (bucketed by their Started day); day 0 (today) holds a
+// live mix including running/queued/blocked work so Health has current jobs, a
+// stuck job and a recent failure. The result is identical on every call.
+func fakeHistory() []fakeJobRecord {
+	var recs []fakeJobRecord
+
+	// Days 9..1: terminal history only, a deterministic handful per day.
+	termStates := []NodeState{"succeeded", "succeeded", "succeeded", "failed", "succeeded", "cancelled"}
+	idx := 0
+	for d := 9; d >= 1; d-- {
+		n := 2 + (d*3+1)%4 // 2..5 jobs that day, deterministic
+		for k := 0; k < n; k++ {
+			a := fakeChartAgents[idx%len(fakeChartAgents)]
+			repo := fakeChartRepos[idx%len(fakeChartRepos)]
+			st := termStates[idx%len(termStates)]
+			started := fakeUTCDayStart(d).Add(time.Duration((idx*53)%1400) * time.Minute).UnixMilli()
+			recs = append(recs, fakeJobRecord{
+				ID:        "hist-" + strconv.Itoa(d) + "-" + strconv.Itoa(k),
+				Title:     fakeHistTitle(st, repo),
+				Agent:     a.name,
+				Runtime:   a.runtime,
+				Repo:      repo,
+				State:     st,
+				Started:   started,
+				TokensIn:  1200 + (idx%9)*450,
+				TokensOut: 500 + (idx%7)*220,
+			})
+			idx++
+		}
+	}
+
+	// Day 0 (today): a live mix. minsAgo stays well under fakeChartsNow's
+	// time-of-day so every job lands in today's UTC bucket.
+	today := []struct {
+		id, title, agent, runtime, repo string
+		state                           NodeState
+		minsAgo                         int
+		tin, tout                       int
+	}{
+		{"job-live-1", "orchestrate: nightly maintenance", "project-lead", "codex", fakeRepo, "running", 6, 4200, 1800},
+		{"job-live-2", "implement: export to CSV", "implementer", "codex", fakeRepo, "running", 3, 3100, 900},
+		{"job-live-3", "implement: bulk delete", "implementer", "codex", "jerryfane/noted", "queued", 22, 0, 0},
+		{"job-live-4", "review: auth refactor", "reviewer-kimi", "kimi", "acme/api", "blocked", 47, 800, 120},
+		{"job-live-5", "ci: lint + test", "ci-runner", "shell", fakeRepo, "succeeded", 90, 600, 200},
+		{"job-live-6", "implement: search index", "implementer", "codex", "jerryfane/noted", "failed", 35, 2600, 700},
+		{"job-live-7", "research: rate-limit design", "researcher", "claude", "acme/api", "succeeded", 120, 5200, 2600},
+	}
+	for _, t := range today {
+		recs = append(recs, fakeJobRecord{
+			ID:        t.id,
+			Title:     t.title,
+			Agent:     t.agent,
+			Runtime:   t.runtime,
+			Repo:      t.repo,
+			State:     t.state,
+			Started:   fakeChartsNow.Add(-time.Duration(t.minsAgo) * time.Minute).UnixMilli(),
+			TokensIn:  t.tin,
+			TokensOut: t.tout,
+		})
+	}
+	return recs
+}
+
+// fakeHistTitle gives a terminal history job a plausible title from its state.
+func fakeHistTitle(st NodeState, repo string) string {
+	switch st {
+	case "failed":
+		return "implement: " + repo + " (failed)"
+	case "cancelled":
+		return "review: " + repo + " (cancelled)"
+	default:
+		return "implement: " + repo
+	}
+}
+
+// fakeUTCDayKey returns the UTC YYYY-MM-DD bucket key for an epoch-ms instant.
+func fakeUTCDayKey(ms int64) string {
+	return time.UnixMilli(ms).UTC().Format("2006-01-02")
+}
+
+// Charts implements DataSource. It aggregates the fixed fakeHistory fixture into
+// a zero-filled per-day series plus top-agent/top-repo/totals breakdowns over
+// the requested window (days 7|30|90; 0 = all history). Output is deterministic
+// and byte-stable across calls.
+func (f *FakeDataSource) Charts(ctx context.Context, days int) (Charts, error) {
+	recs := fakeHistory()
+
+	now := fakeChartsNow.UTC()
+	anchorDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+
+	// Window start (inclusive). days > 0 => the last `days` days ending today;
+	// days <= 0 => all history (earliest seeded job day .. today).
+	start := anchorDay
+	if days > 0 {
+		start = anchorDay.AddDate(0, 0, -(days - 1))
+	} else {
+		for _, r := range recs {
+			d := time.UnixMilli(r.Started).UTC()
+			dd := time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, time.UTC)
+			if dd.Before(start) {
+				start = dd
+			}
+		}
+	}
+
+	// Continuous zero-filled buckets, oldest -> newest.
+	idxByDate := map[string]int{}
+	daysOut := []ChartDay{}
+	for day := start; !day.After(anchorDay); day = day.AddDate(0, 0, 1) {
+		key := day.Format("2006-01-02")
+		idxByDate[key] = len(daysOut)
+		daysOut = append(daysOut, ChartDay{Date: key})
+	}
+
+	type agAcc struct {
+		jobs, tokensOut int
+		runtime         string
+	}
+	agents := map[string]*agAcc{}
+	repos := map[string]int{}
+	activeAgents := map[string]bool{}
+	totals := ChartTotals{}
+
+	for _, r := range recs {
+		bi, in := idxByDate[fakeUTCDayKey(r.Started)]
+		if !in {
+			continue // outside the window
+		}
+		d := &daysOut[bi]
+		switch r.State {
+		case "succeeded":
+			d.Succeeded++
+			totals.Succeeded++
+		case "failed":
+			d.Failed++
+			totals.Failed++
+		case "cancelled":
+			d.Cancelled++
+		case "blocked":
+			d.Blocked++
+		case "queued":
+			d.Queued++
+		case "running":
+			d.Running++
+		}
+		d.TokensIn += r.TokensIn
+		d.TokensOut += r.TokensOut
+
+		totals.Jobs++
+		totals.TokensIn += r.TokensIn
+		totals.TokensOut += r.TokensOut
+
+		a := agents[r.Agent]
+		if a == nil {
+			a = &agAcc{runtime: r.Runtime}
+			agents[r.Agent] = a
+		}
+		a.jobs++
+		a.tokensOut += r.TokensOut
+		repos[r.Repo]++
+		activeAgents[r.Agent] = true
+	}
+	totals.ActiveAgents = len(activeAgents)
+
+	// Top 12 agents by Jobs desc, name tie-break.
+	agOut := make([]ChartAgent, 0, len(agents))
+	for name, a := range agents {
+		agOut = append(agOut, ChartAgent{Name: name, Runtime: a.runtime, Jobs: a.jobs, TokensOut: a.tokensOut})
+	}
+	sort.Slice(agOut, func(i, j int) bool {
+		if agOut[i].Jobs != agOut[j].Jobs {
+			return agOut[i].Jobs > agOut[j].Jobs
+		}
+		return agOut[i].Name < agOut[j].Name
+	})
+	if len(agOut) > 12 {
+		agOut = agOut[:12]
+	}
+
+	// Top 12 repos by Jobs desc, repo tie-break.
+	rpOut := make([]ChartRepo, 0, len(repos))
+	for repo, n := range repos {
+		rpOut = append(rpOut, ChartRepo{Repo: repo, Jobs: n})
+	}
+	sort.Slice(rpOut, func(i, j int) bool {
+		if rpOut[i].Jobs != rpOut[j].Jobs {
+			return rpOut[i].Jobs > rpOut[j].Jobs
+		}
+		return rpOut[i].Repo < rpOut[j].Repo
+	})
+	if len(rpOut) > 12 {
+		rpOut = rpOut[:12]
+	}
+
+	return Charts{Days: daysOut, Agents: agOut, Repos: rpOut, Totals: totals}, nil
+}
+
+// Health implements DataSource. It derives the daemon liveness, fleet totals,
+// held locks, wedged jobs and recent failures from the fixed fakeHistory fixture
+// (and fixed lock fixtures), anchored on fakeChartsNow. Output is deterministic
+// and byte-stable across calls.
+func (f *FakeDataSource) Health(ctx context.Context) (Health, error) {
+	recs := fakeHistory()
+	now := fakeChartsNow.UnixMilli()
+	const minute = int64(60 * 1000)
+	const stuckCutoff = 10 * minute
+
+	// Fleet totals by state (lifetime terminal counts + today's live jobs).
+	totals := HealthTotals{}
+	for _, r := range recs {
+		switch r.State {
+		case "queued":
+			totals.Queued++
+		case "running":
+			totals.Running++
+		case "blocked":
+			totals.Blocked++
+		case "succeeded":
+			totals.Succeeded++
+		case "failed":
+			totals.Failed++
+		case "cancelled":
+			totals.Cancelled++
+		}
+	}
+
+	// Branch/checkout locks, oldest first.
+	locks := []HealthLock{
+		{Repo: fakeRepo, Branch: "feat/export-csv", Owner: "implementer", AcquiredAt: now - 8*minute},
+		{Repo: "jerryfane/noted", Branch: "feat/bulk-delete", Owner: "implementer", AcquiredAt: now - 3*minute},
+	}
+	sort.SliceStable(locks, func(i, j int) bool { return locks[i].AcquiredAt < locks[j].AcquiredAt })
+
+	// Non-branch resource locks (runtime sessions, etc.), oldest first.
+	resLocks := []HealthResourceLock{
+		{Key: "runtime:claude:sess-7f3a", Owner: "researcher", AcquiredAt: now - 12*minute, ExpiresAt: now + 18*minute},
+		{Key: "skillopt-train-generation:acme", Owner: "ci-runner", AcquiredAt: now - 2*minute, ExpiresAt: now + 28*minute},
+	}
+	sort.SliceStable(resLocks, func(i, j int) bool { return resLocks[i].AcquiredAt < resLocks[j].AcquiredAt })
+
+	// Stuck: blocked jobs + queued older than 10 min, oldest first.
+	stuck := []HealthStuckJob{}
+	for _, r := range recs {
+		var reason string
+		switch {
+		case r.State == "blocked":
+			reason = "blocked awaiting human"
+		case r.State == "queued" && now-r.Started > stuckCutoff:
+			reason = "queued > 10m (no free worker slot)"
+		default:
+			continue
+		}
+		stuck = append(stuck, HealthStuckJob{
+			ID:     r.ID,
+			Title:  r.Title,
+			Agent:  r.Agent,
+			Repo:   r.Repo,
+			State:  string(r.State),
+			Reason: reason,
+			Since:  r.Started,
+		})
+	}
+	sort.SliceStable(stuck, func(i, j int) bool {
+		if stuck[i].Since != stuck[j].Since {
+			return stuck[i].Since < stuck[j].Since // oldest first
+		}
+		return stuck[i].ID < stuck[j].ID
+	})
+
+	// Recent failures, newest first, capped at 10.
+	failures := []HealthFailure{}
+	for _, r := range recs {
+		if r.State != "failed" {
+			continue
+		}
+		failures = append(failures, HealthFailure{
+			ID:    r.ID,
+			Title: r.Title,
+			Agent: r.Agent,
+			Repo:  r.Repo,
+			At:    r.Started,
+		})
+	}
+	sort.SliceStable(failures, func(i, j int) bool {
+		if failures[i].At != failures[j].At {
+			return failures[i].At > failures[j].At // newest first
+		}
+		return failures[i].ID < failures[j].ID
+	})
+	if len(failures) > 10 {
+		failures = failures[:10]
+	}
+
+	return Health{
+		Daemon:         HealthDaemon{Running: true, PID: 4242, StartedAt: now - 6*60*minute},
+		Totals:         totals,
+		Locks:          locks,
+		ResourceLocks:  resLocks,
+		Stuck:          stuck,
+		RecentFailures: failures,
+	}, nil
+}
