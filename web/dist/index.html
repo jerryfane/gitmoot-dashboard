@@ -65,13 +65,15 @@
       <span style="flex:1">Agents</span>
       <span style="{{ agentsNavDotStyle }}"></span>
     </div>
-    <div title="Coming soon" style="display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:9px;color:#5a6088;font-size:13.5px;cursor:not-allowed;margin-top:2px">
+    <div onClick="{{ showCharts }}" title="Charts across every run" style="{{ chartsNavStyle }}">
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="4" y="12" width="3.2" height="8" rx="1" fill="currentColor"/><rect x="10.4" y="7" width="3.2" height="13" rx="1" fill="currentColor"/><rect x="16.8" y="4" width="3.2" height="16" rx="1" fill="currentColor"/></svg>
-      <span style="flex:1">Charts</span><span style="font-size:8.5px;font-family:'JetBrains Mono';color:#5a6088;border:1px solid rgba(160,168,220,0.12);padding:1px 5px;border-radius:5px">soon</span>
+      <span style="flex:1">Charts</span>
+      <span style="{{ chartsNavDotStyle }}"></span>
     </div>
-    <div title="Coming soon" style="display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:9px;color:#5a6088;font-size:13.5px;cursor:not-allowed;margin-top:2px">
+    <div onClick="{{ showHealth }}" title="Daemon health, locks, stuck jobs" style="{{ healthNavStyle }}">
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M3 12h4l2-6 4 12 2-6h6"/></svg>
-      <span style="flex:1">Health</span><span style="font-size:8.5px;font-family:'JetBrains Mono';color:#5a6088;border:1px solid rgba(160,168,220,0.12);padding:1px 5px;border-radius:5px">soon</span>
+      <span style="flex:1">Health</span>
+      <span style="{{ healthNavDotStyle }}"></span>
     </div>
 
     <div style="margin-top:auto;padding:10px;border-top:1px solid rgba(160,168,220,0.08);display:flex;align-items:center;gap:8px">
@@ -273,13 +275,19 @@ class Component extends DCLogic {
     this.stopGalaxyPoll();
     this.stopJobsPoll();
     this.stopAgentsPoll();
+    this.stopChartsPoll();
+    this.stopHealthPoll();
     try { if (this._es) this._es.close(); } catch (e) {}
     window.removeEventListener('resize', this.onResize);
     try { window.removeEventListener('resize', this._galaxyResize); } catch (e) {}
+    try { window.removeEventListener('resize', this._chartsResize); } catch (e) {}
     try { document.removeEventListener('keydown', this._jobsKeydown); } catch (e) {}
+    try { document.removeEventListener('keydown', this._healthKeydown); } catch (e) {}
     try { if (this._galaxyRoot) this._galaxyRoot.remove(); } catch (e) {}
     try { if (this._jobsRoot) this._jobsRoot.remove(); } catch (e) {}
     try { if (this._agentsRoot) this._agentsRoot.remove(); } catch (e) {}
+    try { if (this._chartsRoot) this._chartsRoot.remove(); } catch (e) {}
+    try { if (this._healthRoot) this._healthRoot.remove(); } catch (e) {}
   }
 
   // ============================================================
@@ -323,6 +331,26 @@ class Component extends DCLogic {
     } else {
       this.stopAgentsPoll();
       if (this._agentsRoot) this._agentsRoot.style.display = 'none';
+    }
+    // Charts overlay (hand-rolled inline-SVG charts).
+    if (v === 'charts') {
+      const root = this.ensureChartsDom();
+      root.style.display = 'block';
+      this.startChartsPoll();
+      this.fetchCharts(false);
+    } else {
+      this.stopChartsPoll();
+      if (this._chartsRoot) this._chartsRoot.style.display = 'none';
+    }
+    // Health overlay (daemon status, locks, stuck jobs, recent failures).
+    if (v === 'health') {
+      const root = this.ensureHealthDom();
+      root.style.display = 'block';
+      this.startHealthPoll();
+      this.fetchHealth(false);
+    } else {
+      this.stopHealthPoll();
+      if (this._healthRoot) this._healthRoot.style.display = 'none';
     }
   }
 
@@ -1146,6 +1174,8 @@ class Component extends DCLogic {
     this.setState({ view: 'jobs' });
   };
   showAgents = () => this.setState({ view: 'agents' });
+  showCharts = () => this.setState({ view: 'charts' });
+  showHealth = () => this.setState({ view: 'health' });
 
   startJobsPoll() {
     if (this._jobsPoll) return;
@@ -1157,6 +1187,21 @@ class Component extends DCLogic {
     this._agentsPoll = setInterval(() => { if (this.state.view !== 'agents') return; this.fetchAgents(true); }, 12000);
   }
   stopAgentsPoll() { try { clearInterval(this._agentsPoll); } catch (e) {} this._agentsPoll = null; }
+  startChartsPoll() {
+    if (this._chartsPoll) return;
+    this._chartsPoll = setInterval(() => { if (this.state.view !== 'charts') return; this.fetchCharts(true); }, 12000);
+  }
+  stopChartsPoll() { try { clearInterval(this._chartsPoll); } catch (e) {} this._chartsPoll = null; }
+  startHealthPoll() {
+    // 1s tick keeps uptime / age / expires-in countdowns live between 12s fetches.
+    if (!this._healthTick) this._healthTick = setInterval(() => { if (this.state.view === 'health') this._updateHealthLiveCells(); }, 1000);
+    if (this._healthPoll) return;
+    this._healthPoll = setInterval(() => { if (this.state.view !== 'health') return; this.fetchHealth(true); }, 12000);
+  }
+  stopHealthPoll() {
+    try { clearInterval(this._healthPoll); } catch (e) {} this._healthPoll = null;
+    try { clearInterval(this._healthTick); } catch (e) {} this._healthTick = null;
+  }
 
   ensureJobsDom() {
     if (this._jobsRoot) return this._jobsRoot;
@@ -1602,6 +1647,626 @@ class Component extends DCLogic {
       '</div>' +
       '<div class="ag-last">' + (a.lastActive ? ('active ' + esc(this._relFromMs(a.lastActive))) : 'no activity') + '</div>' +
     '</div>';
+  }
+
+  // ============================================================
+  // Charts page. Body-appended, position:fixed overlay covering the
+  // content area (right of the 216px nav rail), same pattern as the
+  // galaxy / jobs / agents overlays so the DC runtime's style sanitizer
+  // never touches it. Every chart is HAND-ROLLED inline SVG (this repo is
+  // dependency-free). Data comes from /api/charts?days=N, polled every 12s
+  // while active; the fetched JSON is string-compared so an unchanged poll
+  // skips the re-render. Divides are guarded against the all-zero range.
+  // ============================================================
+  _fmtCompact(n) {
+    n = n || 0; const a = Math.abs(n);
+    if (a >= 1e6) return (n / 1e6).toFixed(a >= 1e7 ? 0 : 1).replace(/\.0$/, '') + 'M';
+    if (a >= 1e3) return (n / 1e3).toFixed(a >= 1e4 ? 0 : 1).replace(/\.0$/, '') + 'k';
+    return String(Math.round(n));
+  }
+
+  ensureChartsDom() {
+    if (this._chartsRoot) return this._chartsRoot;
+    const st = document.createElement('style');
+    st.textContent = [
+      "#charts-root{font-family:Inter,system-ui,sans-serif;color:#c8cce6}",
+      "#charts-root .ch-head{display:flex;align-items:center;gap:16px;padding:18px 24px 14px;flex-wrap:wrap}",
+      "#charts-root .ch-title{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:20px;color:#eef0ff;letter-spacing:-0.02em}",
+      "#charts-root .ch-title .ch-tdot{color:#9ece6a;margin-left:1px}",
+      "#charts-root .ch-range{display:flex;gap:4px;background:#0f1120;border:1px solid rgba(160,168,220,0.12);border-radius:9px;padding:3px}",
+      "#charts-root .ch-chip{background:none;border:none;color:#868db5;font-family:'JetBrains Mono',monospace;font-size:11.5px;padding:5px 12px;border-radius:7px;cursor:pointer}",
+      "#charts-root .ch-chip:hover{color:#c8cce6}",
+      "#charts-root .ch-chip.on{background:rgba(158,206,106,0.14);color:#c5f882}",
+      "#charts-root .ch-count{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:11px;color:#7f86ad}",
+      "#charts-root .ch-totals{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;padding:0 24px 18px}",
+      "#charts-root .ch-stat{background-color:#0d0f1c;border:1px solid rgba(160,168,220,0.1);border-radius:12px;padding:13px 15px;text-align:center;overflow:hidden}",
+      "#charts-root .ch-sv{font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
+      "#charts-root .ch-sl{font-size:9.5px;color:#5a6088;text-transform:uppercase;letter-spacing:0.06em;margin-top:4px}",
+      "#charts-root .ch-card{background-color:#0b0d18;border:1px solid rgba(160,168,220,0.09);border-radius:13px;margin:0 24px 16px;padding:14px 16px 10px}",
+      "#charts-root .ch-ct{font-family:'JetBrains Mono',monospace;font-size:10.5px;text-transform:uppercase;letter-spacing:0.12em;color:#7f86ad;margin-bottom:6px}",
+      "#charts-root .ch-plot{width:100%}",
+      "#charts-root .ch-two{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:0 24px 16px}",
+      "#charts-root .ch-two .ch-card{margin:0}",
+      "#charts-root .ch-empty{padding:36px 10px;text-align:center;color:#5a6088;font-size:12.5px}",
+      "#charts-root .ch-tooltip{position:fixed;z-index:60;pointer-events:none;background:rgba(9,11,22,.96);border:1px solid rgba(125,207,255,.18);border-radius:10px;padding:8px 11px;box-shadow:0 8px 30px rgba(0,0,0,.6);font-size:12px;line-height:1.5;min-width:120px}",
+      "#charts-root .ch-tip-t{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:12px;color:#eef0ff;margin-bottom:4px}",
+      "#charts-root .ch-tip-r{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#a8aecf;display:flex;align-items:center;gap:6px}",
+      "#charts-root .ch-tip-r b{color:#eef0ff;font-weight:600}",
+      "#charts-root .ch-tip-sw{width:8px;height:8px;border-radius:2px;display:inline-block;flex:none}"
+    ].join('\n');
+    document.head.appendChild(st);
+
+    const root = document.createElement('div');
+    root.id = 'charts-root';
+    root.style.cssText = 'position:fixed;left:216px;top:0;right:0;bottom:0;z-index:40;background:#07080f;display:none;overflow-y:auto;font-family:Inter,system-ui,sans-serif;color:#c8cce6';
+    root.innerHTML = [
+      '<div class="ch-head">',
+      '  <div class="ch-title">Charts<span class="ch-tdot">.</span></div>',
+      '  <div class="ch-range" id="ch-range">',
+      '    <button class="ch-chip" data-days="7">7d</button>',
+      '    <button class="ch-chip" data-days="30">30d</button>',
+      '    <button class="ch-chip" data-days="90">90d</button>',
+      '    <button class="ch-chip" data-days="0">all</button>',
+      '  </div>',
+      '  <div class="ch-count" id="ch-status">loading…</div>',
+      '</div>',
+      '<div class="ch-totals" id="ch-totals"></div>',
+      '<div class="ch-card"><div class="ch-ct">Jobs per day</div><div class="ch-plot" id="ch-jobs"></div></div>',
+      '<div class="ch-card"><div class="ch-ct">Tokens per day</div><div class="ch-plot" id="ch-tokens"></div></div>',
+      '<div class="ch-two">',
+      '  <div class="ch-card"><div class="ch-ct">Top agents</div><div class="ch-plot" id="ch-agents"></div></div>',
+      '  <div class="ch-card"><div class="ch-ct">Top repos</div><div class="ch-plot" id="ch-repos"></div></div>',
+      '</div>',
+      '<div class="ch-tooltip" id="ch-tip" style="display:none"></div>'
+    ].join('\n');
+    document.body.appendChild(root);
+    this._chartsRoot = root;
+
+    root.querySelector('#ch-range').addEventListener('click', (e) => {
+      const b = (e.target.closest && e.target.closest('.ch-chip')) || null;
+      if (!b) return;
+      const d = +b.getAttribute('data-days');
+      if (this._chartsRange === d) return;
+      this._chartsRange = d;
+      this.fetchCharts(false); // range change -> always refetch + render
+    });
+    // Persistent hover on the two per-day charts (bound once; layout params are read
+    // from the freshly-rendered <svg>'s data-* attributes each move).
+    const wireHover = (id, kind) => {
+      const el = root.querySelector('#' + id);
+      el.addEventListener('mousemove', (e) => this._chartHover(e, el, kind));
+      el.addEventListener('mouseleave', () => { const tip = root.querySelector('#ch-tip'); if (tip) tip.style.display = 'none'; });
+    };
+    wireHover('ch-jobs', 'jobs');
+    wireHover('ch-tokens', 'tokens');
+    // Re-render on resize so the measured-pixel SVG layout tracks the container.
+    this._chartsResize = () => { if (this.state.view === 'charts' && this._chartsLoaded) this.renderCharts(false); };
+    window.addEventListener('resize', this._chartsResize);
+    return root;
+  }
+
+  fetchCharts(isPoll) {
+    const days = this._chartsRange == null ? 30 : this._chartsRange;
+    fetch('/api/charts?days=' + days, { cache: 'no-store' })
+      .then(r => r.ok ? r.text() : Promise.reject(new Error('HTTP ' + r.status)))
+      .then(txt => {
+        if (days !== (this._chartsRange == null ? 30 : this._chartsRange)) return; // stale range — selection changed since this fetch started
+        const sig = days + ':' + txt;
+        if (isPoll && this._chartsSig === sig) return; // unchanged — skip the re-render
+        this._chartsSig = sig;
+        let json = null; try { json = JSON.parse(txt); } catch (e) { json = null; }
+        this._chartsData = json || { days: [], agents: [], repos: [], totals: {} };
+        this._chartsLoaded = true;
+        this.renderCharts(isPoll);
+      })
+      .catch(err => {
+        if (isPoll) return; // keep current charts on a transient poll failure
+        this._chartsLoaded = true;
+        const s = this._chartsRoot && this._chartsRoot.querySelector('#ch-status');
+        if (s) s.textContent = 'could not load /api/charts (' + (err && err.message) + ')';
+      });
+  }
+
+  _chartsTotalsHtml(t) {
+    const cell = (label, val, col) => '<div class="ch-stat"><div class="ch-sv" style="color:' + col + '">' + val + '</div><div class="ch-sl">' + label + '</div></div>';
+    return cell('jobs', t.jobs || 0, '#c8cce6') +
+      cell('succeeded', t.succeeded || 0, '#9ece6a') +
+      cell('failed', t.failed || 0, (t.failed > 0) ? '#f7768e' : '#5a6088') +
+      cell('tokens in', this._fmtCompact(t.tokensIn || 0), '#7dcfff') +
+      cell('tokens out', this._fmtCompact(t.tokensOut || 0), '#bb9af7') +
+      cell('active agents', t.activeAgents || 0, '#eef0ff');
+  }
+
+  renderCharts(isPoll) {
+    if (!this._chartsRoot) return;
+    const root = this._chartsRoot;
+    const data = this._chartsData || { days: [], agents: [], repos: [], totals: {} };
+    const range = this._chartsRange == null ? 30 : this._chartsRange;
+    root.querySelectorAll('.ch-chip').forEach(b => b.classList.toggle('on', (+b.getAttribute('data-days')) === range));
+    const totals = data.totals || {};
+    const sEl = root.querySelector('#ch-status');
+    if (sEl) sEl.textContent = (totals.jobs || 0) + ' jobs · ' + (range ? ('last ' + range + 'd') : 'all time');
+    const tot = root.querySelector('#ch-totals'); if (tot) tot.innerHTML = this._chartsTotalsHtml(totals);
+    const days = Array.isArray(data.days) ? data.days : [];
+    const jp = root.querySelector('#ch-jobs'); if (jp) jp.innerHTML = days.length ? this._chartStacked(jp, days) : '<div class="ch-empty">no jobs in range</div>';
+    const tp = root.querySelector('#ch-tokens'); if (tp) tp.innerHTML = days.length ? this._chartTokens(tp, days) : '<div class="ch-empty">no tokens in range</div>';
+    const ap = root.querySelector('#ch-agents');
+    if (ap) {
+      const rows = (data.agents || []).map(a => ({ label: a.name || '—', value: a.jobs || 0, color: this._runtimeColor(a.runtime || ''), sub: a.tokensOut ? this._fmtCompact(a.tokensOut) : '' }));
+      ap.innerHTML = this._chartHBars(ap, rows);
+    }
+    const rp = root.querySelector('#ch-repos');
+    if (rp) {
+      const rows = (data.repos || []).map(r => ({ label: r.repo || '—', value: r.jobs || 0, color: '#7dcfff', sub: '' }));
+      rp.innerHTML = this._chartHBars(rp, rows);
+    }
+  }
+
+  // Stacked vertical bars, one column per day, segments colored by state. Measured
+  // in real pixels (svg width:100% == container width) so axis text stays crisp;
+  // guards the all-zero range so no segment divides by 0.
+  _chartStacked(plotEl, days) {
+    const esc = (s) => this._galaxyEsc(s);
+    const W = Math.max(320, (plotEl && plotEl.clientWidth) || 900), H = 240;
+    const mL = 46, mR = 12, mT = 12, mB = 26;
+    const plotW = W - mL - mR, plotH = H - mT - mB, n = days.length;
+    if (!n) return '<div class="ch-empty">no data in range</div>';
+    const SEG = [['succeeded', '#9ece6a'], ['running', '#7aa2f7'], ['blocked', '#e0af68'], ['queued', '#5a6088'], ['cancelled', '#5a6088'], ['failed', '#f7768e']];
+    let maxTotal = 0;
+    days.forEach(d => { let s = 0; SEG.forEach(g => { s += (d[g[0]] || 0); }); if (s > maxTotal) maxTotal = s; });
+    const niceMax = maxTotal > 0 ? maxTotal : 1;
+    const slot = plotW / n;
+    const barW = Math.max(1, Math.min(slot * 0.62, 22));
+    const labelStep = Math.max(1, Math.ceil(n / Math.max(4, Math.floor(plotW / 64))));
+    const parts = ['<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" height="' + H + '" data-ml="' + mL + '" data-slot="' + slot + '" data-n="' + n + '" data-w="' + W + '" style="display:block">'];
+    const TICKS = 4;
+    for (let i = 0; i <= TICKS; i++) {
+      const y = mT + plotH * (1 - i / TICKS), val = Math.round(niceMax * i / TICKS);
+      parts.push('<line x1="' + mL + '" y1="' + y.toFixed(1) + '" x2="' + (W - mR) + '" y2="' + y.toFixed(1) + '" stroke="rgba(160,168,220,0.06)" stroke-width="1"/>');
+      parts.push('<text x="' + (mL - 6) + '" y="' + (y + 3).toFixed(1) + '" text-anchor="end" font-family="JetBrains Mono,monospace" font-size="9" fill="#5a6088">' + val + '</text>');
+    }
+    for (let i = 0; i < n; i++) {
+      const d = days[i];
+      const sx = mL + slot * i + (slot - barW) / 2;
+      let yBase = mT + plotH;
+      if (maxTotal > 0) {
+        SEG.forEach(g => {
+          const c = d[g[0]] || 0; if (c <= 0) return;
+          const h = (c / maxTotal) * plotH; yBase -= h;
+          parts.push('<rect x="' + sx.toFixed(1) + '" y="' + yBase.toFixed(1) + '" width="' + barW.toFixed(1) + '" height="' + h.toFixed(1) + '" fill="' + g[1] + '" rx="1"/>');
+        });
+      }
+      if (i % labelStep === 0) parts.push('<text x="' + (mL + slot * i + slot / 2).toFixed(1) + '" y="' + (H - 8) + '" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#5a6088">' + esc((d.date || '').slice(5)) + '</text>');
+      parts.push('<rect class="ch-hit" x="' + (mL + slot * i).toFixed(1) + '" y="' + mT + '" width="' + slot.toFixed(1) + '" height="' + plotH + '" fill="transparent"/>');
+    }
+    parts.push('</svg>');
+    return parts.join('');
+  }
+
+  // Dual bars per day: tokens in (cyan) vs out (purple), mono k/M axis.
+  _chartTokens(plotEl, days) {
+    const esc = (s) => this._galaxyEsc(s);
+    const W = Math.max(320, (plotEl && plotEl.clientWidth) || 900), H = 240;
+    const mL = 46, mR = 12, mT = 22, mB = 26;
+    const plotW = W - mL - mR, plotH = H - mT - mB, n = days.length;
+    if (!n) return '<div class="ch-empty">no data in range</div>';
+    let maxTok = 0; days.forEach(d => { maxTok = Math.max(maxTok, d.tokensIn || 0, d.tokensOut || 0); });
+    const niceMax = maxTok > 0 ? maxTok : 1;
+    const IN = '#7dcfff', OUT = '#bb9af7';
+    const slot = plotW / n;
+    const gW = Math.max(2, Math.min(slot * 0.62, 20));
+    const bW = Math.max(1, (gW / 2) - 1);
+    const labelStep = Math.max(1, Math.ceil(n / Math.max(4, Math.floor(plotW / 64))));
+    const parts = ['<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" height="' + H + '" data-ml="' + mL + '" data-slot="' + slot + '" data-n="' + n + '" data-w="' + W + '" style="display:block">'];
+    const TICKS = 4;
+    for (let i = 0; i <= TICKS; i++) {
+      const y = mT + plotH * (1 - i / TICKS), val = this._fmtCompact(Math.round(niceMax * i / TICKS));
+      parts.push('<line x1="' + mL + '" y1="' + y.toFixed(1) + '" x2="' + (W - mR) + '" y2="' + y.toFixed(1) + '" stroke="rgba(160,168,220,0.06)" stroke-width="1"/>');
+      parts.push('<text x="' + (mL - 6) + '" y="' + (y + 3).toFixed(1) + '" text-anchor="end" font-family="JetBrains Mono,monospace" font-size="9" fill="#5a6088">' + esc(val) + '</text>');
+    }
+    parts.push('<rect x="' + mL + '" y="6" width="9" height="9" rx="2" fill="' + IN + '"/><text x="' + (mL + 13) + '" y="14" font-family="JetBrains Mono,monospace" font-size="9" fill="#7f86ad">in</text>');
+    parts.push('<rect x="' + (mL + 40) + '" y="6" width="9" height="9" rx="2" fill="' + OUT + '"/><text x="' + (mL + 53) + '" y="14" font-family="JetBrains Mono,monospace" font-size="9" fill="#7f86ad">out</text>');
+    for (let i = 0; i < n; i++) {
+      const d = days[i], cx = mL + slot * i + slot / 2;
+      if (maxTok > 0) {
+        const hi = ((d.tokensIn || 0) / maxTok) * plotH, ho = ((d.tokensOut || 0) / maxTok) * plotH;
+        parts.push('<rect x="' + (cx - bW - 0.5).toFixed(1) + '" y="' + (mT + plotH - hi).toFixed(1) + '" width="' + bW.toFixed(1) + '" height="' + hi.toFixed(1) + '" fill="' + IN + '" rx="1"/>');
+        parts.push('<rect x="' + (cx + 0.5).toFixed(1) + '" y="' + (mT + plotH - ho).toFixed(1) + '" width="' + bW.toFixed(1) + '" height="' + ho.toFixed(1) + '" fill="' + OUT + '" rx="1"/>');
+      }
+      if (i % labelStep === 0) parts.push('<text x="' + cx.toFixed(1) + '" y="' + (H - 8) + '" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#5a6088">' + esc((d.date || '').slice(5)) + '</text>');
+      parts.push('<rect class="ch-hit" x="' + (mL + slot * i).toFixed(1) + '" y="' + mT + '" width="' + slot.toFixed(1) + '" height="' + plotH + '" fill="transparent"/>');
+    }
+    parts.push('</svg>');
+    return parts.join('');
+  }
+
+  // Horizontal bars (top agents / top repos). rows: {label,value,color,sub}.
+  _chartHBars(plotEl, rows) {
+    const esc = (s) => this._galaxyEsc(s);
+    const W = Math.max(320, (plotEl && plotEl.clientWidth) || 900);
+    if (!rows.length) return '<div class="ch-empty">no data in range</div>';
+    const rowH = 26, top = 8, H = rows.length * rowH + top + 4;
+    const labelW = Math.min(150, Math.max(90, W * 0.26));
+    const valW = 56, barX = labelW + 10, barMax = Math.max(10, W - barX - valW);
+    let maxV = 0; rows.forEach(r => { if (r.value > maxV) maxV = r.value; });
+    const maxChars = Math.max(6, Math.floor(labelW / 6.2));
+    const parts = ['<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" height="' + H + '" style="display:block">'];
+    rows.forEach((r, i) => {
+      const cy = top + i * rowH + rowH / 2;
+      let lbl = r.label || '';
+      if (lbl.length > maxChars) lbl = lbl.slice(0, maxChars - 1) + '…';
+      const bw = Math.max(2, maxV > 0 ? (r.value / maxV) * barMax : 0);
+      parts.push('<text x="' + labelW + '" y="' + (cy + 3).toFixed(1) + '" text-anchor="end" font-family="Inter,sans-serif" font-size="11.5" fill="#c7c9e5">' + esc(lbl) + '</text>');
+      parts.push('<rect x="' + barX + '" y="' + (cy - 6).toFixed(1) + '" width="' + bw.toFixed(1) + '" height="12" rx="3" fill="' + (r.color || '#7aa2f7') + '" opacity="0.9"/>');
+      parts.push('<text x="' + (barX + bw + 6).toFixed(1) + '" y="' + (cy + 3).toFixed(1) + '" font-family="JetBrains Mono,monospace" font-size="10.5" fill="#868db5">' + r.value + (r.sub ? ('  ' + esc(r.sub)) : '') + '</text>');
+    });
+    parts.push('</svg>');
+    return parts.join('');
+  }
+
+  _chartHover(e, el, kind) {
+    const root = this._chartsRoot; if (!root) return;
+    const tip = root.querySelector('#ch-tip'); if (!tip) return;
+    const svg = el.querySelector('svg'); if (!svg) { tip.style.display = 'none'; return; }
+    const ml = +svg.getAttribute('data-ml'), slot = +svg.getAttribute('data-slot'), n = +svg.getAttribute('data-n'), vbw = +svg.getAttribute('data-w');
+    const rect = el.getBoundingClientRect();
+    const scale = rect.width > 0 ? (vbw / rect.width) : 1;
+    const x = (e.clientX - rect.left) * scale;
+    const i = slot ? Math.floor((x - ml) / slot) : -1;
+    const d = (i >= 0 && i < n) ? (((this._chartsData || {}).days || [])[i]) : null;
+    if (!d) { tip.style.display = 'none'; return; }
+    const esc = (s) => this._galaxyEsc(s);
+    let html = '<div class="ch-tip-t">' + esc(d.date || '') + '</div>';
+    if (kind === 'jobs') {
+      const SEG = [['succeeded', '#9ece6a'], ['running', '#7aa2f7'], ['blocked', '#e0af68'], ['queued', '#5a6088'], ['cancelled', '#5a6088'], ['failed', '#f7768e']];
+      let tot = 0; SEG.forEach(g => tot += (d[g[0]] || 0));
+      SEG.forEach(g => { const c = d[g[0]] || 0; if (c > 0) html += '<div class="ch-tip-r"><span class="ch-tip-sw" style="background:' + g[1] + '"></span>' + g[0] + ' <b>' + c + '</b></div>'; });
+      html += '<div class="ch-tip-r" style="color:#c8cce6">total <b>' + tot + '</b></div>';
+    } else {
+      html += '<div class="ch-tip-r"><span class="ch-tip-sw" style="background:#7dcfff"></span>in <b>' + this._fmtCompact(d.tokensIn || 0) + '</b></div>';
+      html += '<div class="ch-tip-r"><span class="ch-tip-sw" style="background:#bb9af7"></span>out <b>' + this._fmtCompact(d.tokensOut || 0) + '</b></div>';
+    }
+    tip.innerHTML = html;
+    tip.style.display = 'block';
+    const tw = tip.offsetWidth || 160;
+    let lx = e.clientX + 14, ly = e.clientY + 12;
+    if (lx + tw > window.innerWidth - 8) lx = e.clientX - tw - 14;
+    tip.style.left = Math.max(4, lx) + 'px';
+    tip.style.top = ly + 'px';
+  }
+
+  // ============================================================
+  // Health page. Body-appended, position:fixed overlay (same pattern).
+  // /api/health, polled every 12s; a 1s tick keeps uptime / lock age /
+  // expires-in countdowns live between fetches. Row clicks open the same
+  // job-detail panel the Jobs page uses (via the shared _jobDetailHTML).
+  // ============================================================
+  _fmtUptime(ms) {
+    if (!ms || ms < 0) return '0m';
+    let s = Math.floor(ms / 1000);
+    const d = Math.floor(s / 86400); s -= d * 86400;
+    const h = Math.floor(s / 3600); s -= h * 3600;
+    const m = Math.floor(s / 60);
+    if (d > 0) return d + 'd ' + h + 'h';
+    if (h > 0) return h + 'h ' + m + 'm';
+    return m + 'm';
+  }
+  _fmtCountdown(ms) {
+    if (ms == null) return '—';
+    if (ms <= 0) return 'expired';
+    let s = Math.floor(ms / 1000);
+    const h = Math.floor(s / 3600); s -= h * 3600;
+    const m = Math.floor(s / 60); s -= m * 60;
+    if (h > 0) return h + 'h ' + m + 'm';
+    if (m > 0) return m + 'm ' + s + 's';
+    return s + 's';
+  }
+
+  ensureHealthDom() {
+    if (this._healthRoot) return this._healthRoot;
+    this._ensureDetailStyles();
+    const st = document.createElement('style');
+    st.textContent = [
+      "#health-root{font-family:Inter,system-ui,sans-serif;color:#c8cce6}",
+      "#health-root .hl-head{display:flex;align-items:baseline;gap:14px;padding:18px 24px 6px}",
+      "#health-root .hl-title{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:20px;color:#eef0ff;letter-spacing:-0.02em}",
+      "#health-root .hl-title .hl-tdot{color:#7aa2f7;margin-left:1px}",
+      "#health-root .hl-updated{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#5a6088}",
+      "#health-root .hl-hero{margin:8px 24px 4px;padding:16px 18px;background-color:#0d0f1c;border:1px solid rgba(160,168,220,0.1);border-radius:13px;display:flex;align-items:center;gap:14px}",
+      "#health-root .hl-bigdot{width:16px;height:16px;border-radius:50%;flex:none}",
+      "#health-root .hl-htext{font-family:'JetBrains Mono',monospace;font-size:14px;color:#eef0ff}",
+      "#health-root .hl-hmut{color:#7f86ad}",
+      "#health-root .hl-section{margin:16px 24px 0}",
+      "#health-root .hl-h{font-family:'JetBrains Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:0.13em;color:#868db5;font-weight:600;margin-bottom:10px}",
+      "#health-root .hl-chips{display:flex;flex-wrap:wrap;gap:8px}",
+      "#health-root .hl-chip{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border-radius:9px;font-family:'JetBrains Mono',monospace;font-size:12px;background-color:#0d0f1c;border:1px solid rgba(160,168,220,0.1)}",
+      "#health-root .hl-cdot{width:8px;height:8px;border-radius:50%;flex:none}",
+      "#health-root .hl-chip b{font-weight:600}",
+      "#health-root .hl-list{display:flex;flex-direction:column;gap:8px}",
+      "#health-root .hl-row{display:flex;align-items:flex-start;gap:11px;padding:11px 14px;background-color:#0d0f1c;border:1px solid rgba(160,168,220,0.09);border-radius:11px;cursor:pointer;transition:border-color .14s ease}",
+      "#health-root .hl-row:hover{border-color:rgba(125,207,255,0.28)}",
+      "#health-root .hl-dot{width:9px;height:9px;border-radius:50%;flex:none;margin-top:4px}",
+      "#health-root .hl-rmain{flex:1;min-width:0}",
+      "#health-root .hl-rtitle{font-size:13px;font-weight:600;color:#eef0ff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
+      "#health-root .hl-rmeta{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#7f86ad;margin-top:3px;display:flex;flex-wrap:wrap;gap:8px}",
+      "#health-root .hl-reason{font-family:'JetBrains Mono',monospace;font-size:11px;color:#e0af68;margin-top:6px;line-height:1.45;white-space:pre-wrap;word-break:break-word}",
+      "#health-root .hl-empty{padding:22px 14px;text-align:center;color:#5a6088;font-size:12.5px;background-color:#0b0d18;border:1px dashed rgba(160,168,220,0.12);border-radius:11px}",
+      "#health-root .hl-ok{color:#9ece6a}",
+      "#health-root .hl-locks{display:grid;grid-template-columns:1fr 1fr;gap:16px}",
+      "#health-root .hl-lockh{font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:0.1em;color:#5a6088;margin-bottom:6px}",
+      "#health-root .hl-table{width:100%;table-layout:fixed;border-collapse:collapse;font-size:11.5px;background-color:#0d0f1c;border:1px solid rgba(160,168,220,0.09);border-radius:11px;overflow:hidden}",
+      "#health-root .hl-table th{text-align:left;padding:8px 11px;font-family:'JetBrains Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:0.08em;color:#5a6088;font-weight:600;border-bottom:1px solid rgba(160,168,220,0.1);white-space:nowrap}",
+      "#health-root .hl-table td{padding:7px 11px;color:#a8aecf;font-family:'JetBrains Mono',monospace;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-bottom:1px solid rgba(160,168,220,0.05)}",
+      "#health-root .hl-table tbody tr:last-child td{border-bottom:none}",
+      "#health-root .hl-br-repo{width:34%}",
+      "#health-root .hl-br-branch{width:30%}",
+      "#health-root .hl-br-owner{width:22%}",
+      "#health-root .hl-br-age{width:14%}",
+      "#health-root .hl-rl-key{width:40%}",
+      "#health-root .hl-rl-owner{width:24%}",
+      "#health-root .hl-rl-age{width:18%}",
+      "#health-root .hl-rl-exp{width:18%}",
+      "#health-root .hl-tempty{padding:16px 12px;text-align:center;color:#5a6088;font-size:11.5px;font-family:'JetBrains Mono',monospace}"
+    ].join('\n');
+    document.head.appendChild(st);
+
+    const root = document.createElement('div');
+    root.id = 'health-root';
+    root.style.cssText = 'position:fixed;left:216px;top:0;right:0;bottom:0;z-index:40;background:#07080f;display:none;overflow-y:auto;font-family:Inter,system-ui,sans-serif;color:#c8cce6';
+    root.innerHTML = [
+      '<div class="hl-head"><div class="hl-title">Health<span class="hl-tdot">.</span></div><div class="hl-updated" id="hl-updated"></div></div>',
+      '<div class="hl-hero" id="hl-hero"></div>',
+      '<div class="hl-section"><div class="hl-h">State totals</div><div class="hl-chips" id="hl-totals"></div></div>',
+      '<div class="hl-section"><div class="hl-h">Stuck jobs</div><div id="hl-stuck"></div></div>',
+      '<div class="hl-section"><div class="hl-h">Locks</div><div class="hl-locks"><div><div class="hl-lockh">branch / checkout locks</div><div id="hl-branchlocks"></div></div><div><div class="hl-lockh">resource locks</div><div id="hl-resourcelocks"></div></div></div></div>',
+      '<div class="hl-section" style="padding-bottom:28px"><div class="hl-h">Recent failures</div><div id="hl-failures"></div></div>'
+    ].join('\n');
+    document.body.appendChild(root);
+    this._healthRoot = root;
+
+    const wireList = (id) => {
+      const el = root.querySelector('#' + id); if (!el) return;
+      el.addEventListener('click', (e) => {
+        const row = (e.target.closest && e.target.closest('[data-id]')) || null;
+        if (row) this.openHealthDetail(row.getAttribute('data-id'));
+      });
+    };
+    wireList('hl-stuck');
+    wireList('hl-failures');
+    this._healthKeydown = (e) => { if (e.key === 'Escape' && this.state.view === 'health' && this._healthSelected) this.closeHealthDetail(); };
+    document.addEventListener('keydown', this._healthKeydown);
+    return root;
+  }
+
+  fetchHealth(isPoll) {
+    fetch('/api/health', { cache: 'no-store' })
+      .then(r => r.ok ? r.text() : Promise.reject(new Error('HTTP ' + r.status)))
+      .then(txt => {
+        if (isPoll && this._healthSig === txt) { this._updateHealthLiveCells(); return; } // unchanged — just tick
+        this._healthSig = txt;
+        let json = null; try { json = JSON.parse(txt); } catch (e) { json = null; }
+        this._healthData = json || {};
+        this._healthLoaded = true;
+        this.renderHealth(this._healthData);
+      })
+      .catch(err => {
+        if (isPoll) return; // keep current view on a transient poll failure
+        this._healthLoaded = true;
+        const hero = this._healthRoot && this._healthRoot.querySelector('#hl-hero');
+        if (hero) hero.innerHTML = '<span class="hl-bigdot" style="background:#f7768e"></span><span class="hl-htext" style="color:#f7768e">could not load /api/health (' + this._galaxyEsc(err && err.message) + ')</span>';
+      });
+  }
+
+  renderHealth(data) {
+    if (!this._healthRoot) return;
+    data = data || {};
+    const esc = (s) => this._galaxyEsc(s);
+    const root = this._healthRoot;
+    const dm = data.daemon || {};
+    const hero = root.querySelector('#hl-hero');
+    if (hero) {
+      if (dm.running) {
+        hero.innerHTML = '<span class="hl-bigdot" style="background:#9ece6a;box-shadow:0 0 14px rgba(158,206,106,0.55);animation:dotpulse 1.8s ease-in-out infinite"></span>' +
+          '<span class="hl-htext">daemon running' +
+          (dm.pid ? '<span class="hl-hmut"> · pid ' + esc(String(dm.pid)) + '</span>' : '') +
+          (dm.startedAt ? '<span class="hl-hmut"> · up </span><span id="hl-uptime" data-started="' + dm.startedAt + '"></span>' : '') +
+          '</span>';
+      } else {
+        hero.innerHTML = '<span class="hl-bigdot" style="background:#f7768e;box-shadow:0 0 14px rgba(247,118,142,0.55)"></span><span class="hl-htext" style="color:#f7768e">daemon stopped</span>';
+      }
+    }
+    const t = data.totals || {};
+    const TOT = [['queued', '#5a6088'], ['running', '#7aa2f7'], ['blocked', '#e0af68'], ['succeeded', '#9ece6a'], ['failed', '#f7768e'], ['cancelled', '#5a6088']];
+    const tel = root.querySelector('#hl-totals');
+    if (tel) tel.innerHTML = TOT.map(g => '<span class="hl-chip"><span class="hl-cdot" style="background:' + g[1] + '"></span>' + g[0] + ' <b style="color:' + g[1] + '">' + (t[g[0]] || 0) + '</b></span>').join('');
+    const stuck = Array.isArray(data.stuck) ? data.stuck : [];
+    const sel = root.querySelector('#hl-stuck');
+    if (sel) sel.innerHTML = stuck.length ? '<div class="hl-list">' + stuck.map(j => this._healthJobRow(j, true)).join('') + '</div>' : '<div class="hl-empty">nothing stuck <span class="hl-ok">✓</span></div>';
+    const bl = Array.isArray(data.locks) ? data.locks : [];
+    const blEl = root.querySelector('#hl-branchlocks');
+    if (blEl) blEl.innerHTML = bl.length
+      ? '<table class="hl-table"><thead><tr><th class="hl-br-repo">repo</th><th class="hl-br-branch">branch</th><th class="hl-br-owner">owner</th><th class="hl-br-age">age</th></tr></thead><tbody>' +
+        bl.map(l => '<tr><td title="' + esc(l.repo) + '">' + esc(l.repo || '—') + '</td><td title="' + esc(l.branch) + '">' + esc(l.branch || '—') + '</td><td title="' + esc(l.owner) + '">' + esc(l.owner || '—') + '</td><td><span class="hl-age" data-since="' + (l.acquiredAt || 0) + '">—</span></td></tr>').join('') +
+        '</tbody></table>'
+      : '<div class="hl-tempty">no branch locks</div>';
+    const rl = Array.isArray(data.resourceLocks) ? data.resourceLocks : [];
+    const rlEl = root.querySelector('#hl-resourcelocks');
+    if (rlEl) rlEl.innerHTML = rl.length
+      ? '<table class="hl-table"><thead><tr><th class="hl-rl-key">key</th><th class="hl-rl-owner">owner</th><th class="hl-rl-age">age</th><th class="hl-rl-exp">expires</th></tr></thead><tbody>' +
+        rl.map(l => '<tr><td title="' + esc(l.key) + '">' + esc(l.key || '—') + '</td><td title="' + esc(l.owner) + '">' + esc(l.owner || '—') + '</td><td><span class="hl-age" data-since="' + (l.acquiredAt || 0) + '">—</span></td><td><span class="hl-exp" data-exp="' + (l.expiresAt || 0) + '">—</span></td></tr>').join('') +
+        '</tbody></table>'
+      : '<div class="hl-tempty">no resource locks</div>';
+    const rf = Array.isArray(data.recentFailures) ? data.recentFailures : [];
+    const rfEl = root.querySelector('#hl-failures');
+    if (rfEl) rfEl.innerHTML = rf.length ? '<div class="hl-list">' + rf.map(j => this._healthJobRow(j, false)).join('') + '</div>' : '<div class="hl-empty">no recent failures <span class="hl-ok">✓</span></div>';
+    const up = root.querySelector('#hl-updated'); if (up) up.textContent = 'updated ' + new Date().toLocaleTimeString();
+    this._updateHealthLiveCells();
+  }
+
+  _healthJobRow(j, isStuck) {
+    const esc = (s) => this._galaxyEsc(s);
+    const state = j.state || (isStuck ? 'blocked' : 'failed');
+    const col = this._galaxyStateColor(state);
+    const since = isStuck ? (j.since || 0) : (j.at || 0);
+    const meta = [];
+    if (j.agent) meta.push('<span>' + esc(j.agent) + '</span>');
+    if (j.repo) meta.push('<span>' + esc(j.repo) + '</span>');
+    meta.push('<span style="color:' + col + '">' + esc(state) + '</span>');
+    meta.push('<span class="hl-age" data-since="' + since + '">—</span>');
+    return '<div class="hl-row" data-id="' + esc(j.id) + '">' +
+      '<span class="hl-dot" style="background:' + col + (state === 'running' ? ';animation:dotpulse 1.4s ease-in-out infinite' : '') + '"></span>' +
+      '<div class="hl-rmain">' +
+        '<div class="hl-rtitle">' + esc(j.title || j.id) + '</div>' +
+        '<div class="hl-rmeta">' + meta.join('') + '</div>' +
+        ((isStuck && j.reason) ? '<div class="hl-reason">' + esc(j.reason) + '</div>' : '') +
+      '</div>' +
+    '</div>';
+  }
+
+  _updateHealthLiveCells() {
+    const root = this._healthRoot; if (!root) return;
+    const up = root.querySelector('#hl-uptime');
+    if (up) { const s = +up.getAttribute('data-started'); up.textContent = s > 0 ? this._fmtUptime(Date.now() - s) : ''; }
+    root.querySelectorAll('.hl-age').forEach(el => { const s = +el.getAttribute('data-since'); el.textContent = s > 0 ? this._relFromMs(s) : '—'; });
+    root.querySelectorAll('.hl-exp').forEach(el => { const s = +el.getAttribute('data-exp'); el.textContent = s > 0 ? this._fmtCountdown(s - Date.now()) : '—'; });
+  }
+
+  _healthJobSummary(id) {
+    const d = this._healthData || {};
+    const all = (d.stuck || []).concat(d.recentFailures || []);
+    const m = all.find(x => x.id === id);
+    return m ? { id: m.id, title: m.title, agent: m.agent, repo: m.repo, state: m.state } : null;
+  }
+
+  ensureHealthDetailEl() {
+    if (this._healthDetailEl && this._healthDetailEl.parentNode) return this._healthDetailEl;
+    const el = document.createElement('div');
+    el.className = 'xd-panel';
+    this._healthRoot.appendChild(el);
+    this._healthDetailEl = el;
+    return el;
+  }
+  closeHealthDetail() {
+    this._healthSelected = null;
+    this._healthDetailFetchId = null;
+    try { if (this._healthDetailEl) this._healthDetailEl.remove(); } catch (e) {}
+    this._healthDetailEl = null;
+  }
+  openHealthDetail(id) {
+    if (!id) { this.closeHealthDetail(); return; }
+    this._ensureDetailStyles();
+    this._healthSelected = id;
+    const summary = this._healthJobSummary(id) || { id: id };
+    this.renderHealthDetail(summary, null, 'loading');
+    const fid = (this._healthDetailFetchId = id);
+    fetch('/api/job/' + encodeURIComponent(id), { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)))
+      .then(job => { if (this._healthDetailFetchId === fid) this.renderHealthDetail(summary, job || {}, 'ok'); })
+      .catch(() => { if (this._healthDetailFetchId === fid) this.renderHealthDetail(summary, null, 'error'); });
+  }
+  renderHealthDetail(summary, job, status) {
+    const el = this.ensureHealthDetailEl();
+    el.innerHTML = this._jobDetailHTML(summary, job, status);
+    const c = el.querySelector('.xd-close');
+    if (c) c.addEventListener('click', () => this.closeHealthDetail());
+  }
+
+  // ---- shared job-detail panel (styles + inner HTML) ----
+  // The Jobs page keeps its own #jobs-detail; this .xd-panel variant is the
+  // factored, root-agnostic version so the Health page can open the same
+  // panel appended to its own overlay. Escaping reuses _galaxyEsc.
+  _ensureDetailStyles() {
+    if (this._detailStyled) return;
+    this._detailStyled = true;
+    const st = document.createElement('style');
+    st.textContent = [
+      ".xd-panel{position:absolute;right:0;top:0;bottom:0;width:360px;z-index:30;background:rgba(15,17,32,0.94);border-left:1px solid rgba(160,168,220,0.14);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:-30px 0 60px rgba(0,0,0,0.5);display:flex;flex-direction:column;animation:panelin .28s cubic-bezier(.2,.8,.2,1)}",
+      ".xd-panel .xd-head{padding:18px 20px 14px;border-bottom:1px solid rgba(160,168,220,0.08)}",
+      ".xd-panel .xd-hrow{display:flex;align-items:flex-start;gap:10px}",
+      ".xd-panel .xd-dot{width:11px;height:11px;border-radius:50%;flex:none;margin-top:4px}",
+      ".xd-panel .xd-title{font-size:15px;font-weight:600;color:#eef0ff;line-height:1.3;word-break:break-word}",
+      ".xd-panel .xd-sub{font-family:'JetBrains Mono',monospace;font-size:11px;color:#868db5;margin-top:3px}",
+      ".xd-panel .xd-close{width:26px;height:26px;flex:none;background:rgba(160,168,220,0.08);border:1px solid rgba(160,168,220,0.12);border-radius:7px;color:#868db5;font-size:14px;cursor:pointer;line-height:1}",
+      ".xd-panel .xd-badges{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}",
+      ".xd-panel .xd-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:7px;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600}",
+      ".xd-panel .xd-badge.mut{color:#868db5;background:rgba(160,168,220,0.06);border:1px solid rgba(160,168,220,0.1);font-weight:400}",
+      ".xd-panel .xd-body{flex:1;overflow-y:auto;padding:16px 20px 24px}",
+      ".xd-panel .xd-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:20px}",
+      ".xd-panel .xd-cell{background:rgba(10,11,22,0.6);border:1px solid rgba(160,168,220,0.08);border-radius:9px;padding:10px 11px}",
+      ".xd-panel .xd-k{font-size:10px;color:#5a6088;letter-spacing:0.04em;text-transform:uppercase}",
+      ".xd-panel .xd-v{font-family:'JetBrains Mono',monospace;font-size:13px;color:#a8aecf;margin-top:4px;word-break:break-word}",
+      ".xd-panel .xd-v.hi{color:#eef0ff}",
+      ".xd-panel .xd-sec{font-size:10.5px;color:#5a6088;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:10px}",
+      ".xd-panel .xd-events{display:flex;flex-direction:column;gap:0;margin-bottom:22px}",
+      ".xd-panel .xd-ev{display:flex;gap:12px;align-items:flex-start;position:relative;padding-bottom:14px}",
+      ".xd-panel .xd-ev .rail{display:flex;flex-direction:column;align-items:center;flex:none;padding-top:3px}",
+      ".xd-panel .xd-ev .rail .dot{width:7px;height:7px;border-radius:50%}",
+      ".xd-panel .xd-ev .rail .line{width:1px;flex:1;background:rgba(160,168,220,0.12);margin-top:3px}",
+      ".xd-panel .xd-ev .lbl{font-size:12.5px;color:#c7c9e5;line-height:1.35}",
+      ".xd-panel .xd-ev .t{font-family:'JetBrains Mono',monospace;font-size:10px;color:#5a6088;margin-top:2px}",
+      ".xd-panel .xd-block{background:#0a0b16;border:1px solid rgba(160,168,220,0.1);border-radius:9px;padding:12px 13px;font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:1.6;color:#c7c9e5;white-space:pre-wrap;word-break:break-word;margin-bottom:18px;max-height:260px;overflow-y:auto}",
+      ".xd-panel .xd-pr{display:flex;align-items:center;gap:10px;padding:12px 14px;background:rgba(158,206,106,0.1);border:1px solid rgba(158,206,106,0.24);border-radius:10px;color:#c5f882;text-decoration:none;font-size:13px;font-weight:500}",
+      ".xd-panel .xd-pr span{flex:1;font-family:'JetBrains Mono',monospace;font-size:12px;word-break:break-all}"
+    ].join('\n');
+    document.head.appendChild(st);
+  }
+
+  _jobDetailHTML(summary, job, status) {
+    const esc = (s) => this._galaxyEsc(s);
+    const state = (job && job.state) || (summary && summary.state) || 'queued';
+    const col = this._galaxyStateColor(state);
+    const running = state === 'running';
+    const title = (job && job.title) || (summary && summary.title) || (summary && summary.id) || '';
+    const runtime = (job && job.runtime) || (summary && summary.runtime) || '';
+    const model = (job && job.model) || '';
+    const sub = runtime ? (runtime + (model ? ' · ' + model : '')) : (model || '—');
+    const worker = (job && job.workerId) || '';
+    const startedAt = (job && job.startedAt) || (summary && summary.started) || 0;
+    const endedAt = (job && job.endedAt) || 0;
+    const startedLabel = startedAt > 0 ? new Date(startedAt).toLocaleString() : '—';
+    const elapsedLabel = (endedAt && startedAt) ? (((endedAt - startedAt) / 1000).toFixed(1) + 's') : ((summary && summary.duration) ? this._fmtDur(summary.duration) : '—');
+    const runtimeLabel = runtime ? (runtime + (model ? ' · ' + model : '')) : '—';
+    const prUrl = (job && job.prUrl) || null;
+    let evHtml = '';
+    const evs = (job && Array.isArray(job.events)) ? job.events : [];
+    if (evs.length) {
+      const base = (evs[0] && evs[0].t) || startedAt || 0;
+      evHtml = evs.map((ev, i) => {
+        const dt = (ev.t && base) ? Math.max(0, (ev.t - base) / 1000) : 0;
+        const tlabel = (ev.t && base) ? ('+' + dt.toFixed(1) + 's') : '—';
+        const c = /fail/i.test(ev.label || '') ? '#f7768e' : /succeed|opened|complete|passed/i.test(ev.label || '') ? '#9ece6a' : '#7aa2f7';
+        const last = i === evs.length - 1;
+        return '<div class="xd-ev"><div class="rail"><span class="dot" style="background:' + c + ';box-shadow:0 0 6px ' + c + '"></span>' + (last ? '' : '<span class="line"></span>') + '</div>' +
+          '<div style="flex:1;min-width:0"><div class="lbl">' + esc(ev.label) + '</div><div class="t">' + tlabel + '</div></div></div>';
+      }).join('');
+    } else {
+      const msg = status === 'loading' ? 'loading…' : status === 'error' ? '(events unavailable)' : 'no events';
+      evHtml = '<div class="xd-ev"><div class="rail"><span class="dot" style="background:#5a6088"></span></div><div style="flex:1"><div class="lbl" style="color:#5a6088">' + msg + '</div></div></div>';
+    }
+    const prompt = (job && job.prompt) || (status === 'loading' ? 'loading…' : '—');
+    const output = (job && job.output) || (status === 'loading' ? 'loading…' : running ? '… running …' : '—');
+    const parts = [
+      '<div class="xd-head"><div class="xd-hrow">',
+      '<span class="xd-dot" style="background:' + col + ';box-shadow:0 0 10px ' + col + (running ? ';animation:dotpulse 1.4s ease-in-out infinite' : '') + '"></span>',
+      '<div style="flex:1;min-width:0"><div class="xd-title">' + esc(title) + '</div><div class="xd-sub">' + esc(sub) + '</div></div>',
+      '<button class="xd-close" title="close">✕</button>',
+      '</div><div class="xd-badges">',
+      '<span class="xd-badge" style="color:' + col + ';background:color-mix(in srgb,' + col + ' 12%, transparent);border:1px solid color-mix(in srgb,' + col + ' 30%, transparent)">' + esc(state) + '</span>',
+      (worker ? '<span class="xd-badge mut">▲ ' + esc(worker) + '</span>' : ''),
+      (status === 'loading' ? '<span class="xd-badge mut">loading…</span>' : ''),
+      (status === 'error' ? '<span class="xd-badge mut">fetch failed</span>' : ''),
+      '</div></div>',
+      '<div class="xd-body"><div class="xd-grid">',
+      '<div class="xd-cell"><div class="xd-k">Started</div><div class="xd-v">' + esc(startedLabel) + '</div></div>',
+      '<div class="xd-cell"><div class="xd-k">Elapsed</div><div class="xd-v hi">' + esc(elapsedLabel) + '</div></div>',
+      '<div class="xd-cell"><div class="xd-k">Runtime</div><div class="xd-v">' + esc(runtimeLabel) + '</div></div>',
+      '</div><div class="xd-sec">Events</div><div class="xd-events">' + evHtml + '</div>',
+      '<div class="xd-sec">Prompt</div><div class="xd-block">' + esc(prompt) + '</div>',
+      '<div class="xd-sec">Output</div><div class="xd-block">' + esc(output) + '</div>',
+      (this._galaxySafeUrl(prUrl) ? '<a class="xd-pr" href="' + esc(prUrl) + '" target="_blank" rel="noopener"><span>' + esc(String(prUrl).replace('https://github.com/', '')) + '</span><span style="color:#868db5">↗</span></a>' : ''),
+      '</div>'
+    ];
+    return parts.join('');
   }
 
   // ---- live feed: /api/state (graph) + /events (SSE) + /api/runs (list) ----
@@ -2325,6 +2990,8 @@ class Component extends DCLogic {
     const isGalaxy = view === 'galaxy';
     const isJobs = view === 'jobs';
     const isAgents = view === 'agents';
+    const isCharts = view === 'charts';
+    const isHealth = view === 'health';
     // shared nav-item base; active items pick up the green highlight
     const navBase = { display: 'flex', alignItems: 'center', gap: '11px', padding: '9px 11px', borderRadius: '9px', fontSize: '13.5px', fontWeight: 500, cursor: 'pointer', marginTop: '2px' };
     const navActive = (on) => ({ ...navBase, background: on ? 'rgba(158,206,106,0.11)' : 'transparent', color: on ? '#eef0ff' : '#a8aecf', border: '1px solid ' + (on ? 'rgba(158,206,106,0.2)' : 'transparent') });
@@ -2333,6 +3000,8 @@ class Component extends DCLogic {
     const galaxyNavStyle = { ...navActive(isGalaxy), position: 'relative' };
     const jobsNavStyle = { ...navActive(isJobs), position: 'relative' };
     const agentsNavStyle = { ...navActive(isAgents), position: 'relative' };
+    const chartsNavStyle = { ...navActive(isCharts), position: 'relative' };
+    const healthNavStyle = { ...navActive(isHealth), position: 'relative' };
     const navDot = (on) => ({ width: '5px', height: '5px', borderRadius: '50%', background: on ? '#9ece6a' : 'transparent', boxShadow: on ? '0 0 8px rgba(158,206,106,0.7)' : 'none' });
 
     return {
@@ -2344,9 +3013,11 @@ class Component extends DCLogic {
       toggleRuns: this.toggleRuns, runsNavStyle,
       showGraph: this.showGraph, showGalaxy: this.showGalaxy,
       showJobs: this.showJobs, showAgents: this.showAgents,
-      graphNavStyle, galaxyNavStyle, jobsNavStyle, agentsNavStyle,
+      showCharts: this.showCharts, showHealth: this.showHealth,
+      graphNavStyle, galaxyNavStyle, jobsNavStyle, agentsNavStyle, chartsNavStyle, healthNavStyle,
       graphNavDotStyle: navDot(isGraph), galaxyNavDotStyle: navDot(isGalaxy),
       jobsNavDotStyle: navDot(isJobs), agentsNavDotStyle: navDot(isAgents),
+      chartsNavDotStyle: navDot(isCharts), healthNavDotStyle: navDot(isHealth),
       crumbRepo: activeRun.repo, crumbTitle: activeRun.title,
       crumbDotStyle: { width: '8px', height: '8px', borderRadius: '50%', flex: 'none', background: crumbCol.c, boxShadow: activeRun.state === 'running' ? '0 0 8px ' + crumbCol.g : 'none', animation: activeRun.state === 'running' ? 'dotpulse 1.4s ease-in-out infinite' : 'none' },
       hasSelected: !!sel && isGraph,

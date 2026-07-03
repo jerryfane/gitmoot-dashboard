@@ -1,11 +1,14 @@
 package dashboard
 
 import (
+	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestHandleRuns(t *testing.T) {
@@ -251,6 +254,181 @@ func TestHandleJobNotFound(t *testing.T) {
 
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("status = %d, want 404", resp.StatusCode)
+	}
+}
+
+// getRaw fetches url and returns the 200 response body, failing the test on any
+// error or non-200 status.
+func getRaw(t *testing.T, url string) []byte {
+	t.Helper()
+	resp, err := http.Get(url)
+	if err != nil {
+		t.Fatalf("GET %s: %v", url, err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET %s: status = %d, want 200", url, resp.StatusCode)
+	}
+	if ct := resp.Header.Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
+		t.Fatalf("GET %s: Content-Type = %q, want application/json", url, ct)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("GET %s: read body: %v", url, err)
+	}
+	return body
+}
+
+func TestHandleCharts(t *testing.T) {
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+
+	var charts Charts
+	if err := json.Unmarshal(getRaw(t, srv.URL+"/api/charts"), &charts); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	// Missing days defaults to a 30-day window.
+	if len(charts.Days) != 30 {
+		t.Fatalf("default window len(Days) = %d, want 30", len(charts.Days))
+	}
+	assertContinuousDays(t, charts.Days)
+	if charts.Days == nil || charts.Agents == nil || charts.Repos == nil {
+		t.Fatalf("charts slices must be non-nil: %+v", charts)
+	}
+	if len(charts.Agents) == 0 || len(charts.Repos) == 0 {
+		t.Fatalf("expected non-empty agents/repos breakdowns: %+v", charts)
+	}
+	if len(charts.Agents) > 12 || len(charts.Repos) > 12 {
+		t.Fatalf("agents/repos capped at 12: got %d/%d", len(charts.Agents), len(charts.Repos))
+	}
+	// Agents sorted by Jobs desc, name tie-break.
+	for i := 1; i < len(charts.Agents); i++ {
+		a, b := charts.Agents[i-1], charts.Agents[i]
+		if a.Jobs < b.Jobs || (a.Jobs == b.Jobs && a.Name > b.Name) {
+			t.Fatalf("agents not sorted Jobs desc/name asc: %+v then %+v", a, b)
+		}
+	}
+	if charts.Totals.Jobs == 0 || charts.Totals.ActiveAgents == 0 {
+		t.Fatalf("totals should be populated: %+v", charts.Totals)
+	}
+}
+
+func TestHandleChartsDaysValidation(t *testing.T) {
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+
+	cases := []struct {
+		days    string
+		wantLen int // 0 == just assert continuity (all-history length is data-derived)
+	}{
+		{"7", 7},
+		{"30", 30},
+		{"90", 90},
+		{"", 30},    // missing -> 30
+		{"abc", 30}, // invalid -> 30
+		{"5", 30},   // unaccepted value -> 30
+		{"-1", 30},  // unaccepted value -> 30
+		{"0", 0},    // all history
+	}
+	for _, tc := range cases {
+		var charts Charts
+		if err := json.Unmarshal(getRaw(t, srv.URL+"/api/charts?days="+tc.days), &charts); err != nil {
+			t.Fatalf("days=%q decode: %v", tc.days, err)
+		}
+		if tc.wantLen != 0 && len(charts.Days) != tc.wantLen {
+			t.Fatalf("days=%q: len(Days) = %d, want %d", tc.days, len(charts.Days), tc.wantLen)
+		}
+		if len(charts.Days) == 0 {
+			t.Fatalf("days=%q: Days must not be empty", tc.days)
+		}
+		assertContinuousDays(t, charts.Days)
+	}
+}
+
+func TestHandleChartsDeterministic(t *testing.T) {
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+
+	for _, days := range []string{"", "7", "30", "90", "0"} {
+		url := srv.URL + "/api/charts?days=" + days
+		if a, b := getRaw(t, url), getRaw(t, url); !bytes.Equal(a, b) {
+			t.Fatalf("days=%q: charts not byte-stable across calls\nfirst:  %s\nsecond: %s", days, a, b)
+		}
+	}
+}
+
+func TestHandleHealth(t *testing.T) {
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+
+	var h Health
+	if err := json.Unmarshal(getRaw(t, srv.URL+"/api/health"), &h); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if !h.Daemon.Running {
+		t.Fatalf("expected daemon running: %+v", h.Daemon)
+	}
+	if h.Locks == nil || h.ResourceLocks == nil || h.Stuck == nil || h.RecentFailures == nil {
+		t.Fatalf("health slices must be non-nil: %+v", h)
+	}
+	if len(h.Stuck) == 0 {
+		t.Fatalf("expected at least one stuck job")
+	}
+	if len(h.Locks) == 0 {
+		t.Fatalf("expected at least one branch lock")
+	}
+	// Locks oldest first.
+	for i := 1; i < len(h.Locks); i++ {
+		if h.Locks[i-1].AcquiredAt > h.Locks[i].AcquiredAt {
+			t.Fatalf("locks not oldest-first: %+v", h.Locks)
+		}
+	}
+	// Stuck oldest first.
+	for i := 1; i < len(h.Stuck); i++ {
+		if h.Stuck[i-1].Since > h.Stuck[i].Since {
+			t.Fatalf("stuck not oldest-first: %+v", h.Stuck)
+		}
+	}
+	// Recent failures newest first, capped at 10.
+	if len(h.RecentFailures) > 10 {
+		t.Fatalf("recent failures = %d, want <= 10", len(h.RecentFailures))
+	}
+	for i := 1; i < len(h.RecentFailures); i++ {
+		if h.RecentFailures[i-1].At < h.RecentFailures[i].At {
+			t.Fatalf("recent failures not newest-first: %+v", h.RecentFailures)
+		}
+	}
+}
+
+func TestHandleHealthDeterministic(t *testing.T) {
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+
+	url := srv.URL + "/api/health"
+	if a, b := getRaw(t, url), getRaw(t, url); !bytes.Equal(a, b) {
+		t.Fatalf("health not byte-stable across calls\nfirst:  %s\nsecond: %s", a, b)
+	}
+}
+
+// assertContinuousDays checks Days is oldest->newest with no gaps (each date is
+// exactly one UTC day after the previous).
+func assertContinuousDays(t *testing.T, days []ChartDay) {
+	t.Helper()
+	if len(days) == 0 {
+		t.Fatalf("Days is empty")
+	}
+	var prev time.Time
+	for i, d := range days {
+		cur, err := time.Parse("2006-01-02", d.Date)
+		if err != nil {
+			t.Fatalf("Days[%d].Date = %q not YYYY-MM-DD: %v", i, d.Date, err)
+		}
+		if i > 0 {
+			if diff := cur.Sub(prev); diff != 24*time.Hour {
+				t.Fatalf("Days not continuous at %d: %s -> %s (%v)", i, days[i-1].Date, d.Date, diff)
+			}
+		}
+		prev = cur
 	}
 }
 

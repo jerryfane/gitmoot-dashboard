@@ -69,6 +69,60 @@ func (s *server) handleAgents(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, agents)
 }
 
+// handleCharts serves GET /api/charts?days=N -> Charts. days accepts only 0
+// (all history), 7, 30 or 90; any missing/invalid/other value defaults to 30.
+// Mirrors handleRuns.
+func (s *server) handleCharts(w http.ResponseWriter, r *http.Request) {
+	days := 30
+	switch r.URL.Query().Get("days") {
+	case "0":
+		days = 0
+	case "7":
+		days = 7
+	case "30":
+		days = 30
+	case "90":
+		days = 90
+	}
+	charts, err := s.ds.Charts(r.Context(), days)
+	if err != nil {
+		http.Error(w, err.Error(), statusForError(err))
+		return
+	}
+	if charts.Days == nil {
+		charts.Days = []ChartDay{}
+	}
+	if charts.Agents == nil {
+		charts.Agents = []ChartAgent{}
+	}
+	if charts.Repos == nil {
+		charts.Repos = []ChartRepo{}
+	}
+	writeJSON(w, http.StatusOK, charts)
+}
+
+// handleHealth serves GET /api/health -> Health. Mirrors handleRuns.
+func (s *server) handleHealth(w http.ResponseWriter, r *http.Request) {
+	h, err := s.ds.Health(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), statusForError(err))
+		return
+	}
+	if h.Locks == nil {
+		h.Locks = []HealthLock{}
+	}
+	if h.ResourceLocks == nil {
+		h.ResourceLocks = []HealthResourceLock{}
+	}
+	if h.Stuck == nil {
+		h.Stuck = []HealthStuckJob{}
+	}
+	if h.RecentFailures == nil {
+		h.RecentFailures = []HealthFailure{}
+	}
+	writeJSON(w, http.StatusOK, h)
+}
+
 // handleState serves GET /api/state?run=<id> -> State. An empty run resolves to
 // the active/most-recent run.
 func (s *server) handleState(w http.ResponseWriter, r *http.Request) {
