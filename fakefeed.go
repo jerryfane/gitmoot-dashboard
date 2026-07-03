@@ -3,6 +3,9 @@ package dashboard
 import (
 	"context"
 	"errors"
+	"sort"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -19,6 +22,8 @@ var (
 const (
 	fakeRunID    = "run-noted-001"
 	fakeRunTitle = "noted: add note search, delete, and export"
+	// fakeRepo is the repository the fake run operates on (shared by Jobs/Graph).
+	fakeRepo = "acme/webapp"
 	// fakeTickInterval is how often the background goroutine advances the run.
 	fakeTickInterval = 1200 * time.Millisecond
 )
@@ -335,7 +340,6 @@ func (f *FakeDataSource) Graph(ctx context.Context, repo string) (Graph, error) 
 	f.mu.Lock()
 	snap := f.cloneStateLocked()
 	f.mu.Unlock()
-	const fakeRepo = "acme/webapp"
 	g := Graph{Nodes: []GraphNode{}, Links: []GraphLink{}, Repos: []string{fakeRepo}}
 	if repo != "" && repo != fakeRepo {
 		return g, nil
@@ -366,4 +370,204 @@ func (f *FakeDataSource) Graph(ctx context.Context, repo string) (Graph, error) 
 		g.Nodes = append(g.Nodes, GraphNode{ID: "agent::" + a, Type: "agent", Label: a, Agent: a})
 	}
 	return g, nil
+}
+
+// nodeUpdatedLocked returns a node's most-recent activity time (epoch ms): its
+// last timeline event, falling back to EndedAt/StartedAt.
+func nodeUpdated(n Node) int64 {
+	updated := n.StartedAt
+	if n.EndedAt > updated {
+		updated = n.EndedAt
+	}
+	for _, e := range n.Events {
+		if e.T > updated {
+			updated = e.T
+		}
+	}
+	return updated
+}
+
+// fakeKind maps a fake node to a plausible job kind (ask|review|implement|
+// orchestrate) from its depth/title so the Jobs page has something to group on.
+func fakeKind(n Node) string {
+	switch {
+	case n.Depth == 0:
+		return "orchestrate"
+	case strings.HasPrefix(n.Title, "implement"):
+		return "implement"
+	case strings.Contains(n.Title, "review"):
+		return "review"
+	default:
+		return "ask"
+	}
+}
+
+// prNumberFromURL extracts the trailing integer of a .../pull/<n> URL, or 0.
+func prNumberFromURL(url string) int {
+	if url == "" {
+		return 0
+	}
+	i := strings.LastIndex(url, "/")
+	if i < 0 || i+1 >= len(url) {
+		return 0
+	}
+	n, err := strconv.Atoi(url[i+1:])
+	if err != nil {
+		return 0
+	}
+	return n
+}
+
+// jobSummaryFor flattens a Node into a JobSummary for the Jobs page. TokensIn/
+// TokensOut are synthesized (deterministically from the id) so standalone dev
+// shows plausible per-job token usage.
+func jobSummaryFor(n Node, runID string) JobSummary {
+	updated := nodeUpdated(n)
+	var duration int64
+	if n.StartedAt > 0 && updated > n.StartedAt {
+		duration = updated - n.StartedAt
+	}
+	tokensIn, tokensOut := 0, 0
+	if n.StartedAt > 0 { // only started jobs have accrued tokens
+		seed := len(n.ID) + len(n.Title)
+		tokensIn = 1500 + seed*130
+		tokensOut = 600 + seed*70
+	}
+	return JobSummary{
+		ID:        n.ID,
+		Title:     n.Title,
+		Agent:     n.Agent,
+		Runtime:   n.Runtime,
+		Repo:      fakeRepo,
+		Kind:      fakeKind(n),
+		State:     n.State,
+		Depth:     n.Depth,
+		Run:       runID,
+		PR:        prNumberFromURL(n.PRURL),
+		Started:   n.StartedAt,
+		Updated:   updated,
+		Duration:  duration,
+		TokensIn:  tokensIn,
+		TokensOut: tokensOut,
+	}
+}
+
+// Jobs implements DataSource. The fake feed has a single run, so this flattens
+// that run's nodes into per-job rows, sorted Updated desc.
+func (f *FakeDataSource) Jobs(ctx context.Context) ([]JobSummary, error) {
+	f.mu.Lock()
+	snap := f.cloneStateLocked()
+	f.mu.Unlock()
+
+	jobs := make([]JobSummary, 0, len(snap.Nodes))
+	for _, n := range snap.Nodes {
+		jobs = append(jobs, jobSummaryFor(n, snap.RunID))
+	}
+	sort.SliceStable(jobs, func(i, j int) bool {
+		if jobs[i].Updated != jobs[j].Updated {
+			return jobs[i].Updated > jobs[j].Updated // Updated desc
+		}
+		return jobs[i].ID < jobs[j].ID // stable tiebreak
+	})
+	return jobs, nil
+}
+
+// fakeAgent is the static registration for a fake agent; its live counts are
+// filled in from the run's jobs by Agents().
+type fakeAgent struct {
+	name           string
+	role           string
+	runtime        string
+	repoScope      []string
+	model          string
+	capabilities   []string
+	autonomyPolicy string
+	health         string
+}
+
+// fakeAgents is a handful of registered agents with varied runtimes/health so
+// the Agents page has realistic rows standalone. project-lead/implementer/
+// integrator match the names used by the seeded run (so their counts are live);
+// the rest are idle registrations.
+var fakeAgents = []fakeAgent{
+	{name: "project-lead", role: "coordinator", runtime: "codex", model: "gpt-5.5", capabilities: []string{"orchestrate", "review"}, autonomyPolicy: "workspace-write", health: "healthy", repoScope: []string{fakeRepo}},
+	{name: "implementer", role: "implementer", runtime: "codex", model: "gpt-5.5", capabilities: []string{"implement"}, autonomyPolicy: "workspace-write", health: "healthy", repoScope: []string{fakeRepo}},
+	{name: "integrator", role: "integrator", runtime: "codex", model: "gpt-5.5", capabilities: []string{"review", "integrate"}, autonomyPolicy: "workspace-write", health: "healthy", repoScope: []string{fakeRepo}},
+	{name: "researcher", role: "researcher", runtime: "claude", model: "claude-opus-4-8", capabilities: []string{"research"}, autonomyPolicy: "read-only", health: "healthy"},
+	{name: "reviewer-kimi", role: "reviewer", runtime: "kimi", model: "kimi-code", capabilities: []string{"review"}, autonomyPolicy: "read-only", health: "degraded"},
+	{name: "ci-runner", role: "ci", runtime: "shell", capabilities: []string{"ci", "lint"}, autonomyPolicy: "workspace-write", health: "healthy", repoScope: []string{fakeRepo}},
+}
+
+// Agents implements DataSource. It returns the registered agents (with job
+// counts aggregated live from the seeded run) plus one synthetic rollup row for
+// the fleet of ephemeral workers (Ephemeral == true).
+func (f *FakeDataSource) Agents(ctx context.Context) ([]AgentSummary, error) {
+	f.mu.Lock()
+	snap := f.cloneStateLocked()
+	f.mu.Unlock()
+
+	// Aggregate per-agent counts from the run's jobs.
+	type agg struct {
+		jobs, running, succeeded, failed int
+		lastActive                       int64
+	}
+	byAgent := map[string]*agg{}
+	for _, n := range snap.Nodes {
+		a := byAgent[n.Agent]
+		if a == nil {
+			a = &agg{}
+			byAgent[n.Agent] = a
+		}
+		a.jobs++
+		switch n.State {
+		case "running":
+			a.running++
+		case "succeeded":
+			a.succeeded++
+		case "failed":
+			a.failed++
+		}
+		if u := nodeUpdated(n); u > a.lastActive {
+			a.lastActive = u
+		}
+	}
+
+	out := make([]AgentSummary, 0, len(fakeAgents)+1)
+	for _, fa := range fakeAgents {
+		s := AgentSummary{
+			Name:           fa.name,
+			Role:           fa.role,
+			Runtime:        fa.runtime,
+			RepoScope:      fa.repoScope,
+			Model:          fa.model,
+			Capabilities:   fa.capabilities,
+			AutonomyPolicy: fa.autonomyPolicy,
+			Health:         fa.health,
+		}
+		if a := byAgent[fa.name]; a != nil {
+			s.JobCount = a.jobs
+			s.RunningCount = a.running
+			s.SucceededCount = a.succeeded
+			s.FailedCount = a.failed
+			s.LastActive = a.lastActive
+		}
+		out = append(out, s)
+	}
+
+	// One synthetic rollup row for the fleet of ephemeral workers.
+	out = append(out, AgentSummary{
+		Name:           "ephemeral-workers",
+		Role:           "worker",
+		Runtime:        "codex",
+		Capabilities:   []string{"implement", "review"},
+		AutonomyPolicy: "workspace-write",
+		Health:         "healthy",
+		Ephemeral:      true,
+		JobCount:       128,
+		RunningCount:   3,
+		SucceededCount: 119,
+		FailedCount:    6,
+		LastActive:     time.Now().UnixMilli(),
+	})
+	return out, nil
 }

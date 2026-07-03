@@ -40,6 +40,92 @@ func TestHandleRuns(t *testing.T) {
 	}
 }
 
+func TestHandleJobs(t *testing.T) {
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/api/jobs")
+	if err != nil {
+		t.Fatalf("GET /api/jobs: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+	if ct := resp.Header.Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
+		t.Fatalf("Content-Type = %q, want application/json", ct)
+	}
+
+	var jobs []JobSummary
+	if err := json.NewDecoder(resp.Body).Decode(&jobs); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(jobs) == 0 {
+		t.Fatalf("len(jobs) = 0, want > 0")
+	}
+	// Sorted Updated desc.
+	for i := 1; i < len(jobs); i++ {
+		if jobs[i-1].Updated < jobs[i].Updated {
+			t.Fatalf("jobs not sorted Updated desc: [%d].Updated=%d < [%d].Updated=%d",
+				i-1, jobs[i-1].Updated, i, jobs[i].Updated)
+		}
+	}
+	// Sanity on content: each job carries identity + state, and belongs to the run.
+	for _, j := range jobs {
+		if j.ID == "" || j.State == "" {
+			t.Fatalf("job missing id/state: %+v", j)
+		}
+		if j.Run != fakeRunID {
+			t.Fatalf("job.Run = %q, want %q", j.Run, fakeRunID)
+		}
+	}
+}
+
+func TestHandleAgents(t *testing.T) {
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/api/agents")
+	if err != nil {
+		t.Fatalf("GET /api/agents: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+	if ct := resp.Header.Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
+		t.Fatalf("Content-Type = %q, want application/json", ct)
+	}
+
+	var agents []AgentSummary
+	if err := json.NewDecoder(resp.Body).Decode(&agents); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(agents) == 0 {
+		t.Fatalf("len(agents) = 0, want > 0")
+	}
+
+	var ephemeral, registered int
+	for _, a := range agents {
+		if a.Name == "" || a.Runtime == "" {
+			t.Fatalf("agent missing name/runtime: %+v", a)
+		}
+		if a.Ephemeral {
+			ephemeral++
+		} else {
+			registered++
+		}
+	}
+	if ephemeral != 1 {
+		t.Fatalf("ephemeral rollup rows = %d, want exactly 1", ephemeral)
+	}
+	if registered == 0 {
+		t.Fatalf("registered agents = 0, want > 0")
+	}
+}
+
 func TestHandleState(t *testing.T) {
 	srv := httptest.NewServer(Serve(NewFakeDataSource()))
 	defer srv.Close()
