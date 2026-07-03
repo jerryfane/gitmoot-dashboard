@@ -55,13 +55,15 @@
       <span style="flex:1">Runs</span>
     </div>
 
-    <div title="Coming soon" style="display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:9px;color:#5a6088;font-size:13.5px;cursor:not-allowed;margin-top:2px">
+    <div onClick="{{ showJobs }}" title="All jobs across every run" style="{{ jobsNavStyle }}">
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8 6h11M8 12h11M8 18h11"/><circle cx="4" cy="6" r="1.1"/><circle cx="4" cy="12" r="1.1"/><circle cx="4" cy="18" r="1.1"/></svg>
-      <span style="flex:1">Jobs</span><span style="font-size:8.5px;font-family:'JetBrains Mono';color:#5a6088;border:1px solid rgba(160,168,220,0.12);padding:1px 5px;border-radius:5px">soon</span>
+      <span style="flex:1">Jobs</span>
+      <span style="{{ jobsNavDotStyle }}"></span>
     </div>
-    <div title="Coming soon" style="display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:9px;color:#5a6088;font-size:13.5px;cursor:not-allowed;margin-top:2px">
+    <div onClick="{{ showAgents }}" title="Registered agents + ephemeral workers" style="{{ agentsNavStyle }}">
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="7" y="7" width="10" height="10" rx="2"/><path d="M10 2.5v3M14 2.5v3M10 18.5v3M14 18.5v3M2.5 10h3M2.5 14h3M18.5 10h3M18.5 14h3"/></svg>
-      <span style="flex:1">Agents</span><span style="font-size:8.5px;font-family:'JetBrains Mono';color:#5a6088;border:1px solid rgba(160,168,220,0.12);padding:1px 5px;border-radius:5px">soon</span>
+      <span style="flex:1">Agents</span>
+      <span style="{{ agentsNavDotStyle }}"></span>
     </div>
     <div title="Coming soon" style="display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:9px;color:#5a6088;font-size:13.5px;cursor:not-allowed;margin-top:2px">
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="4" y="12" width="3.2" height="8" rx="1" fill="currentColor"/><rect x="10.4" y="7" width="3.2" height="13" rx="1" fill="currentColor"/><rect x="16.8" y="4" width="3.2" height="16" rx="1" fill="currentColor"/></svg>
@@ -269,10 +271,15 @@ class Component extends DCLogic {
     clearInterval(this._runsPoll);
     clearTimeout(this._loadTO);
     this.stopGalaxyPoll();
+    this.stopJobsPoll();
+    this.stopAgentsPoll();
     try { if (this._es) this._es.close(); } catch (e) {}
     window.removeEventListener('resize', this.onResize);
     try { window.removeEventListener('resize', this._galaxyResize); } catch (e) {}
+    try { document.removeEventListener('keydown', this._jobsKeydown); } catch (e) {}
     try { if (this._galaxyRoot) this._galaxyRoot.remove(); } catch (e) {}
+    try { if (this._jobsRoot) this._jobsRoot.remove(); } catch (e) {}
+    try { if (this._agentsRoot) this._agentsRoot.remove(); } catch (e) {}
   }
 
   // ============================================================
@@ -286,7 +293,9 @@ class Component extends DCLogic {
   showGalaxy = () => this.setState({ view: 'galaxy' });
 
   applyView() {
-    if (this.state.view === 'galaxy') {
+    const v = this.state.view;
+    // Galaxy overlay (imperative force-graph).
+    if (v === 'galaxy') {
       const root = this.ensureGalaxyDom();
       root.style.display = 'block';
       this.initGalaxyGraph();
@@ -294,6 +303,26 @@ class Component extends DCLogic {
     } else {
       this.stopGalaxyPoll();
       if (this._galaxyRoot) this._galaxyRoot.style.display = 'none';
+    }
+    // Jobs overlay (imperative table) — same body-appended overlay pattern as galaxy.
+    if (v === 'jobs') {
+      const root = this.ensureJobsDom();
+      root.style.display = 'flex';
+      this.startJobsPoll();
+      this.fetchJobs();
+    } else {
+      this.stopJobsPoll();
+      if (this._jobsRoot) this._jobsRoot.style.display = 'none';
+    }
+    // Agents overlay (imperative card grid).
+    if (v === 'agents') {
+      const root = this.ensureAgentsDom();
+      root.style.display = 'block';
+      this.startAgentsPoll();
+      this.fetchAgents();
+    } else {
+      this.stopAgentsPoll();
+      if (this._agentsRoot) this._agentsRoot.style.display = 'none';
     }
   }
 
@@ -929,7 +958,9 @@ class Component extends DCLogic {
     const M = { succeeded:'#9ece6a', running:'#7aa2f7', failed:'#f7768e', blocked:'#e0af68', cancelled:'#5a6088', queued:'#5a6088' };
     return M[state] || '#5a6088';
   }
-  _galaxyEsc(s) { return String(s == null ? '' : s).replace(/[&<>]/g, (c) => c === '&' ? '&amp;' : c === '<' ? '&lt;' : '&gt;'); }
+  _galaxyEsc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : c === '"' ? '&quot;' : '&#39;'); }
+  // Only allow http/https hrefs; server-sourced URLs (e.g. prUrl) could carry a javascript: scheme.
+  _galaxySafeUrl(u) { const s = String(u == null ? '' : u); return /^https?:\/\//i.test(s) ? s : ''; }
 
   ensureGalaxyDetailEl() {
     // reuse one panel element so repeated clicks never stack panels.
@@ -1074,11 +1105,503 @@ class Component extends DCLogic {
       '  <div class="gd-block">' + esc(prompt) + '</div>',
       '  <div class="gd-sec">Output</div>',
       '  <div class="gd-block">' + esc(output) + '</div>',
-      (prUrl ? '  <a class="gd-pr" href="' + esc(prUrl) + '" target="_blank" rel="noopener"><span>' + esc(String(prUrl).replace('https://github.com/', '')) + '</span><span style="color:#868db5">↗</span></a>' : ''),
+      (this._galaxySafeUrl(prUrl) ? '  <a class="gd-pr" href="' + esc(prUrl) + '" target="_blank" rel="noopener"><span>' + esc(String(prUrl).replace('https://github.com/', '')) + '</span><span style="color:#868db5">↗</span></a>' : ''),
       '</div>'
     ];
     el.innerHTML = parts.join('');
     el.querySelector('.gd-close').addEventListener('click', () => this.closeGalaxyDetail());
+  }
+
+  // ============================================================
+  // Jobs + Agents pages. Both are body-appended, position:fixed
+  // overlays covering the content area (right of the 216px nav
+  // rail), mirroring the galaxy overlay so the DC runtime's style
+  // sanitizer never touches them. Data comes from /api/jobs and
+  // /api/agents, polled every 12s while the respective view is
+  // active. Escaping + state colors reuse _galaxyEsc /
+  // _galaxyStateColor; job detail reuses the galaxy detail layout.
+  // ============================================================
+  runtimeColors = { codex: '#9ece6a', claude: '#bb9af7', kimi: '#7dcfff', shell: '#5a6088' };
+  _runtimeColor(rt) { return this.runtimeColors[rt] || '#5a6088'; }
+  _fmtDur(ms) {
+    if (!ms || ms <= 0) return '—';
+    if (ms < 60000) return (ms / 1000).toFixed(1) + 's';
+    const s = Math.round(ms / 1000);
+    const m = Math.floor(s / 60), r = s % 60;
+    if (m < 60) return m + 'm ' + r + 's';
+    const h = Math.floor(m / 60), rm = m % 60;
+    return h + 'h ' + rm + 'm';
+  }
+  _fmtTokens(n) {
+    if (!n || n <= 0) return '';
+    if (n >= 1000) return (n / 1000).toFixed(n >= 10000 ? 0 : 1) + 'k';
+    return String(n);
+  }
+  _relFromMs(ms) { return (!ms || ms <= 0) ? '—' : this.relTime(Math.max(0, Date.now() - ms)); }
+
+  showJobs = (agent) => {
+    // may be called with a preset agent name (from an Agents-page card click);
+    // the nav onClick passes a DOM event, so only strings preset the facet.
+    if (typeof agent === 'string' && agent) this._jobsFacetAgent = agent;
+    this.setState({ view: 'jobs' });
+  };
+  showAgents = () => this.setState({ view: 'agents' });
+
+  startJobsPoll() {
+    if (this._jobsPoll) return;
+    this._jobsPoll = setInterval(() => { if (this.state.view !== 'jobs') return; this.fetchJobs(true); }, 12000);
+  }
+  stopJobsPoll() { try { clearInterval(this._jobsPoll); } catch (e) {} this._jobsPoll = null; }
+  startAgentsPoll() {
+    if (this._agentsPoll) return;
+    this._agentsPoll = setInterval(() => { if (this.state.view !== 'agents') return; this.fetchAgents(true); }, 12000);
+  }
+  stopAgentsPoll() { try { clearInterval(this._agentsPoll); } catch (e) {} this._agentsPoll = null; }
+
+  ensureJobsDom() {
+    if (this._jobsRoot) return this._jobsRoot;
+    const st = document.createElement('style');
+    st.textContent = [
+      "#jobs-root .jb-head{display:flex;align-items:baseline;gap:14px;padding:18px 22px 12px;flex:none}",
+      "#jobs-root .jb-title{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:20px;color:#eef0ff;letter-spacing:-0.02em}",
+      "#jobs-root .jb-title .jb-tdot{color:#9ece6a;margin-left:1px}",
+      "#jobs-root .jb-count{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#7f86ad}",
+      "#jobs-root .jb-count b{color:#c8cce6;font-weight:500}",
+      "#jobs-root .jb-filters{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:0 22px 13px;flex:none;border-bottom:1px solid rgba(160,168,220,0.08)}",
+      "#jobs-root .jb-search{position:relative;display:flex;align-items:center;flex:1;min-width:220px;max-width:420px}",
+      "#jobs-root .jb-search svg{position:absolute;left:11px;color:#5a6088;pointer-events:none}",
+      "#jobs-root .jb-search input{width:100%;box-sizing:border-box;padding:8px 12px 8px 32px;background:#0f1120;border:1px solid rgba(160,168,220,0.12);border-radius:9px;color:#eef0ff;font-size:12.5px;font-family:Inter,sans-serif;outline:none}",
+      "#jobs-root .jb-search input:focus{border-color:rgba(125,207,255,0.4)}",
+      "#jobs-root .jb-fl{display:flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:0.1em;color:#7f86ad}",
+      "#jobs-root .jb-fl select{appearance:none;-webkit-appearance:none;background:#0f1120;color:#c8cce6;border:1px solid rgba(160,168,220,0.12);border-radius:8px;font-family:'JetBrains Mono',monospace;font-size:11.5px;padding:6px 24px 6px 10px;cursor:pointer;outline:none;background-image:url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'><path d='M1 3l4 4 4-4' stroke='%237dcfff' stroke-width='1.4' fill='none'/></svg>\");background-repeat:no-repeat;background-position:right 9px center}",
+      "#jobs-root .jb-clear{margin-left:auto;background:none;border:none;color:#7aa2f7;font-size:11.5px;cursor:pointer;font-family:Inter,sans-serif;padding:4px 2px}",
+      "#jobs-root .jb-tablewrap{flex:1;overflow:auto;min-height:0}",
+      "#jobs-root .jb-table{width:100%;min-width:980px;table-layout:fixed;border-collapse:collapse;font-size:12.5px}",
+      // fixed column widths (title takes the remaining flexible space) so the row always
+      // fits the container — without table-layout:fixed the nowrap title cell expands the
+      // table past the viewport and pushes Repo..Duration off-screen behind overflow-x.
+      "#jobs-root .jb-table th:nth-child(1){width:104px}",
+      "#jobs-root .jb-table th:nth-child(3){width:235px}",
+      "#jobs-root .jb-table th:nth-child(4){width:160px}",
+      "#jobs-root .jb-table th:nth-child(5){width:86px}",
+      "#jobs-root .jb-table th:nth-child(6){width:52px}",
+      "#jobs-root .jb-table th:nth-child(7){width:105px}",
+      "#jobs-root .jb-table th:nth-child(8){width:84px}",
+      "#jobs-root .jb-table th:nth-child(9){width:84px}",
+      "#jobs-root .jb-table thead th{position:sticky;top:0;z-index:2;background:#0a0b16;text-align:left;padding:9px 12px;font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:0.1em;color:#5a6088;font-weight:600;border-bottom:1px solid rgba(160,168,220,0.1);white-space:nowrap}",
+      "#jobs-root .jb-table tbody tr{border-bottom:1px solid rgba(160,168,220,0.05);cursor:pointer}",
+      "#jobs-root .jb-table tbody tr:hover{background:rgba(160,168,220,0.04)}",
+      "#jobs-root .jb-table tbody tr.sel{background:rgba(158,206,106,0.09)}",
+      "#jobs-root .jb-table td{padding:8px 12px;vertical-align:middle;color:#a8aecf;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
+      "#jobs-root .jb-sdot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:7px;vertical-align:middle}",
+      "#jobs-root .jb-slabel{font-family:'JetBrains Mono',monospace;font-size:11px}",
+      "#jobs-root .jb-tt{max-width:360px;overflow:hidden;text-overflow:ellipsis;color:#eef0ff;font-weight:500}",
+      "#jobs-root .jb-agent{color:#c7c9e5}",
+      "#jobs-root .jb-rt{margin-left:7px;font-family:'JetBrains Mono',monospace;font-size:9.5px;padding:1px 6px;border-radius:5px;border:1px solid;text-transform:lowercase}",
+      "#jobs-root .jb-mono{font-family:'JetBrains Mono',monospace;font-size:11px;color:#868db5}",
+      "#jobs-root .jb-center{text-align:center}",
+      "#jobs-root .jb-kind{font-family:'JetBrains Mono',monospace;font-size:10px;color:#a8aecf;background:rgba(160,168,220,0.06);border:1px solid rgba(160,168,220,0.1);padding:1px 6px;border-radius:5px}",
+      "#jobs-root .jb-empty{padding:60px 20px;text-align:center;color:#5a6088;font-size:13px}",
+      "#jobs-root .jb-foot{flex:none;padding:8px 22px;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#e0af68;min-height:15px}",
+      "#jobs-root #jobs-detail{position:absolute;right:0;top:0;bottom:0;width:360px;z-index:30;background:rgba(15,17,32,0.94);border-left:1px solid rgba(160,168,220,0.14);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:-30px 0 60px rgba(0,0,0,0.5);display:flex;flex-direction:column;animation:panelin .28s cubic-bezier(.2,.8,.2,1)}",
+      "#jobs-root #jobs-detail .jd-head{padding:18px 20px 14px;border-bottom:1px solid rgba(160,168,220,0.08)}",
+      "#jobs-root #jobs-detail .jd-hrow{display:flex;align-items:flex-start;gap:10px}",
+      "#jobs-root #jobs-detail .jd-dot{width:11px;height:11px;border-radius:50%;flex:none;margin-top:4px}",
+      "#jobs-root #jobs-detail .jd-title{font-size:15px;font-weight:600;color:#eef0ff;line-height:1.3;word-break:break-word}",
+      "#jobs-root #jobs-detail .jd-sub{font-family:'JetBrains Mono',monospace;font-size:11px;color:#868db5;margin-top:3px}",
+      "#jobs-root #jobs-detail .jd-close{width:26px;height:26px;flex:none;background:rgba(160,168,220,0.08);border:1px solid rgba(160,168,220,0.12);border-radius:7px;color:#868db5;font-size:14px;cursor:pointer;line-height:1}",
+      "#jobs-root #jobs-detail .jd-badges{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}",
+      "#jobs-root #jobs-detail .jd-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:7px;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600}",
+      "#jobs-root #jobs-detail .jd-badge.mut{color:#868db5;background:rgba(160,168,220,0.06);border:1px solid rgba(160,168,220,0.1);font-weight:400}",
+      "#jobs-root #jobs-detail .jd-body{flex:1;overflow-y:auto;padding:16px 20px 24px}",
+      "#jobs-root #jobs-detail .jd-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:20px}",
+      "#jobs-root #jobs-detail .jd-cell{background:rgba(10,11,22,0.6);border:1px solid rgba(160,168,220,0.08);border-radius:9px;padding:10px 11px}",
+      "#jobs-root #jobs-detail .jd-k{font-size:10px;color:#5a6088;letter-spacing:0.04em;text-transform:uppercase}",
+      "#jobs-root #jobs-detail .jd-v{font-family:'JetBrains Mono',monospace;font-size:13px;color:#a8aecf;margin-top:4px;word-break:break-word}",
+      "#jobs-root #jobs-detail .jd-v.hi{color:#eef0ff}",
+      "#jobs-root #jobs-detail .jd-sec{font-size:10.5px;color:#5a6088;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:10px}",
+      "#jobs-root #jobs-detail .jd-events{display:flex;flex-direction:column;gap:0;margin-bottom:22px}",
+      "#jobs-root #jobs-detail .jd-ev{display:flex;gap:12px;align-items:flex-start;position:relative;padding-bottom:14px}",
+      "#jobs-root #jobs-detail .jd-ev .rail{display:flex;flex-direction:column;align-items:center;flex:none;padding-top:3px}",
+      "#jobs-root #jobs-detail .jd-ev .rail .dot{width:7px;height:7px;border-radius:50%}",
+      "#jobs-root #jobs-detail .jd-ev .rail .line{width:1px;flex:1;background:rgba(160,168,220,0.12);margin-top:3px}",
+      "#jobs-root #jobs-detail .jd-ev .lbl{font-size:12.5px;color:#c7c9e5;line-height:1.35}",
+      "#jobs-root #jobs-detail .jd-ev .t{font-family:'JetBrains Mono',monospace;font-size:10px;color:#5a6088;margin-top:2px}",
+      "#jobs-root #jobs-detail .jd-block{background:#0a0b16;border:1px solid rgba(160,168,220,0.1);border-radius:9px;padding:12px 13px;font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:1.6;color:#c7c9e5;white-space:pre-wrap;word-break:break-word;margin-bottom:18px;max-height:260px;overflow-y:auto}",
+      "#jobs-root #jobs-detail .jd-pr{display:flex;align-items:center;gap:10px;padding:12px 14px;background:rgba(158,206,106,0.1);border:1px solid rgba(158,206,106,0.24);border-radius:10px;color:#c5f882;text-decoration:none;font-size:13px;font-weight:500}",
+      "#jobs-root #jobs-detail .jd-pr span{flex:1;font-family:'JetBrains Mono',monospace;font-size:12px;word-break:break-all}"
+    ].join('\n');
+    document.head.appendChild(st);
+
+    const root = document.createElement('div');
+    root.id = 'jobs-root';
+    root.style.cssText = 'position:fixed;left:216px;top:0;right:0;bottom:0;z-index:40;background:#07080f;display:none;flex-direction:column;overflow:hidden;font-family:Inter,system-ui,sans-serif;color:#c8cce6';
+    root.innerHTML = [
+      '<div class="jb-head">',
+      '  <div class="jb-title">Jobs<span class="jb-tdot">.</span></div>',
+      '  <div class="jb-count">showing <b id="jb-shown">0</b> of <b id="jb-total">0</b></div>',
+      '</div>',
+      '<div class="jb-filters">',
+      '  <div class="jb-search">',
+      "    <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'><circle cx='11' cy='11' r='7'></circle><path d='M21 21l-4.3-4.3'></path></svg>",
+      '    <input id="jb-q" placeholder="Search title, agent, id, repo…" />',
+      '  </div>',
+      '  <label class="jb-fl">State<select id="jb-state"><option value="">all</option></select></label>',
+      '  <label class="jb-fl">Repo<select id="jb-repo"><option value="">all</option></select></label>',
+      '  <label class="jb-fl">Agent<select id="jb-agent"><option value="">all</option></select></label>',
+      '  <button id="jb-clear" class="jb-clear">Clear</button>',
+      '</div>',
+      '<div class="jb-tablewrap" id="jb-tablewrap"><div id="jb-table"></div></div>',
+      '<div class="jb-foot" id="jb-foot"></div>'
+    ].join('\n');
+    document.body.appendChild(root);
+    this._jobsRoot = root;
+
+    const q = root.querySelector('#jb-q');
+    q.value = this._jobsQuery || '';
+    q.addEventListener('input', () => { this._jobsQuery = q.value; this.renderJobsTable(); });
+    const stSel = root.querySelector('#jb-state');
+    stSel.addEventListener('change', () => { this._jobsFacetState = stSel.value; this.renderJobsTable(); });
+    const rpSel = root.querySelector('#jb-repo');
+    rpSel.addEventListener('change', () => { this._jobsFacetRepo = rpSel.value; this.renderJobsTable(); });
+    const agSel = root.querySelector('#jb-agent');
+    agSel.addEventListener('change', () => { this._jobsFacetAgent = agSel.value; this.renderJobsTable(); });
+    root.querySelector('#jb-clear').addEventListener('click', () => {
+      this._jobsQuery = ''; this._jobsFacetState = ''; this._jobsFacetRepo = ''; this._jobsFacetAgent = '';
+      q.value = ''; stSel.value = ''; rpSel.value = ''; agSel.value = '';
+      this.renderJobsTable();
+    });
+    // Row open + background close: one delegated listener on the scroll area. A
+    // click on a data-id row opens its detail; anywhere else closes it. The detail
+    // panel is a sibling of the table wrap, so clicks inside it never reach here.
+    root.querySelector('#jb-tablewrap').addEventListener('click', (e) => {
+      const tr = (e.target.closest && e.target.closest('tr[data-id]')) || null;
+      if (tr) this.openJobsDetail(tr.getAttribute('data-id'));
+      else this.closeJobsDetail();
+    });
+    this._jobsKeydown = (e) => { if (e.key === 'Escape' && this.state.view === 'jobs' && this._jobsSelected) this.closeJobsDetail(); };
+    document.addEventListener('keydown', this._jobsKeydown);
+    return root;
+  }
+
+  fetchJobs(isPoll) {
+    fetch('/api/jobs', { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)))
+      .then(json => { this._jobsData = Array.isArray(json) ? json : []; this._jobsLoaded = true; this.renderJobs(isPoll); })
+      .catch(err => {
+        if (isPoll) return; // keep current data on a transient poll failure
+        this._jobsData = this._jobsData || []; this._jobsLoaded = true;
+        const tbl = this._jobsRoot && this._jobsRoot.querySelector('#jb-table');
+        if (tbl) tbl.innerHTML = '<div class="jb-empty" style="color:#f7768e">could not load /api/jobs (' + this._galaxyEsc(err && err.message) + ')</div>';
+      });
+  }
+
+  renderJobs(isPoll) {
+    if (!this._jobsRoot) return;
+    this._updateJobsFacetOptions(isPoll);
+    this.renderJobsTable();
+  }
+
+  _updateJobsFacetOptions(isPoll) {
+    const data = this._jobsData || [];
+    const build = (id, key, cur) => {
+      const sel = this._jobsRoot.querySelector('#' + id);
+      if (!sel) return;
+      const vals = Array.from(new Set(data.map(j => j[key]).filter(Boolean)));
+      if (cur && vals.indexOf(cur) < 0) vals.push(cur); // keep a preset filter selectable even with 0 jobs
+      vals.sort();
+      const sig = vals.join('|');
+      if (sel._sig !== sig) {
+        // Defer the innerHTML rebuild while the user has this facet focused/open on a poll
+        // refresh, so a 12s poll can't close/interrupt an in-progress dropdown selection.
+        if (isPoll && document.activeElement === sel) return;
+        sel._sig = sig;
+        sel.innerHTML = '<option value="">all</option>' + vals.map(v => '<option value="' + this._galaxyEsc(v) + '">' + this._galaxyEsc(v) + '</option>').join('');
+      }
+      sel.value = (cur && vals.indexOf(cur) >= 0) ? cur : '';
+    };
+    build('jb-state', 'state', this._jobsFacetState);
+    build('jb-repo', 'repo', this._jobsFacetRepo);
+    build('jb-agent', 'agent', this._jobsFacetAgent);
+  }
+
+  renderJobsTable() {
+    if (!this._jobsRoot) return;
+    const esc = (s) => this._galaxyEsc(s);
+    const data = this._jobsData || [];
+    const q = (this._jobsQuery || '').trim().toLowerCase();
+    const fs = this._jobsFacetState || '', fr = this._jobsFacetRepo || '', fa = this._jobsFacetAgent || '';
+    const filtered = data.filter(j => {
+      if (fs && (j.state || '') !== fs) return false;
+      if (fr && (j.repo || '') !== fr) return false;
+      if (fa && (j.agent || '') !== fa) return false;
+      if (q) {
+        const hay = ((j.title || '') + ' ' + (j.agent || '') + ' ' + (j.id || '') + ' ' + (j.repo || '')).toLowerCase();
+        if (hay.indexOf(q) < 0) return false;
+      }
+      return true;
+    });
+    const CAP = 400;
+    const shown = filtered.slice(0, CAP); // server already sorts Updated desc; slice is stable
+    const shownEl = this._jobsRoot.querySelector('#jb-shown'); if (shownEl) shownEl.textContent = shown.length;
+    const totalEl = this._jobsRoot.querySelector('#jb-total'); if (totalEl) totalEl.textContent = data.length;
+    const wrap = this._jobsRoot.querySelector('#jb-tablewrap');
+    const tbl = this._jobsRoot.querySelector('#jb-table');
+    const prevScroll = wrap ? wrap.scrollTop : 0; // preserve scroll across refreshes
+    if (tbl) {
+      if (!shown.length) {
+        tbl.innerHTML = '<div class="jb-empty">' + (this._jobsLoaded ? (data.length ? 'No jobs match the filters' : 'No jobs yet') : 'loading…') + '</div>';
+      } else {
+        const headCols = ['', 'Title', 'Agent', 'Repo', 'Kind', 'Depth', 'Tokens', 'Started', 'Duration'];
+        tbl.innerHTML = '<table class="jb-table"><thead><tr>' +
+          headCols.map(h => '<th>' + esc(h) + '</th>').join('') +
+          '</tr></thead><tbody>' + shown.map(j => this._jobsRowHtml(j, esc)).join('') + '</tbody></table>';
+      }
+    }
+    if (wrap) wrap.scrollTop = prevScroll;
+    const foot = this._jobsRoot.querySelector('#jb-foot');
+    if (foot) foot.textContent = filtered.length > CAP ? ('showing ' + CAP + ' of ' + filtered.length + ' — refine filters') : '';
+  }
+
+  _jobsRowHtml(j, esc) {
+    const state = j.state || 'queued';
+    const col = this._galaxyStateColor(state);
+    const running = state === 'running';
+    const rt = j.runtime || '';
+    const rtCol = this._runtimeColor(rt);
+    const isSel = this._jobsSelected === j.id;
+    const tin = this._fmtTokens(j.tokensIn), tout = this._fmtTokens(j.tokensOut);
+    const tok = (tin || tout) ? ((tin || '0') + '↓ / ' + (tout || '0') + '↑') : '';
+    const rtBadge = rt ? '<span class="jb-rt" style="color:' + rtCol + ';border-color:' + rtCol + '55">' + esc(rt) + '</span>' : '';
+    const agentCell = j.agent ? (esc(j.agent) + rtBadge) : (rt ? rtBadge : '—');
+    return '<tr data-id="' + esc(j.id) + '"' + (isSel ? ' class="sel"' : '') + '>' +
+      '<td><span class="jb-sdot" style="background:' + col + (running ? ';animation:dotpulse 1.4s ease-in-out infinite' : '') + '"></span><span class="jb-slabel" style="color:' + col + '">' + esc(state) + '</span></td>' +
+      '<td class="jb-tt">' + esc(j.title || j.id) + '</td>' +
+      '<td><span class="jb-agent">' + agentCell + '</span></td>' +
+      '<td class="jb-mono">' + esc(j.repo || '—') + '</td>' +
+      '<td>' + (j.kind ? '<span class="jb-kind">' + esc(j.kind) + '</span>' : '—') + '</td>' +
+      '<td class="jb-mono jb-center">' + (j.depth != null ? j.depth : 0) + '</td>' +
+      '<td class="jb-mono">' + (tok ? esc(tok) : '—') + '</td>' +
+      '<td class="jb-mono">' + esc(j.started ? this._relFromMs(j.started) : '—') + '</td>' +
+      '<td class="jb-mono">' + esc(this._fmtDur(j.duration)) + '</td>' +
+    '</tr>';
+  }
+
+  ensureJobsDetailEl() {
+    if (this._jobsDetailEl && this._jobsDetailEl.parentNode) return this._jobsDetailEl;
+    const el = document.createElement('div');
+    el.id = 'jobs-detail';
+    this._jobsRoot.appendChild(el);
+    this._jobsDetailEl = el;
+    return el;
+  }
+  closeJobsDetail() {
+    this._jobsSelected = null;
+    this._jobsDetailFetchId = null;
+    try { if (this._jobsDetailEl) this._jobsDetailEl.remove(); } catch (e) {}
+    this._jobsDetailEl = null;
+    this.renderJobsTable(); // clear the selected-row highlight
+  }
+  openJobsDetail(id) {
+    if (!id) { this.closeJobsDetail(); return; }
+    this._jobsSelected = id;
+    const summary = (this._jobsData || []).find(j => j.id === id) || { id: id };
+    this.renderJobsDetail(summary, null, 'loading');
+    this.renderJobsTable(); // highlight the selected row
+    // stale-fetch guard: only the latest click's response is rendered.
+    const fid = (this._jobsDetailFetchId = id);
+    fetch('/api/job/' + encodeURIComponent(id), { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)))
+      .then(job => { if (this._jobsDetailFetchId === fid) this.renderJobsDetail(summary, job || {}, 'ok'); })
+      .catch(() => { if (this._jobsDetailFetchId === fid) this.renderJobsDetail(summary, null, 'error'); });
+  }
+
+  renderJobsDetail(summary, job, status) {
+    const el = this.ensureJobsDetailEl();
+    const esc = (s) => this._galaxyEsc(s);
+    const state = (job && job.state) || (summary && summary.state) || 'queued';
+    const col = this._galaxyStateColor(state);
+    const running = state === 'running';
+    const title = (job && job.title) || (summary && summary.title) || (summary && summary.id) || '';
+    const runtime = (job && job.runtime) || (summary && summary.runtime) || '';
+    const model = (job && job.model) || '';
+    const sub = runtime ? (runtime + (model ? ' · ' + model : '')) : (model || '—');
+    const worker = (job && job.workerId) || '';
+    const startedAt = (job && job.startedAt) || (summary && summary.started) || 0;
+    const endedAt = (job && job.endedAt) || 0;
+    const startedLabel = startedAt > 0 ? new Date(startedAt).toLocaleString() : '—';
+    const elapsedLabel = (endedAt && startedAt) ? (((endedAt - startedAt) / 1000).toFixed(1) + 's') : ((summary && summary.duration) ? this._fmtDur(summary.duration) : '—');
+    const runtimeLabel = runtime ? (runtime + (model ? ' · ' + model : '')) : '—';
+    const prUrl = (job && job.prUrl) || null;
+
+    let evHtml = '';
+    const evs = (job && Array.isArray(job.events)) ? job.events : [];
+    if (evs.length) {
+      const base = (evs[0] && evs[0].t) || startedAt || 0;
+      evHtml = evs.map((ev, i) => {
+        const dt = (ev.t && base) ? Math.max(0, (ev.t - base) / 1000) : 0;
+        const tlabel = (ev.t && base) ? ('+' + dt.toFixed(1) + 's') : '—';
+        const c = /fail/i.test(ev.label || '') ? '#f7768e' : /succeed|opened|complete|passed/i.test(ev.label || '') ? '#9ece6a' : '#7aa2f7';
+        const last = i === evs.length - 1;
+        return '<div class="jd-ev"><div class="rail"><span class="dot" style="background:' + c + ';box-shadow:0 0 6px ' + c + '"></span>' + (last ? '' : '<span class="line"></span>') + '</div>' +
+          '<div style="flex:1;min-width:0"><div class="lbl">' + esc(ev.label) + '</div><div class="t">' + tlabel + '</div></div></div>';
+      }).join('');
+    } else {
+      const msg = status === 'loading' ? 'loading…' : status === 'error' ? '(events unavailable)' : 'no events';
+      evHtml = '<div class="jd-ev"><div class="rail"><span class="dot" style="background:#5a6088"></span></div><div style="flex:1"><div class="lbl" style="color:#5a6088">' + msg + '</div></div></div>';
+    }
+    const prompt = (job && job.prompt) || (status === 'loading' ? 'loading…' : '—');
+    const output = (job && job.output) || (status === 'loading' ? 'loading…' : running ? '… running …' : '—');
+
+    const parts = [
+      '<div class="jd-head">',
+      '  <div class="jd-hrow">',
+      '    <span class="jd-dot" style="background:' + col + ';box-shadow:0 0 10px ' + col + (running ? ';animation:dotpulse 1.4s ease-in-out infinite' : '') + '"></span>',
+      '    <div style="flex:1;min-width:0">',
+      '      <div class="jd-title">' + esc(title) + '</div>',
+      '      <div class="jd-sub">' + esc(sub) + '</div>',
+      '    </div>',
+      '    <button class="jd-close" title="close">✕</button>',
+      '  </div>',
+      '  <div class="jd-badges">',
+      '    <span class="jd-badge" style="color:' + col + ';background:color-mix(in srgb,' + col + ' 12%, transparent);border:1px solid color-mix(in srgb,' + col + ' 30%, transparent)">' + esc(state) + '</span>',
+      (worker ? '    <span class="jd-badge mut">▲ ' + esc(worker) + '</span>' : ''),
+      (status === 'loading' ? '    <span class="jd-badge mut">loading…</span>' : ''),
+      (status === 'error' ? '    <span class="jd-badge mut">fetch failed</span>' : ''),
+      '  </div>',
+      '</div>',
+      '<div class="jd-body">',
+      '  <div class="jd-grid">',
+      '    <div class="jd-cell"><div class="jd-k">Started</div><div class="jd-v">' + esc(startedLabel) + '</div></div>',
+      '    <div class="jd-cell"><div class="jd-k">Elapsed</div><div class="jd-v hi">' + esc(elapsedLabel) + '</div></div>',
+      '    <div class="jd-cell"><div class="jd-k">Runtime</div><div class="jd-v">' + esc(runtimeLabel) + '</div></div>',
+      '  </div>',
+      '  <div class="jd-sec">Events</div>',
+      '  <div class="jd-events">' + evHtml + '</div>',
+      '  <div class="jd-sec">Prompt</div>',
+      '  <div class="jd-block">' + esc(prompt) + '</div>',
+      '  <div class="jd-sec">Output</div>',
+      '  <div class="jd-block">' + esc(output) + '</div>',
+      (this._galaxySafeUrl(prUrl) ? '  <a class="jd-pr" href="' + esc(prUrl) + '" target="_blank" rel="noopener"><span>' + esc(String(prUrl).replace('https://github.com/', '')) + '</span><span style="color:#868db5">↗</span></a>' : ''),
+      '</div>'
+    ];
+    el.innerHTML = parts.join('');
+    el.querySelector('.jd-close').addEventListener('click', () => this.closeJobsDetail());
+  }
+
+  // ---- Agents page ----
+  ensureAgentsDom() {
+    if (this._agentsRoot) return this._agentsRoot;
+    const st = document.createElement('style');
+    st.textContent = [
+      "#agents-root .ag-head{display:flex;align-items:baseline;gap:14px;padding:18px 24px 14px}",
+      "#agents-root .ag-title{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:20px;color:#eef0ff;letter-spacing:-0.02em}",
+      "#agents-root .ag-title .ag-tdot{color:#bb9af7;margin-left:1px}",
+      "#agents-root .ag-count{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#7f86ad}",
+      "#agents-root .ag-count b{color:#c8cce6;font-weight:500}",
+      "#agents-root .ag-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;padding:0 24px 28px}",
+      "#agents-root .ag-empty{padding:60px 20px;text-align:center;color:#5a6088;font-size:13px;grid-column:1/-1}",
+      "#agents-root .ag-card{background-color:#0d0f1c;border:1px solid rgba(160,168,220,0.1);border-radius:13px;padding:15px 16px 13px;display:flex;flex-direction:column;gap:9px;cursor:default;transition:border-color .14s ease,transform .14s ease}",
+      "#agents-root .ag-card[data-agent]{cursor:pointer}",
+      "#agents-root .ag-card[data-agent]:hover{border-color:rgba(158,206,106,0.3);transform:translateY(-2px)}",
+      "#agents-root .ag-card.eph{border-style:dashed;border-color:rgba(160,168,220,0.22);background-color:#0a0b16}",
+      "#agents-root .ag-crow{display:flex;align-items:center;gap:9px}",
+      "#agents-root .ag-name{flex:1;min-width:0;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:15px;color:#eef0ff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
+      "#agents-root .ag-rt{font-family:'JetBrains Mono',monospace;font-size:9.5px;padding:2px 7px;border-radius:6px;text-transform:lowercase;flex:none}",
+      "#agents-root .ag-meta{display:flex;align-items:center;gap:7px;font-size:11.5px;color:#a8aecf}",
+      "#agents-root .ag-hdot{width:7px;height:7px;border-radius:50%;flex:none}",
+      "#agents-root .ag-health{font-family:'JetBrains Mono',monospace;font-size:9.5px;color:#7f86ad;text-transform:uppercase;letter-spacing:0.08em}",
+      "#agents-root .ag-model{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#7f86ad;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
+      "#agents-root .ag-pol{font-family:'JetBrains Mono',monospace;font-size:10px;color:#5a6088}",
+      "#agents-root .ag-chips{display:flex;flex-wrap:wrap;gap:5px}",
+      "#agents-root .ag-chip{font-family:'JetBrains Mono',monospace;font-size:9.5px;padding:2px 7px;border-radius:6px;border:1px solid rgba(160,168,220,0.12)}",
+      "#agents-root .ag-chip.repo{color:#7dcfff;border-color:rgba(125,207,255,0.2);background:rgba(125,207,255,0.06)}",
+      "#agents-root .ag-chip.cap{color:#a8aecf;background:rgba(160,168,220,0.05)}",
+      "#agents-root .ag-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:3px;padding-top:11px;border-top:1px solid rgba(160,168,220,0.08)}",
+      "#agents-root .ag-stat{text-align:center}",
+      "#agents-root .ag-sv{font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:600}",
+      "#agents-root .ag-sl{font-size:9px;color:#5a6088;text-transform:uppercase;letter-spacing:0.06em;margin-top:2px}",
+      "#agents-root .ag-last{font-family:'JetBrains Mono',monospace;font-size:10px;color:#5a6088;margin-top:1px}"
+    ].join('\n');
+    document.head.appendChild(st);
+
+    const root = document.createElement('div');
+    root.id = 'agents-root';
+    root.style.cssText = 'position:fixed;left:216px;top:0;right:0;bottom:0;z-index:40;background:#07080f;display:none;overflow-y:auto;font-family:Inter,system-ui,sans-serif;color:#c8cce6';
+    root.innerHTML = [
+      '<div class="ag-head">',
+      '  <div class="ag-title">Agents<span class="ag-tdot">.</span></div>',
+      '  <div class="ag-count">showing <b id="ag-count">0</b> agents</div>',
+      '</div>',
+      '<div class="ag-grid" id="ag-grid"></div>'
+    ].join('\n');
+    document.body.appendChild(root);
+    this._agentsRoot = root;
+
+    // Card click -> Jobs page pre-filtered to that agent. The synthetic ephemeral
+    // rollup carries no data-agent (its jobs can't be matched by an agent facet), so
+    // it renders as a distinct dashed card and is intentionally non-clickable.
+    root.querySelector('#ag-grid').addEventListener('click', (e) => {
+      const card = (e.target.closest && e.target.closest('[data-agent]')) || null;
+      if (!card) return;
+      const name = card.getAttribute('data-agent');
+      if (name) this.showJobs(name);
+    });
+    return root;
+  }
+
+  fetchAgents(isPoll) {
+    fetch('/api/agents', { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)))
+      .then(json => { this._agentsData = Array.isArray(json) ? json : []; this._agentsLoaded = true; this.renderAgents(); })
+      .catch(err => {
+        if (isPoll) return; // keep current cards on a transient poll failure
+        this._agentsLoaded = true;
+        const grid = this._agentsRoot && this._agentsRoot.querySelector('#ag-grid');
+        if (grid) grid.innerHTML = '<div class="ag-empty" style="color:#f7768e">could not load /api/agents (' + this._galaxyEsc(err && err.message) + ')</div>';
+      });
+  }
+
+  renderAgents() {
+    if (!this._agentsRoot) return;
+    const data = this._agentsData || [];
+    const cnt = this._agentsRoot.querySelector('#ag-count'); if (cnt) cnt.textContent = data.length;
+    const grid = this._agentsRoot.querySelector('#ag-grid');
+    if (!grid) return;
+    if (!data.length) { grid.innerHTML = '<div class="ag-empty">' + (this._agentsLoaded ? 'No agents registered' : 'loading…') + '</div>'; return; }
+    grid.innerHTML = data.map(a => this._agentCardHtml(a)).join('');
+  }
+
+  _agentCardHtml(a) {
+    const esc = (s) => this._galaxyEsc(s);
+    const rt = a.runtime || '';
+    const rtCol = this._runtimeColor(rt);
+    const eph = !!a.ephemeral;
+    const health = a.health || '';
+    const healthCol = /ok|healthy|ready|idle|active/i.test(health) ? '#9ece6a' : /busy|running/i.test(health) ? '#7aa2f7' : /err|fail|down|unhealthy|degrad/i.test(health) ? '#f7768e' : '#5a6088';
+    const running = (a.runningCount || 0) > 0;
+    const chips = (arr, cls) => (arr && arr.length) ? arr.map(x => '<span class="ag-chip ' + cls + '">' + esc(x) + '</span>').join('') : '';
+    const repoChips = chips(a.repoScope, 'repo');
+    const capChips = chips(a.capabilities, 'cap');
+    const clickable = !eph;
+    const stat = (label, val, valCol, pulse) => '<div class="ag-stat"><div class="ag-sv" style="color:' + (valCol || '#eef0ff') + (pulse ? ';animation:livedot 1.6s ease-in-out infinite' : '') + '">' + val + '</div><div class="ag-sl">' + label + '</div></div>';
+    return '<div class="ag-card' + (eph ? ' eph' : '') + '"' + (clickable ? ' data-agent="' + esc(a.name) + '" title="View jobs for ' + esc(a.name) + '"' : '') + '>' +
+      '<div class="ag-crow">' +
+        '<div class="ag-name">' + esc(eph ? 'ephemeral workers' : (a.name || '—')) + '</div>' +
+        (rt ? '<span class="ag-rt" style="color:' + rtCol + ';background:color-mix(in srgb,' + rtCol + ' 14%, transparent);border:1px solid color-mix(in srgb,' + rtCol + ' 34%, transparent)">' + esc(rt) + '</span>' : '') +
+      '</div>' +
+      ((a.role || health) ? '<div class="ag-meta">' + (health ? '<span class="ag-hdot" style="background:' + healthCol + '"></span>' : '') + (a.role ? '<span>' + esc(a.role) + '</span>' : '') + (health ? '<span class="ag-health">' + esc(health) + '</span>' : '') + '</div>' : '') +
+      (a.model ? '<div class="ag-model">' + esc(a.model) + '</div>' : '') +
+      (a.autonomyPolicy ? '<div class="ag-pol">policy · ' + esc(a.autonomyPolicy) + '</div>' : '') +
+      ((repoChips || capChips) ? '<div class="ag-chips">' + repoChips + capChips + '</div>' : '') +
+      '<div class="ag-stats">' +
+        stat('jobs', (a.jobCount || 0), '#c8cce6') +
+        stat('running', (a.runningCount || 0), running ? '#7aa2f7' : '#5a6088', running) +
+        stat('ok', (a.succeededCount || 0), '#9ece6a') +
+        stat('failed', (a.failedCount || 0), (a.failedCount > 0) ? '#f7768e' : '#5a6088') +
+      '</div>' +
+      '<div class="ag-last">' + (a.lastActive ? ('active ' + esc(this._relFromMs(a.lastActive))) : 'no activity') + '</div>' +
+    '</div>';
   }
 
   // ---- live feed: /api/state (graph) + /events (SSE) + /api/runs (list) ----
@@ -1374,7 +1897,7 @@ class Component extends DCLogic {
 
   // ---- Runs column (createElement: data-heavy list with filters, sections, states) ----
   buildRunsColumn(sim, CO) {
-    if (!this.state.runsOpen || this.state.view === 'galaxy') return null;
+    if (!this.state.runsOpen || this.state.view !== 'graph') return null;
     const R = React.createElement;
     const S = this.state;
     const mono = 'JetBrains Mono';
@@ -1797,13 +2320,19 @@ class Component extends DCLogic {
     const activeRun = this.runs.find(r => r.runId === this.state.selectedRunId) || this.runs[0] || { state: 'queued', repo: '', title: this.runTitleLive || 'orchestration' };
     const crumbCol = (CO[activeRun.state] || CO.queued);
     const runsOpen = this.state.runsOpen;
-    const isGraph = this.state.view !== 'galaxy';
+    const view = this.state.view;
+    const isGraph = view === 'graph';
+    const isGalaxy = view === 'galaxy';
+    const isJobs = view === 'jobs';
+    const isAgents = view === 'agents';
     // shared nav-item base; active items pick up the green highlight
     const navBase = { display: 'flex', alignItems: 'center', gap: '11px', padding: '9px 11px', borderRadius: '9px', fontSize: '13.5px', fontWeight: 500, cursor: 'pointer', marginTop: '2px' };
     const navActive = (on) => ({ ...navBase, background: on ? 'rgba(158,206,106,0.11)' : 'transparent', color: on ? '#eef0ff' : '#a8aecf', border: '1px solid ' + (on ? 'rgba(158,206,106,0.2)' : 'transparent') });
     const runsNavStyle = navActive(runsOpen && isGraph);
     const graphNavStyle = { ...navActive(isGraph), marginTop: 0, position: 'relative' };
-    const galaxyNavStyle = { ...navActive(!isGraph), position: 'relative' };
+    const galaxyNavStyle = { ...navActive(isGalaxy), position: 'relative' };
+    const jobsNavStyle = { ...navActive(isJobs), position: 'relative' };
+    const agentsNavStyle = { ...navActive(isAgents), position: 'relative' };
     const navDot = (on) => ({ width: '5px', height: '5px', borderRadius: '50%', background: on ? '#9ece6a' : 'transparent', boxShadow: on ? '0 0 8px rgba(158,206,106,0.7)' : 'none' });
 
     return {
@@ -1814,8 +2343,10 @@ class Component extends DCLogic {
       zoomIn: this.zoomIn, zoomOut: this.zoomOut, fit: this.fit,
       toggleRuns: this.toggleRuns, runsNavStyle,
       showGraph: this.showGraph, showGalaxy: this.showGalaxy,
-      graphNavStyle, galaxyNavStyle,
-      graphNavDotStyle: navDot(isGraph), galaxyNavDotStyle: navDot(!isGraph),
+      showJobs: this.showJobs, showAgents: this.showAgents,
+      graphNavStyle, galaxyNavStyle, jobsNavStyle, agentsNavStyle,
+      graphNavDotStyle: navDot(isGraph), galaxyNavDotStyle: navDot(isGalaxy),
+      jobsNavDotStyle: navDot(isJobs), agentsNavDotStyle: navDot(isAgents),
       crumbRepo: activeRun.repo, crumbTitle: activeRun.title,
       crumbDotStyle: { width: '8px', height: '8px', borderRadius: '50%', flex: 'none', background: crumbCol.c, boxShadow: activeRun.state === 'running' ? '0 0 8px ' + crumbCol.g : 'none', animation: activeRun.state === 'running' ? 'dotpulse 1.4s ease-in-out infinite' : 'none' },
       hasSelected: !!sel && isGraph,

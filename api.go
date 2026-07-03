@@ -42,6 +42,33 @@ func (s *server) handleRuns(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, runs)
 }
 
+// handleJobs serves GET /api/jobs -> []JobSummary, every job across all runs
+// (the client filters). Mirrors handleRuns.
+func (s *server) handleJobs(w http.ResponseWriter, r *http.Request) {
+	jobs, err := s.ds.Jobs(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), statusForError(err))
+		return
+	}
+	if jobs == nil {
+		jobs = []JobSummary{}
+	}
+	writeJSON(w, http.StatusOK, jobs)
+}
+
+// handleAgents serves GET /api/agents -> []AgentSummary. Mirrors handleRuns.
+func (s *server) handleAgents(w http.ResponseWriter, r *http.Request) {
+	agents, err := s.ds.Agents(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), statusForError(err))
+		return
+	}
+	if agents == nil {
+		agents = []AgentSummary{}
+	}
+	writeJSON(w, http.StatusOK, agents)
+}
+
 // handleState serves GET /api/state?run=<id> -> State. An empty run resolves to
 // the active/most-recent run.
 func (s *server) handleState(w http.ResponseWriter, r *http.Request) {
