@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<script src="./support.js"></script>
+<script src="/support.js"></script>
 </head>
 <body>
 <x-dc>
@@ -219,6 +219,143 @@
   &quot;curvedEdges&quot;: {&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Canvas&quot;}
 }">
 class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    // ---- URL routing: seed the initial view from location BEFORE first render ----
+    // Field initializers (state = {...}) have already run at this point, so we
+    // override state.view directly (no setState — not mounted yet) and stash any
+    // deep-link intent (agent detail / jobs agent facet) for applyView to honor.
+    try {
+      const r = this._parseRoute(location.pathname, location.search);
+      this.state.view = r.view;
+      if (r.view === 'jobs' && r.agent) this._jobsFacetAgent = r.agent;
+      if (r.view === 'agents' && r.agent) this._pendingAgentDetail = r.agent;
+      // Normalize unknown paths to '/' (graph). Also tidy a non-canonical known
+      // path (e.g. a trailing slash). Never rewrite a graph URL, so a
+      // '/?run=<id>' deep-link survives to connectLive().
+      if (r.unknown) {
+        try { history.replaceState(null, '', '/'); } catch (e) {}
+      } else if (r.view !== 'graph') {
+        const canon = this._routeUrl(r.view, { agent: r.agent });
+        if ((location.pathname + location.search) !== canon) {
+          try { history.replaceState(null, '', canon); } catch (e) {}
+        }
+      }
+      try { document.title = this._routeTitle(r.view, { agent: r.agent }); } catch (e) {}
+    } catch (e) {}
+  }
+
+  // ---- client-side router ----------------------------------------------------
+  // Route table:  / -> graph | /galaxy | /jobs[?agent=<name>] | /agents |
+  //   /agents/<name> | /charts | /health.  Agent names are encode/decode-
+  //   URIComponent'd and treated as one path segment after /agents/.
+  _parseRoute(pathname, search) {
+    let p = pathname || '/';
+    if (p.length > 1) p = p.replace(/\/+$/, '') || '/'; // drop trailing slash(es)
+    if (p === '/' || p === '') return { view: 'graph' };
+    if (p === '/galaxy') return { view: 'galaxy' };
+    if (p === '/charts') return { view: 'charts' };
+    if (p === '/health') return { view: 'health' };
+    if (p === '/jobs') { const a = this._routeQueryAgent(search); return a ? { view: 'jobs', agent: a } : { view: 'jobs' }; }
+    if (p === '/agents') return { view: 'agents' };
+    if (p.indexOf('/agents/') === 0) {
+      const raw = p.slice(8); // '/agents/'.length
+      let name = raw;
+      try { name = decodeURIComponent(raw); } catch (e) { name = raw; }
+      return name ? { view: 'agents', agent: name } : { view: 'agents' };
+    }
+    return { view: 'graph', unknown: true };
+  }
+  // Read ?agent= via encode/decodeURIComponent semantics (not '+' -> space).
+  _routeQueryAgent(search) {
+    const s = (search || '').replace(/^\?/, '');
+    if (!s) return '';
+    const parts = s.split('&');
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      const eq = part.indexOf('=');
+      const k = eq >= 0 ? part.slice(0, eq) : part;
+      if (k === 'agent') {
+        const v = eq >= 0 ? part.slice(eq + 1) : '';
+        try { return decodeURIComponent(v); } catch (e) { return v; }
+      }
+    }
+    return '';
+  }
+  _routeUrl(view, opts) {
+    opts = opts || {};
+    switch (view) {
+      case 'galaxy': return '/galaxy';
+      case 'jobs':   return opts.agent ? '/jobs?agent=' + encodeURIComponent(opts.agent) : '/jobs';
+      case 'agents': return opts.agent ? '/agents/' + encodeURIComponent(opts.agent) : '/agents';
+      case 'charts': return '/charts';
+      case 'health': return '/health';
+      default: {
+        // graph: keep a '?run=<id>' deep-link if the URL already carries one, so
+        // selecting a run (which replaceState's ?run) survives a Graph-tab click.
+        // Fall back to the currently-loaded run so the deep-link also survives a
+        // detour through a runless tab (galaxy/jobs/…) that dropped ?run.
+        let run = '';
+        try { run = new URLSearchParams(location.search).get('run') || ''; } catch (e) {}
+        if (!run) run = this.currentRunId || '';
+        return run ? '/?run=' + encodeURIComponent(run) : '/';
+      }
+    }
+  }
+  _routeTitle(view, opts) {
+    opts = opts || {};
+    switch (view) {
+      case 'galaxy': return 'gitmoot · galaxy';
+      case 'jobs':   return opts.agent ? 'gitmoot · jobs · ' + opts.agent : 'gitmoot · jobs';
+      case 'agents': return opts.agent ? 'gitmoot · agents · ' + opts.agent : 'gitmoot · agents';
+      case 'charts': return 'gitmoot · charts';
+      case 'health': return 'gitmoot · health';
+      default:       return 'gitmoot · graph';
+    }
+  }
+  // Push (or replace) the canonical URL for view + optional agent, and set the
+  // tab title. Suppressed from writing history while _routing (popstate / initial
+  // normalize), and only writes when the URL actually changes so repeated clicks
+  // on the active tab don't stack history entries.
+  _navRoute(view, opts, replace) {
+    const url = this._routeUrl(view, opts);
+    try { document.title = this._routeTitle(view, opts); } catch (e) {}
+    if (this._routing) return;
+    try {
+      if ((location.pathname + location.search) !== url) {
+        if (replace) history.replaceState(null, '', url);
+        else history.pushState(null, '', url);
+      }
+    } catch (e) {}
+  }
+  // popstate: apply the restored URL back into view state WITHOUT pushing again.
+  // The _routing guard mirrors _appliedView's render/side-effect split so the
+  // setState-driven show*/open/close paths can't re-push during restoration.
+  _onPopState = () => {
+    let r;
+    try { r = this._parseRoute(location.pathname, location.search); } catch (e) { r = { view: 'graph' }; }
+    this._routing = true;
+    try {
+      try { document.title = this._routeTitle(r.view, { agent: r.agent }); } catch (e) {}
+      if (r.view === 'agents') {
+        if (this._agentsRoot) {
+          // agents view already mounted (possibly hidden): open/close in place.
+          if (r.agent) { if (this._agentsSelected !== r.agent) this.openAgentsDetail(r.agent); }
+          else if (this._agentsSelected) this.closeAgentsDetail();
+        } else {
+          // not mounted yet: let applyView open the detail after it mounts.
+          this._pendingAgentDetail = r.agent || null;
+        }
+      } else if (r.view === 'jobs') {
+        this._jobsFacetAgent = r.agent || '';
+        if (this._jobsRoot) this.renderJobs(false);
+      }
+      if (this.state.view !== r.view) this.setState({ view: r.view });
+    } finally {
+      this._routing = false;
+    }
+  };
+
   W = 216; H = 96;
 
   state = {
@@ -263,6 +400,7 @@ class Component extends DCLogic {
     try { const v = localStorage.getItem('gitmoot.runsOpen'); if (v != null) open = v === '1'; } catch (e) {}
     this.setState({ runsOpen: open });
     window.addEventListener('resize', this.onResize);
+    window.addEventListener('popstate', this._onPopState); // back/forward -> view state
     // safety: never leave the Runs column stuck on skeletons if /api/runs hangs
     this._loadTO = setTimeout(() => { if (this.state.listLoading) this.setState({ listLoading: false }); }, 8000);
     this.connectLive();
@@ -282,6 +420,7 @@ class Component extends DCLogic {
     this.stopHealthPoll();
     try { if (this._es) this._es.close(); } catch (e) {}
     window.removeEventListener('resize', this.onResize);
+    try { window.removeEventListener('popstate', this._onPopState); } catch (e) {}
     try { window.removeEventListener('resize', this._galaxyResize); } catch (e) {}
     try { window.removeEventListener('resize', this._chartsResize); } catch (e) {}
     try { document.removeEventListener('keydown', this._jobsKeydown); } catch (e) {}
@@ -301,8 +440,8 @@ class Component extends DCLogic {
   // sanitizer never touches the canvas. Created lazily on first
   // show and reused; toggled via display only. See applyView().
   // ============================================================
-  showGraph = () => this.setState({ view: 'graph' });
-  showGalaxy = () => this.setState({ view: 'galaxy' });
+  showGraph = () => { this.setState({ view: 'graph' }); this._navRoute('graph'); };
+  showGalaxy = () => { this.setState({ view: 'galaxy' }); this._navRoute('galaxy'); };
 
   applyView() {
     const v = this.state.view;
@@ -332,6 +471,14 @@ class Component extends DCLogic {
       root.style.display = 'block';
       this.startAgentsPoll();
       this.fetchAgents();
+      // Deep-link intent (/agents/<name>): open the detail panel once the view is
+      // mounted. The panel fetch (/api/agent/<name>) is independent of the list,
+      // so it renders correctly even before /api/agents resolves.
+      if (this._pendingAgentDetail) {
+        const nm = this._pendingAgentDetail;
+        this._pendingAgentDetail = null;
+        this.openAgentsDetail(nm);
+      }
     } else {
       this.stopAgentsPoll();
       if (this._agentsRoot) this._agentsRoot.style.display = 'none';
@@ -1176,10 +1323,11 @@ class Component extends DCLogic {
     // the nav onClick passes a DOM event, so only strings preset the facet.
     if (typeof agent === 'string' && agent) this._jobsFacetAgent = agent;
     this.setState({ view: 'jobs' });
+    this._navRoute('jobs', { agent: this._jobsFacetAgent || undefined });
   };
-  showAgents = () => this.setState({ view: 'agents' });
-  showCharts = () => this.setState({ view: 'charts' });
-  showHealth = () => this.setState({ view: 'health' });
+  showAgents = () => { this.setState({ view: 'agents' }); this._navRoute('agents', { agent: this._agentsSelected || undefined }); };
+  showCharts = () => { this.setState({ view: 'charts' }); this._navRoute('charts'); };
+  showHealth = () => { this.setState({ view: 'health' }); this._navRoute('health'); };
 
   startJobsPoll() {
     if (this._jobsPoll) return;
@@ -1314,11 +1462,17 @@ class Component extends DCLogic {
     const rpSel = root.querySelector('#jb-repo');
     rpSel.addEventListener('change', () => { this._jobsFacetRepo = rpSel.value; this.renderJobsTable(); });
     const agSel = root.querySelector('#jb-agent');
-    agSel.addEventListener('change', () => { this._jobsFacetAgent = agSel.value; this.renderJobsTable(); });
+    // Keep the URL's ?agent= facet in sync (replaceState, so in-page facet edits
+    // don't stack history) — otherwise Back/reload would resurrect a cleared filter.
+    agSel.addEventListener('change', () => {
+      this._jobsFacetAgent = agSel.value; this.renderJobsTable();
+      this._navRoute('jobs', { agent: this._jobsFacetAgent || undefined }, true);
+    });
     root.querySelector('#jb-clear').addEventListener('click', () => {
       this._jobsQuery = ''; this._jobsFacetState = ''; this._jobsFacetRepo = ''; this._jobsFacetAgent = '';
       q.value = ''; stSel.value = ''; rpSel.value = ''; agSel.value = '';
       this.renderJobsTable();
+      this._navRoute('jobs', { agent: this._jobsFacetAgent || undefined }, true);
     });
     // Row open + background close: one delegated listener on the scroll area. A
     // click on a data-id row opens its detail; anywhere else closes it. The detail
@@ -1773,6 +1927,7 @@ class Component extends DCLogic {
     try { if (this._agentsDetailEl) this._agentsDetailEl.remove(); } catch (e) {}
     this._agentsDetailEl = null;
     this.renderAgents(); // clear the selected-card highlight
+    this._navRoute('agents'); // closing the panel returns to /agents
   }
   // Fetch once per open (no 12s poll on the panel); a fresh click always refetches so
   // a re-open never shows stale template/version data. A stale-fetch guard keyed by
@@ -1780,6 +1935,7 @@ class Component extends DCLogic {
   openAgentsDetail(name) {
     if (!name) { this.closeAgentsDetail(); return; }
     this._agentsSelected = name;
+    this._navRoute('agents', { agent: name }); // deep-link the open panel: /agents/<name>
     const summary = (this._agentsData || []).find(a => a.name === name) || { name: name };
     this.renderAgentsDetail(summary, null, 'loading');
     this.renderAgents(); // highlight the selected card
