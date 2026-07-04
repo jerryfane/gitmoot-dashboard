@@ -1103,6 +1103,25 @@ class Component extends DCLogic {
   // them for a finite resettle. Config must stay identical to the original inline setup.
   applyGalaxyForces(G) {
     try {
+      // onEngineStop STRIPS the forces (d3Force('charge', null) etc.) for the
+      // 0-longtask idle loop, and force-graph gives no way to re-create them
+      // without d3 in scope. So stash the live force INSTANCES on first use and
+      // re-ATTACH them here when a resettle needs them back. Without this,
+      // d3Force('charge') is null after a settle, .strength() throws into the
+      // silent catch, and poll-arrived nodes get laid out with NO forces —
+      // d3's default phyllotaxis placement then parks every new job in a
+      // spiral ring around the origin, mixing all repos into one circle.
+      if (!this._galaxyForces) {
+        this._galaxyForces = {
+          charge: G.d3Force('charge'),
+          link: G.d3Force('link'),
+          center: G.d3Force('center'),
+        };
+      }
+      const saved = this._galaxyForces;
+      if (!G.d3Force('charge') && saved.charge) G.d3Force('charge', saved.charge);
+      if (!G.d3Force('link') && saved.link) G.d3Force('link', saved.link);
+      if (!G.d3Force('center') && saved.center) G.d3Force('center', saved.center);
       G.d3Force('charge').strength(-70).distanceMax(360);
       G.d3Force('link').distance((l) => l.kind === 'repo' ? 26 : l.kind === 'agent' ? 22 : 18).strength(0.5);
     } catch (e) {}
@@ -1167,7 +1186,28 @@ class Component extends DCLogic {
       // jiggle the existing ~1600 nodes every 12s. Brand-new nodes stay unpinned
       // (no fx/fy) so they settle in near their hub. First-load / repo-filter
       // change (isPoll false) lay out fresh and unpinned.
-      nodes.forEach(n => { const p = prev[n.id]; if (p) { n.x = p.x; n.y = p.y; n.vx = p.vx; n.vy = p.vy; n.fx = p.x; n.fy = p.y; } else { pollHasNewNodes = true; } });
+      const fresh = [];
+      nodes.forEach(n => { const p = prev[n.id]; if (p) { n.x = p.x; n.y = p.y; n.vx = p.vx; n.vy = p.vy; n.fx = p.x; n.fy = p.y; } else { pollHasNewNodes = true; fresh.push(n); } });
+      // Seed each brand-new node at an already-positioned neighbor (its repo/agent
+      // hub or parent) plus a small jitter, so it blooms out of its own cluster
+      // instead of spawning at d3's default origin placement far across the map.
+      if (fresh.length) {
+        const freshIds = {};
+        fresh.forEach(n => { freshIds[n.id] = n; });
+        links.forEach(l => {
+          const s = l.source, t = l.target;
+          const seed = (nn, other) => {
+            if (nn && nn.x == null) {
+              const anchor = prev[other];
+              if (anchor && anchor.x != null) {
+                nn.x = anchor.x + (Math.random() - 0.5) * 30;
+                nn.y = anchor.y + (Math.random() - 0.5) * 30;
+              }
+            }
+          };
+          seed(freshIds[s], t); seed(freshIds[t], s);
+        });
+      }
     }
     const nc = this._galaxyRoot.querySelector('#g-nCount'); if (nc) nc.textContent = nodes.length;
     const lc = this._galaxyRoot.querySelector('#g-lCount'); if (lc) lc.textContent = links.length;
