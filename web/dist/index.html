@@ -285,6 +285,7 @@ class Component extends DCLogic {
     try { window.removeEventListener('resize', this._galaxyResize); } catch (e) {}
     try { window.removeEventListener('resize', this._chartsResize); } catch (e) {}
     try { document.removeEventListener('keydown', this._jobsKeydown); } catch (e) {}
+    try { document.removeEventListener('keydown', this._agentsKeydown); } catch (e) {}
     try { document.removeEventListener('keydown', this._healthKeydown); } catch (e) {}
     try { if (this._galaxyRoot) this._galaxyRoot.remove(); } catch (e) {}
     try { if (this._jobsRoot) this._jobsRoot.remove(); } catch (e) {}
@@ -1569,7 +1570,53 @@ class Component extends DCLogic {
       "#agents-root .ag-stat{text-align:center}",
       "#agents-root .ag-sv{font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:600}",
       "#agents-root .ag-sl{font-size:9px;color:#5a6088;text-transform:uppercase;letter-spacing:0.06em;margin-top:2px}",
-      "#agents-root .ag-last{font-family:'JetBrains Mono',monospace;font-size:10px;color:#5a6088;margin-top:1px}"
+      "#agents-root .ag-last{font-family:'JetBrains Mono',monospace;font-size:10px;color:#5a6088;margin-top:1px}",
+      "#agents-root .ag-card.sel{border-color:rgba(158,206,106,0.45)}",
+      // Agent detail panel: a right-side aside in the same visual family as the Jobs
+      // detail. #agents-root scrolls (overflow-y:auto), so the panel is position:fixed
+      // (pinned to the viewport, which coincides with the overlay's right edge) rather
+      // than absolute — an absolute panel would scroll out of view with the card grid.
+      "#agents-root .ad-panel{position:fixed;right:0;top:0;bottom:0;width:360px;z-index:45;background:rgba(15,17,32,0.94);border-left:1px solid rgba(160,168,220,0.14);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:-30px 0 60px rgba(0,0,0,0.5);display:flex;flex-direction:column;animation:panelin .28s cubic-bezier(.2,.8,.2,1)}",
+      "#agents-root .ad-head{padding:18px 20px 14px;border-bottom:1px solid rgba(160,168,220,0.08)}",
+      "#agents-root .ad-hrow{display:flex;align-items:flex-start;gap:10px}",
+      "#agents-root .ad-dot{width:11px;height:11px;border-radius:50%;flex:none;margin-top:4px}",
+      "#agents-root .ad-name{font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:600;color:#eef0ff;line-height:1.25;word-break:break-word}",
+      "#agents-root .ad-sub{font-family:'JetBrains Mono',monospace;font-size:11px;color:#868db5;margin-top:4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}",
+      "#agents-root .ad-rt{font-family:'JetBrains Mono',monospace;font-size:9.5px;padding:1px 7px;border-radius:6px;text-transform:lowercase}",
+      "#agents-root .ad-hdot{width:7px;height:7px;border-radius:50%;flex:none;display:inline-block}",
+      "#agents-root .ad-close{width:26px;height:26px;flex:none;background:rgba(160,168,220,0.08);border:1px solid rgba(160,168,220,0.12);border-radius:7px;color:#868db5;font-size:14px;cursor:pointer;line-height:1}",
+      "#agents-root .ad-badges{display:flex;gap:8px;margin-top:13px;flex-wrap:wrap}",
+      "#agents-root .ad-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:7px;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:400;color:#868db5;background:rgba(160,168,220,0.06);border:1px solid rgba(160,168,220,0.1)}",
+      "#agents-root .ad-body{flex:1;overflow-y:auto;padding:16px 20px 22px}",
+      "#agents-root .ad-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:22px}",
+      "#agents-root .ad-stat{background:rgba(10,11,22,0.6);border:1px solid rgba(160,168,220,0.08);border-radius:9px;padding:10px 4px;text-align:center}",
+      "#agents-root .ad-sv{font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:600}",
+      "#agents-root .ad-sl{font-size:9px;color:#5a6088;text-transform:uppercase;letter-spacing:0.06em;margin-top:3px}",
+      "#agents-root .ad-sec{font-size:10.5px;color:#5a6088;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:10px}",
+      "#agents-root .ad-tmpl{background:rgba(10,11,22,0.6);border:1px solid rgba(160,168,220,0.08);border-radius:10px;padding:12px 13px;margin-bottom:22px}",
+      "#agents-root .ad-tname{font-size:13.5px;font-weight:600;color:#eef0ff;word-break:break-word}",
+      "#agents-root .ad-tid{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#7f86ad;margin-top:2px;word-break:break-all}",
+      "#agents-root .ad-tdesc{font-size:12px;color:#a8aecf;margin-top:8px;line-height:1.45}",
+      "#agents-root .ad-trow{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#868db5;margin-top:9px;display:flex;flex-direction:column;gap:5px}",
+      "#agents-root .ad-trow span{word-break:break-all}",
+      "#agents-root .ad-tk{color:#5a6088;margin-right:6px}",
+      "#agents-root .ad-notmpl{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#5a6088;background:#0b0d18;border:1px dashed rgba(160,168,220,0.12);border-radius:10px;padding:14px;text-align:center;margin-bottom:22px}",
+      "#agents-root .ad-vers{display:flex;flex-direction:column;gap:0}",
+      "#agents-root .ad-ver{display:flex;gap:12px;align-items:flex-start;position:relative;padding-bottom:16px}",
+      "#agents-root .ad-ver .rail{display:flex;flex-direction:column;align-items:center;flex:none;padding-top:3px}",
+      "#agents-root .ad-ver .rail .dot{width:9px;height:9px;border-radius:50%}",
+      "#agents-root .ad-ver .rail .line{width:1px;flex:1;background:rgba(160,168,220,0.12);margin-top:3px;min-height:10px}",
+      "#agents-root .ad-ver .vmain{flex:1;min-width:0}",
+      "#agents-root .ad-vtop{display:flex;align-items:center;gap:8px;flex-wrap:wrap}",
+      "#agents-root .ad-vnum{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:600;color:#eef0ff}",
+      "#agents-root .ad-vbadge{font-family:'JetBrains Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:0.05em;padding:1px 7px;border-radius:5px;font-weight:600}",
+      "#agents-root .ad-vcur{font-family:'JetBrains Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:0.05em;padding:1px 7px;border-radius:5px;color:#9ece6a;border:1px solid rgba(158,206,106,0.4);background:rgba(158,206,106,0.1)}",
+      "#agents-root .ad-vname{font-size:12px;color:#c7c9e5;margin-top:5px;line-height:1.4;word-break:break-word}",
+      "#agents-root .ad-vt{font-family:'JetBrains Mono',monospace;font-size:10px;color:#5a6088;margin-top:5px;display:flex;gap:12px;flex-wrap:wrap}",
+      "#agents-root .ad-vempty{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#5a6088;padding:6px 0 12px}",
+      "#agents-root .ad-foot{flex:none;padding:13px 20px;border-top:1px solid rgba(160,168,220,0.08)}",
+      "#agents-root .ad-viewjobs{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;box-sizing:border-box;padding:10px 14px;background:rgba(158,206,106,0.1);border:1px solid rgba(158,206,106,0.24);border-radius:10px;color:#c5f882;font-size:13px;font-weight:500;cursor:pointer;font-family:Inter,system-ui,sans-serif}",
+      "#agents-root .ad-viewjobs:hover{background:rgba(158,206,106,0.16)}"
     ].join('\n');
     document.head.appendChild(st);
 
@@ -1586,15 +1633,21 @@ class Component extends DCLogic {
     document.body.appendChild(root);
     this._agentsRoot = root;
 
-    // Card click -> Jobs page pre-filtered to that agent. The synthetic ephemeral
-    // rollup carries no data-agent (its jobs can't be matched by an agent facet), so
-    // it renders as a distinct dashed card and is intentionally non-clickable.
+    // Card click -> opens that agent's detail panel; a click on the grid background
+    // (or the non-clickable ephemeral rollup, which carries no data-agent) closes it.
+    // The panel is a sibling of #ag-grid, so clicks inside it never reach this listener
+    // — mirrors the Jobs page's row-open / background-close delegation.
     root.querySelector('#ag-grid').addEventListener('click', (e) => {
       const card = (e.target.closest && e.target.closest('[data-agent]')) || null;
-      if (!card) return;
-      const name = card.getAttribute('data-agent');
-      if (name) this.showJobs(name);
+      if (card) {
+        const name = card.getAttribute('data-agent');
+        if (name) this.openAgentsDetail(name);
+      } else {
+        this.closeAgentsDetail();
+      }
     });
+    this._agentsKeydown = (e) => { if (e.key === 'Escape' && this.state.view === 'agents' && this._agentsSelected) this.closeAgentsDetail(); };
+    document.addEventListener('keydown', this._agentsKeydown);
     return root;
   }
 
@@ -1632,8 +1685,9 @@ class Component extends DCLogic {
     const repoChips = chips(a.repoScope, 'repo');
     const capChips = chips(a.capabilities, 'cap');
     const clickable = !eph;
+    const selected = clickable && this._agentsSelected === a.name;
     const stat = (label, val, valCol, pulse) => '<div class="ag-stat"><div class="ag-sv" style="color:' + (valCol || '#eef0ff') + (pulse ? ';animation:livedot 1.6s ease-in-out infinite' : '') + '">' + val + '</div><div class="ag-sl">' + label + '</div></div>';
-    return '<div class="ag-card' + (eph ? ' eph' : '') + '"' + (clickable ? ' data-agent="' + esc(a.name) + '" title="View jobs for ' + esc(a.name) + '"' : '') + '>' +
+    return '<div class="ag-card' + (eph ? ' eph' : '') + (selected ? ' sel' : '') + '"' + (clickable ? ' data-agent="' + esc(a.name) + '" title="View ' + esc(a.name) + ' details"' : '') + '>' +
       '<div class="ag-crow">' +
         '<div class="ag-name">' + esc(eph ? 'ephemeral workers' : (a.name || '—')) + '</div>' +
         (rt ? '<span class="ag-rt" style="color:' + rtCol + ';background:color-mix(in srgb,' + rtCol + ' 14%, transparent);border:1px solid color-mix(in srgb,' + rtCol + ' 34%, transparent)">' + esc(rt) + '</span>' : '') +
@@ -1650,6 +1704,160 @@ class Component extends DCLogic {
       '</div>' +
       '<div class="ag-last">' + (a.lastActive ? ('active ' + esc(this._relFromMs(a.lastActive))) : 'no activity') + '</div>' +
     '</div>';
+  }
+
+  // ---- Agent detail panel ----
+  // Version-history state colors: promoted (green), canary (blue), pending (amber),
+  // rejected/unknown (grey). Mirrors the Jobs detail's state palette.
+  _versionStateColor(s) {
+    s = String(s == null ? '' : s).toLowerCase();
+    if (s === 'promoted') return '#9ece6a';
+    if (s === 'canary') return '#7aa2f7';
+    if (s === 'pending') return '#e0af68';
+    return '#5a6088';
+  }
+  _agentStatCell(label, val, valCol, pulse) {
+    return '<div class="ad-stat"><div class="ad-sv" style="color:' + (valCol || '#eef0ff') + (pulse ? ';animation:livedot 1.6s ease-in-out infinite' : '') + '">' + val + '</div><div class="ad-sl">' + label + '</div></div>';
+  }
+  ensureAgentsDetailEl() {
+    if (this._agentsDetailEl && this._agentsDetailEl.parentNode) return this._agentsDetailEl;
+    const el = document.createElement('div');
+    el.className = 'ad-panel';
+    this._agentsRoot.appendChild(el);
+    this._agentsDetailEl = el;
+    return el;
+  }
+  closeAgentsDetail() {
+    this._agentsSelected = null;
+    this._agentsDetailFetchName = null;
+    try { if (this._agentsDetailEl) this._agentsDetailEl.remove(); } catch (e) {}
+    this._agentsDetailEl = null;
+    this.renderAgents(); // clear the selected-card highlight
+  }
+  // Fetch once per open (no 12s poll on the panel); a fresh click always refetches so
+  // a re-open never shows stale template/version data. A stale-fetch guard keyed by
+  // agent name ensures only the latest click's response renders.
+  openAgentsDetail(name) {
+    if (!name) { this.closeAgentsDetail(); return; }
+    this._agentsSelected = name;
+    const summary = (this._agentsData || []).find(a => a.name === name) || { name: name };
+    this.renderAgentsDetail(summary, null, 'loading');
+    this.renderAgents(); // highlight the selected card
+    const fn = (this._agentsDetailFetchName = name);
+    fetch('/api/agent/' + encodeURIComponent(name), { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)))
+      .then(detail => { if (this._agentsDetailFetchName === fn) this.renderAgentsDetail(summary, detail || {}, 'ok'); })
+      .catch(() => { if (this._agentsDetailFetchName === fn) this.renderAgentsDetail(summary, null, 'error'); });
+  }
+
+  renderAgentsDetail(summary, detail, status) {
+    const el = this.ensureAgentsDetailEl();
+    const esc = (s) => this._galaxyEsc(s);
+    const d = detail || {};
+    const s = summary || {};
+    const pick = (k) => (d[k] != null ? d[k] : s[k]);
+    const name = pick('name') || '';
+    const runtime = pick('runtime') || '';
+    const rtCol = this._runtimeColor(runtime);
+    const role = pick('role') || '';
+    const health = pick('health') || '';
+    const healthCol = /ok|healthy|ready|idle|active/i.test(health) ? '#9ece6a' : /busy|running/i.test(health) ? '#7aa2f7' : /err|fail|down|unhealthy|degrad/i.test(health) ? '#f7768e' : '#5a6088';
+    const model = pick('model') || '';
+    const policy = pick('autonomyPolicy') || '';
+    const running = (pick('runningCount') || 0) > 0;
+    const rtBadge = runtime ? '<span class="ad-rt" style="color:' + rtCol + ';background:color-mix(in srgb,' + rtCol + ' 14%, transparent);border:1px solid color-mix(in srgb,' + rtCol + ' 34%, transparent)">' + esc(runtime) + '</span>' : '';
+    const subParts = [];
+    if (rtBadge) subParts.push(rtBadge);
+    if (role) subParts.push('<span>' + esc(role) + '</span>');
+    if (health) subParts.push('<span style="color:' + healthCol + '">' + esc(health) + '</span>');
+
+    const tmpl = d.template || null;
+    const versions = Array.isArray(d.versions) ? d.versions : [];
+
+    // Template section (or a quiet note when the agent has none).
+    let tmplHtml;
+    if (tmpl) {
+      const src = [];
+      if (tmpl.sourceRepo) src.push('<span><span class="ad-tk">source</span>' + esc(tmpl.sourceRepo + (tmpl.sourceRef ? '@' + tmpl.sourceRef : '')) + '</span>');
+      if (tmpl.sourcePath) src.push('<span><span class="ad-tk">path</span>' + esc(tmpl.sourcePath) + '</span>');
+      if (tmpl.resolvedCommit) src.push('<span><span class="ad-tk">commit</span>' + esc(String(tmpl.resolvedCommit).slice(0, 10)) + '</span>');
+      tmplHtml = '<div class="ad-tmpl">' +
+        '<div class="ad-tname">' + esc(tmpl.name || tmpl.id || '—') + '</div>' +
+        (tmpl.id ? '<div class="ad-tid">' + esc(tmpl.id) + '</div>' : '') +
+        (tmpl.description ? '<div class="ad-tdesc">' + esc(tmpl.description) + '</div>' : '') +
+        (src.length ? '<div class="ad-trow">' + src.join('') + '</div>' : '') +
+      '</div>';
+    } else {
+      tmplHtml = '<div class="ad-notmpl">' + (status === 'loading' ? 'loading…' : 'no template') + '</div>';
+    }
+
+    // Version-history timeline, newest first.
+    let versHtml;
+    if (versions.length) {
+      versHtml = '<div class="ad-vers">' + versions.map((v, i) => {
+        const vcol = this._versionStateColor(v.state);
+        const vstate = String(v.state == null ? '' : v.state).toLowerCase() || 'unknown';
+        const sample = +v.canarySample || 0;
+        const badgeText = vstate + ((vstate === 'canary' && sample > 0) ? ' ' + Math.round(sample * 100) + '%' : '');
+        const last = i === versions.length - 1;
+        const line = (v.description || v.name) ? '<div class="ad-vname">' + esc(v.description || v.name) + '</div>' : '';
+        const times = [];
+        if (v.createdAt > 0) times.push('created ' + esc(this._relFromMs(v.createdAt)));
+        if (v.promotedAt > 0) times.push('promoted ' + esc(this._relFromMs(v.promotedAt)));
+        return '<div class="ad-ver">' +
+          '<div class="rail"><span class="dot" style="background:' + vcol + ';box-shadow:0 0 6px ' + vcol + '"></span>' + (last ? '' : '<span class="line"></span>') + '</div>' +
+          '<div class="vmain">' +
+            '<div class="ad-vtop">' +
+              '<span class="ad-vnum">v' + (v.number != null ? esc(String(v.number)) : '?') + '</span>' +
+              '<span class="ad-vbadge" style="color:' + vcol + ';background:color-mix(in srgb,' + vcol + ' 14%, transparent);border:1px solid color-mix(in srgb,' + vcol + ' 32%, transparent)">' + esc(badgeText) + '</span>' +
+              (v.current ? '<span class="ad-vcur">current</span>' : '') +
+            '</div>' +
+            line +
+            (times.length ? '<div class="ad-vt">' + times.map(t => '<span>' + t + '</span>').join('') + '</div>' : '') +
+          '</div>' +
+        '</div>';
+      }).join('') + '</div>';
+    } else {
+      versHtml = '<div class="ad-vempty">' + (status === 'loading' ? 'loading…' : 'no versions recorded') + '</div>';
+    }
+
+    const badges = [];
+    if (model) badges.push('<span class="ad-badge">' + esc(model) + '</span>');
+    if (policy) badges.push('<span class="ad-badge">policy · ' + esc(policy) + '</span>');
+    if (status === 'loading') badges.push('<span class="ad-badge">loading…</span>');
+    if (status === 'error') badges.push('<span class="ad-badge">fetch failed</span>');
+
+    const parts = [
+      '<div class="ad-head">',
+      '  <div class="ad-hrow">',
+      '    <span class="ad-dot" style="background:' + healthCol + ';box-shadow:0 0 10px ' + healthCol + (running ? ';animation:dotpulse 1.4s ease-in-out infinite' : '') + '"></span>',
+      '    <div style="flex:1;min-width:0">',
+      '      <div class="ad-name">' + esc(name || '—') + '</div>',
+      (subParts.length ? '      <div class="ad-sub">' + subParts.join('') + '</div>' : ''),
+      '    </div>',
+      '    <button class="ad-close" title="close">✕</button>',
+      '  </div>',
+      (badges.length ? '  <div class="ad-badges">' + badges.join('') + '</div>' : ''),
+      '</div>',
+      '<div class="ad-body">',
+      '  <div class="ad-stats">',
+      '    ' + this._agentStatCell('jobs', pick('jobCount') || 0, '#c8cce6'),
+      '    ' + this._agentStatCell('running', pick('runningCount') || 0, running ? '#7aa2f7' : '#5a6088', running),
+      '    ' + this._agentStatCell('ok', pick('succeededCount') || 0, '#9ece6a'),
+      '    ' + this._agentStatCell('failed', pick('failedCount') || 0, (pick('failedCount') || 0) > 0 ? '#f7768e' : '#5a6088'),
+      '  </div>',
+      '  <div class="ad-sec">Template</div>',
+      '  ' + tmplHtml,
+      '  <div class="ad-sec">Version history</div>',
+      '  ' + versHtml,
+      '</div>',
+      '<div class="ad-foot"><button class="ad-viewjobs">View jobs →</button></div>'
+    ];
+    el.innerHTML = parts.join('\n');
+    const closeBtn = el.querySelector('.ad-close');
+    if (closeBtn) closeBtn.addEventListener('click', () => this.closeAgentsDetail());
+    const vj = el.querySelector('.ad-viewjobs');
+    if (vj) vj.addEventListener('click', () => this.showJobs(name));
   }
 
   // ============================================================
@@ -1979,6 +2187,9 @@ class Component extends DCLogic {
       "#health-root .hl-bigdot{width:16px;height:16px;border-radius:50%;flex:none}",
       "#health-root .hl-htext{font-family:'JetBrains Mono',monospace;font-size:14px;color:#eef0ff}",
       "#health-root .hl-hmut{color:#7f86ad}",
+      "#health-root .hl-upd{margin-left:auto;display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:9px;font-family:'JetBrains Mono',monospace;font-size:11.5px;font-weight:600;color:#e0af68;background:rgba(224,175,104,0.12);border:1px solid rgba(224,175,104,0.34);text-decoration:none;white-space:nowrap}",
+      "#health-root a.hl-upd:hover{border-color:rgba(224,175,104,0.6)}",
+      "#health-root .hl-uptodate{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:11px;color:#5a6088;white-space:nowrap}",
       "#health-root .hl-section{margin:16px 24px 0}",
       "#health-root .hl-h{font-family:'JetBrains Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:0.13em;color:#868db5;font-weight:600;margin-bottom:10px}",
       "#health-root .hl-chips{display:flex;flex-wrap:wrap;gap:8px}",
@@ -2068,14 +2279,34 @@ class Component extends DCLogic {
     const dm = data.daemon || {};
     const hero = root.querySelector('#hl-hero');
     if (hero) {
+      // "· v{version}" — normalize so a store value that already carries a leading
+      // 'v' (e.g. "v0.8.1") is not doubled to "vv0.8.1".
+      const verRaw = dm.version || '';
+      const verHtml = verRaw ? '<span class="hl-hmut"> · ' + esc(/^v/i.test(verRaw) ? verRaw : 'v' + verRaw) + '</span>' : '';
+      // Update badge. Fail-open: render nothing at all when health.update is absent.
+      let updHtml = '';
+      const upd = data.update;
+      if (upd) {
+        if (upd.updateAvailable) {
+          const label = 'update available' + (upd.latest ? ': ' + upd.latest : '');
+          const href = this._galaxySafeUrl(upd.releaseUrl);
+          updHtml = href
+            ? '<a class="hl-upd" href="' + esc(upd.releaseUrl) + '" target="_blank" rel="noopener" title="' + esc(label) + '">↑ ' + esc(label) + ' <span style="color:#c99a4e">↗</span></a>'
+            : '<span class="hl-upd" title="' + esc(label) + '">↑ ' + esc(label) + '</span>';
+        } else {
+          updHtml = '<span class="hl-uptodate">up to date</span>';
+        }
+      }
       if (dm.running) {
         hero.innerHTML = '<span class="hl-bigdot" style="background:#9ece6a;box-shadow:0 0 14px rgba(158,206,106,0.55);animation:dotpulse 1.8s ease-in-out infinite"></span>' +
           '<span class="hl-htext">daemon running' +
+          verHtml +
           (dm.pid ? '<span class="hl-hmut"> · pid ' + esc(String(dm.pid)) + '</span>' : '') +
           (dm.startedAt ? '<span class="hl-hmut"> · up </span><span id="hl-uptime" data-started="' + dm.startedAt + '"></span>' : '') +
-          '</span>';
+          '</span>' + updHtml;
       } else {
-        hero.innerHTML = '<span class="hl-bigdot" style="background:#f7768e;box-shadow:0 0 14px rgba(247,118,142,0.55)"></span><span class="hl-htext" style="color:#f7768e">daemon stopped</span>';
+        hero.innerHTML = '<span class="hl-bigdot" style="background:#f7768e;box-shadow:0 0 14px rgba(247,118,142,0.55)"></span>' +
+          '<span class="hl-htext" style="color:#f7768e">daemon stopped' + verHtml + '</span>' + updHtml;
       }
     }
     const t = data.totals || {};
