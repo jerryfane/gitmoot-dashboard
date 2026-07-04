@@ -49,6 +49,13 @@ func (s *server) staticHandler() http.Handler {
 	fileServer := http.FileServer(http.FS(dist))
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// The embedded assets carry no validators (embed.FS files have zero
+		// mod times, so there is no Last-Modified/ETag), which lets browsers
+		// and proxies hold a stale app shell across deploys — clicking a
+		// newly shipped feature then does nothing until a hard refresh.
+		// no-cache forces revalidation-or-refetch on every load; the shell is
+		// a single small file and all live data comes from the /api endpoints.
+		w.Header().Set("Cache-Control", "no-cache")
 		upath := strings.TrimPrefix(path.Clean(r.URL.Path), "/")
 		if upath == "" {
 			upath = "index.html"
