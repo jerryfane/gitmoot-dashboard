@@ -1782,7 +1782,18 @@ class Component extends DCLogic {
       "#agents-root .ad-prompt-copy:hover{color:#c7c9e5;background:rgba(160,168,220,0.14)}",
       "#agents-root .ad-prompt-copy.ok{color:#9ece6a;border-color:rgba(158,206,106,0.4);background:rgba(158,206,106,0.12)}",
       "#agents-root .ad-prompt-view{margin-top:8px;max-height:40vh;overflow:auto;background:#07080f;border:1px solid rgba(160,168,220,0.14);border-radius:8px;padding:10px 12px;font-family:'JetBrains Mono',monospace;font-size:11px;line-height:1.5;color:#c7c9e5;white-space:pre-wrap;word-break:break-word}",
-      "#agents-root .ad-prompt-view[hidden]{display:none}"
+      "#agents-root .ad-prompt-view[hidden]{display:none}",
+      "#agents-root .ad-diff{margin-top:8px}",
+      "#agents-root .ad-diff-toggle{color:#868db5}",
+      "#agents-root .ad-diff-view{margin-top:8px;max-height:40vh;overflow:auto;background:#07080f;border:1px solid rgba(160,168,220,0.14);border-radius:8px;padding:8px 0;font-family:'JetBrains Mono',monospace;font-size:11px;line-height:1.5}",
+      "#agents-root .ad-diff-view[hidden]{display:none}",
+      "#agents-root .ad-diff-hd{font-family:'JetBrains Mono',monospace;font-size:10px;color:#7f86ad;padding:2px 12px 8px;margin-bottom:6px;border-bottom:1px solid rgba(160,168,220,0.1);letter-spacing:0.03em}",
+      "#agents-root .ad-diff-l{padding:1px 12px;white-space:pre-wrap;word-break:break-word;border-left:2px solid transparent}",
+      "#agents-root .ad-diff-same{color:#868db5}",
+      "#agents-root .ad-diff-add{background:rgba(158,206,106,0.10);border-left-color:#9ece6a;color:#c5f882}",
+      "#agents-root .ad-diff-del{background:rgba(247,118,142,0.09);border-left-color:#f7768e;color:#f7a0b3}",
+      "#agents-root .ad-diff-sep{text-align:center;color:#5a6088;font-size:10px;padding:4px 12px;font-family:'JetBrains Mono',monospace}",
+      "#agents-root .ad-diff-note{color:#5a6088;font-family:'JetBrains Mono',monospace;font-size:11.5px;padding:8px 12px}"
     ].join('\n');
     document.head.appendChild(st);
 
@@ -1913,6 +1924,122 @@ class Component extends DCLogic {
       '<pre class="ad-prompt-view" hidden>' + esc(content) + '</pre>' +
     '</div>';
   }
+  // Hand-rolled line-based diff (LCS via O(N*M) DP; dependency-free, mirroring the
+  // hand-rolled SVG charts). Splits both sides into lines with the SAME single-
+  // trailing-newline discipline as _promptHint (strip one trailing \n, then split on
+  // \n; interior blank lines preserved), then backtracks the LCS into an ordered ops
+  // list of {type:'same'|'add'|'del', line}. HARD CAP: either side over 3000 lines or
+  // 300 KB returns null (caller renders "diff too large") so a pathological template
+  // can never freeze the panel. Empty old -> all adds; empty new -> all dels;
+  // identical -> all 'same' (caller treats added==0 && removed==0 as "no changes").
+  _lineDiff(oldStr, newStr) {
+    const splitLines = (s) => {
+      s = String(s == null ? '' : s);
+      return s.length ? s.replace(/\n$/, '').split('\n') : [];
+    };
+    const bytesOf = (s) => {
+      s = String(s == null ? '' : s);
+      try { return new TextEncoder().encode(s).length; } catch (e) { return s.length; }
+    };
+    const A = splitLines(oldStr);
+    const B = splitLines(newStr);
+    const CAP_LINES = 3000, CAP_BYTES = 300 * 1024;
+    if (A.length > CAP_LINES || B.length > CAP_LINES) return null;
+    if (bytesOf(oldStr) > CAP_BYTES || bytesOf(newStr) > CAP_BYTES) return null;
+    const n = A.length, m = B.length, w = m + 1;
+    // LCS-length table, filled bottom-up as one flat Int32Array (<=~36 MB at the cap).
+    const dp = new Int32Array((n + 1) * w);
+    for (let i = n - 1; i >= 0; i--) {
+      const Ai = A[i];
+      for (let j = m - 1; j >= 0; j--) {
+        dp[i * w + j] = (Ai === B[j]) ? dp[(i + 1) * w + (j + 1)] + 1
+          : Math.max(dp[(i + 1) * w + j], dp[i * w + (j + 1)]);
+      }
+    }
+    const ops = [];
+    let i = 0, j = 0;
+    while (i < n && j < m) {
+      if (A[i] === B[j]) { ops.push({ type: 'same', line: A[i] }); i++; j++; }
+      else if (dp[(i + 1) * w + j] >= dp[i * w + (j + 1)]) { ops.push({ type: 'del', line: A[i] }); i++; }
+      else { ops.push({ type: 'add', line: B[j] }); j++; }
+    }
+    while (i < n) { ops.push({ type: 'del', line: A[i] }); i++; }
+    while (j < m) { ops.push({ type: 'add', line: B[j] }); j++; }
+    return ops;
+  }
+  // Collapsed-by-default "diff" toggle for a version that has a predecessor. Mirrors
+  // _promptViewerHtml's bar/chevron styling; the diff body is filled LAZILY on first
+  // expand (see the .ad-diff wiring in renderAgentsDetail) and cached for the open's
+  // lifetime. prevNum/curNum are display strings; idx is the version's array index (its
+  // predecessor is versions[idx+1]).
+  _diffViewerHtml(esc, prevNum, curNum, idx) {
+    return '<div class="ad-diff" data-diff-idx="' + esc(String(idx)) + '">' +
+      '<div class="ad-prompt-bar">' +
+        '<button type="button" class="ad-prompt-toggle ad-diff-toggle">' +
+          '<span class="ad-prompt-chev ad-diff-chev">▸</span>' +
+          '<span class="ad-prompt-lbl">diff</span>' +
+          '<span class="ad-prompt-hint">v' + esc(prevNum) + ' → v' + esc(curNum) + '</span>' +
+        '</button>' +
+      '</div>' +
+      '<div class="ad-diff-view" hidden></div>' +
+    '</div>';
+  }
+  // Build the unified-diff HTML for one version pair. Every line is escaped BEFORE it is
+  // wrapped in row markup (diff lines are repo-controlled template text, but still flow
+  // through the quote-safe escaper). Unchanged runs LONGER than 6 lines collapse to their
+  // first/last 3 with a centered "⋯ k unchanged lines" separator; short runs render in
+  // full, dimmed. Missing content on either side -> a note (not a bogus all-add/all-del).
+  _renderDiffHtml(esc, prevNum, curNum, prevContent, curContent) {
+    const note = (t) => '<div class="ad-diff-note">' + esc(t) + '</div>';
+    if (!prevContent) return note('no content recorded for v' + prevNum);
+    if (!curContent) return note('no content recorded for v' + curNum);
+    const ops = this._lineDiff(prevContent, curContent);
+    if (ops == null) return note('diff too large');
+    let added = 0, removed = 0;
+    for (let k = 0; k < ops.length; k++) { if (ops[k].type === 'add') added++; else if (ops[k].type === 'del') removed++; }
+    if (added === 0 && removed === 0) return note('no changes between these versions');
+    const rows = ['<div class="ad-diff-hd">v' + esc(prevNum) + ' -> v' + esc(curNum) + ' · +' + added + ' −' + removed + '</div>'];
+    const same = (l) => '<div class="ad-diff-l ad-diff-same">  ' + esc(l) + '</div>';
+    let k = 0;
+    while (k < ops.length) {
+      const op = ops[k];
+      if (op.type === 'add') { rows.push('<div class="ad-diff-l ad-diff-add">+ ' + esc(op.line) + '</div>'); k++; continue; }
+      if (op.type === 'del') { rows.push('<div class="ad-diff-l ad-diff-del">− ' + esc(op.line) + '</div>'); k++; continue; }
+      // gather a maximal run of unchanged lines
+      let j = k; const run = [];
+      while (j < ops.length && ops[j].type === 'same') { run.push(ops[j].line); j++; }
+      if (run.length > 6) {
+        rows.push(same(run[0]), same(run[1]), same(run[2]));
+        const hidden = run.length - 6;
+        rows.push('<div class="ad-diff-sep">⋯ ' + hidden + ' unchanged line' + (hidden === 1 ? '' : 's') + '</div>');
+        rows.push(same(run[run.length - 3]), same(run[run.length - 2]), same(run[run.length - 1]));
+      } else {
+        for (let t = 0; t < run.length; t++) rows.push(same(run[t]));
+      }
+      k = j;
+    }
+    return rows.join('');
+  }
+  // Lazily compute (once) and cache the diff HTML for the version at index idx against
+  // its predecessor versions[idx+1]. The cache lives on the panel instance and is reset
+  // each (re)render, so a re-open always recomputes fresh.
+  _diffHtmlForVersion(idx) {
+    const cache = this._agentsDiffCache || (this._agentsDiffCache = {});
+    if (cache[idx] != null) return cache[idx];
+    const esc = (s) => this._galaxyEsc(s);
+    const versions = this._agentsDetailVersions || [];
+    const cur = versions[idx], prev = versions[idx + 1];
+    let html;
+    if (!cur || !prev) {
+      html = '<div class="ad-diff-note">no predecessor</div>';
+    } else {
+      const prevNum = prev.number != null ? String(prev.number) : '?';
+      const curNum = cur.number != null ? String(cur.number) : '?';
+      html = this._renderDiffHtml(esc, prevNum, curNum, prev.content, cur.content);
+    }
+    cache[idx] = html;
+    return html;
+  }
   ensureAgentsDetailEl() {
     if (this._agentsDetailEl && this._agentsDetailEl.parentNode) return this._agentsDetailEl;
     const el = document.createElement('div');
@@ -1969,6 +2096,8 @@ class Component extends DCLogic {
 
     const tmpl = d.template || null;
     const versions = Array.isArray(d.versions) ? d.versions : [];
+    this._agentsDetailVersions = versions; // consumed by the lazy per-version diff viewers
+    this._agentsDiffCache = {};             // reset the diff cache each (re)render — same lifecycle as the prompt viewers
 
     // Template section (or a quiet note when the agent has none).
     let tmplHtml;
@@ -1997,6 +2126,10 @@ class Component extends DCLogic {
         const sample = +v.canarySample || 0;
         const badgeText = vstate + ((vstate === 'canary' && sample > 0) ? ' ' + Math.round(sample * 100) + '%' : '');
         const last = i === versions.length - 1;
+        // Predecessor = the next (newest-first) entry, i.e. the closest lower version.
+        const prev = last ? null : versions[i + 1];
+        const prevNum = prev ? (prev.number != null ? String(prev.number) : '?') : '';
+        const curNum = v.number != null ? String(v.number) : '?';
         const line = (v.description || v.name) ? '<div class="ad-vname">' + esc(v.description || v.name) + '</div>' : '';
         const times = [];
         if (v.createdAt > 0) times.push('created ' + esc(this._relFromMs(v.createdAt)));
@@ -2012,6 +2145,7 @@ class Component extends DCLogic {
             line +
             (times.length ? '<div class="ad-vt">' + times.map(t => '<span>' + t + '</span>').join('') + '</div>' : '') +
             (v.content ? this._promptViewerHtml(esc, 'prompt', v.content, false) : '') +
+            (prev ? this._diffViewerHtml(esc, prevNum, curNum, i) : '') +
           '</div>' +
         '</div>';
       }).join('') + '</div>';
@@ -2077,6 +2211,26 @@ class Component extends DCLogic {
           copyBtn.classList.add('ok');
           setTimeout(() => { copyBtn.textContent = 'copy'; copyBtn.classList.remove('ok'); }, 1200);
         } catch (e) {}
+      });
+    });
+    // Diff viewers: independent of the prompt toggles and collapsed by default. The diff
+    // body is computed LAZILY on first expand (never during render) and cached on the
+    // panel for the open's lifetime; a re-open rebuilds the panel and resets the cache,
+    // so every open starts collapsed.
+    el.querySelectorAll('.ad-diff').forEach((box) => {
+      const idx = +box.getAttribute('data-diff-idx');
+      const tog = box.querySelector('.ad-diff-toggle');
+      const view = box.querySelector('.ad-diff-view');
+      const chev = box.querySelector('.ad-diff-chev');
+      if (!tog || !view) return;
+      tog.addEventListener('click', () => {
+        const willOpen = view.hasAttribute('hidden');
+        if (willOpen && !view.hasAttribute('data-filled')) {
+          view.innerHTML = this._diffHtmlForVersion(idx);
+          view.setAttribute('data-filled', '1');
+        }
+        view.toggleAttribute('hidden');
+        if (chev) chev.textContent = willOpen ? '▾' : '▸';
       });
     });
   }
