@@ -23,7 +23,7 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 // statusForError maps a DataSource error to an HTTP status code: not-found
 // sentinels become 404, everything else 500.
 func statusForError(err error) int {
-	if errors.Is(err, ErrRunNotFound) || errors.Is(err, ErrJobNotFound) {
+	if errors.Is(err, ErrRunNotFound) || errors.Is(err, ErrJobNotFound) || errors.Is(err, ErrAgentNotFound) {
 		return http.StatusNotFound
 	}
 	return http.StatusInternalServerError
@@ -67,6 +67,25 @@ func (s *server) handleAgents(w http.ResponseWriter, r *http.Request) {
 		agents = []AgentSummary{}
 	}
 	writeJSON(w, http.StatusOK, agents)
+}
+
+// handleAgent serves GET /api/agent/{name} -> AgentDetail, the click-through
+// detail for a single agent. Unknown names map to 404 (mirrors handleJob).
+func (s *server) handleAgent(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	if name == "" {
+		http.Error(w, "missing agent name", http.StatusBadRequest)
+		return
+	}
+	detail, err := s.ds.Agent(r.Context(), name)
+	if err != nil {
+		http.Error(w, err.Error(), statusForError(err))
+		return
+	}
+	if detail.Versions == nil {
+		detail.Versions = []TemplateVersionInfo{}
+	}
+	writeJSON(w, http.StatusOK, detail)
 }
 
 // handleCharts serves GET /api/charts?days=N -> Charts. days accepts only 0

@@ -17,6 +17,8 @@ var (
 	ErrRunNotFound = errors.New("run not found")
 	// ErrJobNotFound indicates the requested job/node does not exist.
 	ErrJobNotFound = errors.New("job not found")
+	// ErrAgentNotFound indicates the requested agent does not exist.
+	ErrAgentNotFound = errors.New("agent not found")
 )
 
 const (
@@ -572,6 +574,91 @@ func (f *FakeDataSource) Agents(ctx context.Context) ([]AgentSummary, error) {
 	return out, nil
 }
 
+// fakeTemplatedAgent is the one seeded agent whose click-through detail carries
+// a template and version history; every other agent's AgentDetail has Template
+// nil. It is deliberately an agent that does not appear in the seeded run so its
+// summary counts (and thus its whole AgentDetail) are byte-stable across calls.
+const fakeTemplatedAgent = "researcher"
+
+// fakeAgentTemplate is the template fakeTemplatedAgent is instantiated from. Its
+// ResolvedCommit matches the currently-promoted version below. All values are
+// constant so the detail is deterministic.
+var fakeAgentTemplate = AgentTemplateInfo{
+	ID:             "tmpl-researcher",
+	Name:           "researcher",
+	Description:    "SOTA / best-solution research agent that cites its sources",
+	SourceRepo:     "jerryfane/gitmoot",
+	SourceRef:      "main",
+	SourcePath:     "agents/researcher.md",
+	ResolvedCommit: "3c3824f9a1b2c4d5e6f70819a2b3c4d5e6f70819",
+}
+
+// fakeAgentVersions is fakeTemplatedAgent's version history, newest first, across
+// the pending/canary/promoted states so the version-history UI is fully
+// exercised: v1 is the promoted version the template currently resolves to
+// (Current), v2 is a canary being sampled (CanarySample), v3 is a newly proposed
+// pending candidate. Timestamps are anchored on fakeChartsNow (never time.Now())
+// so the detail is byte-stable across calls.
+var fakeAgentVersions = []TemplateVersionInfo{
+	{
+		ID:          "tmpl-researcher-v3",
+		Number:      3,
+		State:       "pending",
+		Name:        "researcher",
+		Description: "propose: add adversarial claim-verification pass",
+		SourceRef:   "main",
+		CreatedAt:   fakeChartsNow.Add(-6 * time.Hour).UnixMilli(),
+	},
+	{
+		ID:             "tmpl-researcher-v2",
+		Number:         2,
+		State:          "canary",
+		Name:           "researcher",
+		Description:    "widen source fan-out to 8 parallel searches",
+		SourceRef:      "main",
+		ResolvedCommit: "9f8e7d6c5b4a39281706f5e4d3c2b1a09f8e7d6c",
+		CreatedAt:      fakeChartsNow.AddDate(0, 0, -2).UnixMilli(),
+		CanarySample:   0.15,
+	},
+	{
+		ID:             "tmpl-researcher-v1",
+		Number:         1,
+		State:          "promoted",
+		Name:           "researcher",
+		Description:    "initial captured researcher agent",
+		SourceRef:      "main",
+		ResolvedCommit: "3c3824f9a1b2c4d5e6f70819a2b3c4d5e6f70819",
+		CreatedAt:      fakeChartsNow.AddDate(0, 0, -9).UnixMilli(),
+		PromotedAt:     fakeChartsNow.AddDate(0, 0, -8).UnixMilli(),
+		Current:        true,
+	},
+}
+
+// Agent implements DataSource. It returns the click-through detail for a single
+// agent: the same AgentSummary row Agents() lists (so counts line up with the
+// Agents page) plus a template and version history for the one seeded agent that
+// carries them (fakeTemplatedAgent) — every other agent's detail has Template
+// nil. Unknown names return ErrAgentNotFound.
+func (f *FakeDataSource) Agent(ctx context.Context, name string) (AgentDetail, error) {
+	agents, err := f.Agents(ctx)
+	if err != nil {
+		return AgentDetail{}, err
+	}
+	for _, a := range agents {
+		if a.Name != name {
+			continue
+		}
+		detail := AgentDetail{AgentSummary: a, Versions: []TemplateVersionInfo{}}
+		if name == fakeTemplatedAgent {
+			tmpl := fakeAgentTemplate
+			detail.Template = &tmpl
+			detail.Versions = append([]TemplateVersionInfo(nil), fakeAgentVersions...)
+		}
+		return detail, nil
+	}
+	return AgentDetail{}, ErrAgentNotFound
+}
+
 // fakeChartsNow is the fixed reference instant the Charts/Health fake views
 // treat as "now". Unlike the live-advancing run state (Runs/State/Jobs/Agents,
 // which embed time.Now() and evolve as the background goroutine ticks), the
@@ -818,6 +905,14 @@ func (f *FakeDataSource) Charts(ctx context.Context, days int) (Charts, error) {
 	return Charts{Days: daysOut, Agents: agOut, Repos: rpOut, Totals: totals}, nil
 }
 
+// fakeDaemonVersion is the version the fake running daemon reports, and
+// fakeDaemonLatest is a newer release so the update badge is exercised in dev.
+// Both are constant so Health stays byte-stable across calls.
+const (
+	fakeDaemonVersion = "v0.8.1"
+	fakeDaemonLatest  = "v0.8.3"
+)
+
 // Health implements DataSource. It derives the daemon liveness, fleet totals,
 // held locks, wedged jobs and recent failures from the fixed fakeHistory fixture
 // (and fixed lock fixtures), anchored on fakeChartsNow. Output is deterministic
@@ -915,7 +1010,14 @@ func (f *FakeDataSource) Health(ctx context.Context) (Health, error) {
 	}
 
 	return Health{
-		Daemon:         HealthDaemon{Running: true, PID: 4242, StartedAt: now - 6*60*minute},
+		Daemon: HealthDaemon{Running: true, PID: 4242, StartedAt: now - 6*60*minute, Version: fakeDaemonVersion},
+		Update: &HealthUpdate{
+			Current:         fakeDaemonVersion,
+			Latest:          fakeDaemonLatest,
+			ReleaseURL:      "https://github.com/jerryfane/gitmoot/releases/tag/" + fakeDaemonLatest,
+			UpdateAvailable: true,
+			CheckedAt:       now - 30*minute,
+		},
 		Totals:         totals,
 		Locks:          locks,
 		ResourceLocks:  resLocks,

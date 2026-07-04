@@ -119,6 +119,42 @@ type AgentSummary struct {
 	LastActive     int64 `json:"lastActive,omitempty"` // epoch ms of most recent job update
 }
 
+// TemplateVersionInfo is one entry in an agent template's version history.
+type TemplateVersionInfo struct {
+	ID             string  `json:"id"`
+	Number         int     `json:"number"`
+	State          string  `json:"state"` // e.g. promoted | pending | canary | rejected (pass through the store's value)
+	Name           string  `json:"name,omitempty"`
+	Description    string  `json:"description,omitempty"`
+	SourceRef      string  `json:"sourceRef,omitempty"`
+	ResolvedCommit string  `json:"resolvedCommit,omitempty"`
+	CreatedAt      int64   `json:"createdAt,omitempty"`  // epoch ms, 0 unknown
+	PromotedAt     int64   `json:"promotedAt,omitempty"` // epoch ms, 0 unknown
+	CanarySample   float64 `json:"canarySample,omitempty"`
+	Current        bool    `json:"current,omitempty"` // true for the version the template currently resolves to
+}
+
+// AgentTemplateInfo describes the template an agent is instantiated from: its
+// identity and where its definition is sourced/resolved from.
+type AgentTemplateInfo struct {
+	ID             string `json:"id"`
+	Name           string `json:"name,omitempty"`
+	Description    string `json:"description,omitempty"`
+	SourceRepo     string `json:"sourceRepo,omitempty"`
+	SourceRef      string `json:"sourceRef,omitempty"`
+	SourcePath     string `json:"sourcePath,omitempty"`
+	ResolvedCommit string `json:"resolvedCommit,omitempty"`
+}
+
+// AgentDetail is the Agents page's click-through detail: the summary plus the
+// agent's template and its version history (newest first). Template is nil for
+// agents with no template.
+type AgentDetail struct {
+	AgentSummary
+	Template *AgentTemplateInfo    `json:"template,omitempty"`
+	Versions []TemplateVersionInfo `json:"versions"`
+}
+
 // GraphNode is a node in the whole-history "galaxy" graph. Type is "job" (a real
 // job, colored by State), "repo" (a repository hub) or "agent" (an agent hub);
 // the hubs are synthetic grouping nodes that cluster jobs by repo/agent and give
@@ -199,9 +235,20 @@ type Charts struct {
 
 // HealthDaemon reports the orchestration daemon's liveness.
 type HealthDaemon struct {
-	Running   bool  `json:"running"`
-	PID       int   `json:"pid,omitempty"`
-	StartedAt int64 `json:"startedAt,omitempty"` // epoch ms, 0 when unknown
+	Running   bool   `json:"running"`
+	PID       int    `json:"pid,omitempty"`
+	StartedAt int64  `json:"startedAt,omitempty"` // epoch ms, 0 when unknown
+	Version   string `json:"version,omitempty"`   // the RUNNING daemon binary's version
+}
+
+// HealthUpdate reports the daemon-binary update check. Omitted entirely when the
+// check is unavailable (offline / rate-limited / no release) — fail-open, never an error.
+type HealthUpdate struct {
+	Current         string `json:"current,omitempty"` // version the running daemon reports
+	Latest          string `json:"latest,omitempty"`
+	ReleaseURL      string `json:"releaseUrl,omitempty"`
+	UpdateAvailable bool   `json:"updateAvailable"`
+	CheckedAt       int64  `json:"checkedAt,omitempty"` // epoch ms of the underlying check
 }
 
 // HealthTotals is the current fleet-wide job-state snapshot.
@@ -254,6 +301,7 @@ type HealthFailure struct {
 // locks, wedged jobs and recent failures.
 type Health struct {
 	Daemon         HealthDaemon         `json:"daemon"`
+	Update         *HealthUpdate        `json:"update,omitempty"` // daemon-binary update check; nil when unavailable
 	Totals         HealthTotals         `json:"totals"`
 	Locks          []HealthLock         `json:"locks"`          // branch/checkout locks, oldest first
 	ResourceLocks  []HealthResourceLock `json:"resourceLocks"`  // runtime-session etc., oldest first
@@ -272,6 +320,10 @@ type DataSource interface {
 	// Agents returns the registered agents plus one synthetic rollup row for the
 	// fleet of ephemeral workers (the row with Ephemeral == true).
 	Agents(ctx context.Context) ([]AgentSummary, error)
+	// Agent returns the click-through detail for a single agent by name: its
+	// summary plus template and version history. Unknown names return a
+	// not-found sentinel (mapped to 404 by the API layer).
+	Agent(ctx context.Context, name string) (AgentDetail, error)
 	// Graph returns the whole-history galaxy graph. Empty repo => all runs; a
 	// non-empty repo scopes to that repository's jobs (and their hubs).
 	Graph(ctx context.Context, repo string) (Graph, error)

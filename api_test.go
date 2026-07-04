@@ -129,6 +129,112 @@ func TestHandleAgents(t *testing.T) {
 	}
 }
 
+func TestHandleAgent(t *testing.T) {
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+
+	// The one seeded agent that carries a template + version history.
+	var detail AgentDetail
+	if err := json.Unmarshal(getRaw(t, srv.URL+"/api/agent/"+fakeTemplatedAgent), &detail); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if detail.Name != fakeTemplatedAgent {
+		t.Fatalf("detail.Name = %q, want %q", detail.Name, fakeTemplatedAgent)
+	}
+	if detail.Runtime == "" {
+		t.Fatalf("detail missing embedded summary (runtime): %+v", detail)
+	}
+	if detail.Template == nil {
+		t.Fatalf("expected a template for %q", fakeTemplatedAgent)
+	}
+	if detail.Template.ID == "" {
+		t.Fatalf("template missing id: %+v", detail.Template)
+	}
+	if len(detail.Versions) != 3 {
+		t.Fatalf("len(Versions) = %d, want 3", len(detail.Versions))
+	}
+	// Newest first, exactly one Current marker, states cover promoted/canary/
+	// pending, and the canary version carries a sample.
+	var current, canarySample int
+	states := map[string]bool{}
+	for i, v := range detail.Versions {
+		if v.ID == "" || v.State == "" {
+			t.Fatalf("version missing id/state: %+v", v)
+		}
+		states[v.State] = true
+		if i > 0 && detail.Versions[i-1].Number < v.Number {
+			t.Fatalf("versions not newest-first: %+v", detail.Versions)
+		}
+		if v.Current {
+			current++
+		}
+		if v.State == "canary" && v.CanarySample > 0 {
+			canarySample++
+		}
+	}
+	if current != 1 {
+		t.Fatalf("Current markers = %d, want exactly 1", current)
+	}
+	if canarySample == 0 {
+		t.Fatalf("expected a canary version with a CanarySample: %+v", detail.Versions)
+	}
+	for _, want := range []string{"promoted", "canary", "pending"} {
+		if !states[want] {
+			t.Fatalf("versions missing state %q: %+v", want, detail.Versions)
+		}
+	}
+}
+
+func TestHandleAgentNoTemplate(t *testing.T) {
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+
+	// An agent without a template: Template omitted, Versions still non-nil.
+	var detail AgentDetail
+	if err := json.Unmarshal(getRaw(t, srv.URL+"/api/agent/ci-runner"), &detail); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if detail.Name != "ci-runner" {
+		t.Fatalf("detail.Name = %q, want ci-runner", detail.Name)
+	}
+	if detail.Template != nil {
+		t.Fatalf("expected nil template for ci-runner: %+v", detail.Template)
+	}
+	if detail.Versions == nil {
+		t.Fatalf("Versions must be non-nil even without a template")
+	}
+	if len(detail.Versions) != 0 {
+		t.Fatalf("len(Versions) = %d, want 0 for a template-less agent", len(detail.Versions))
+	}
+}
+
+func TestHandleAgentNotFound(t *testing.T) {
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/api/agent/does-not-exist")
+	if err != nil {
+		t.Fatalf("GET /api/agent/does-not-exist: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", resp.StatusCode)
+	}
+}
+
+func TestHandleAgentDeterministic(t *testing.T) {
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+
+	// fakeTemplatedAgent does not appear in the seeded run, so its detail (summary
+	// + template + versions) is byte-stable across calls.
+	url := srv.URL + "/api/agent/" + fakeTemplatedAgent
+	if a, b := getRaw(t, url), getRaw(t, url); !bytes.Equal(a, b) {
+		t.Fatalf("agent detail not byte-stable across calls\nfirst:  %s\nsecond: %s", a, b)
+	}
+}
+
 func TestHandleState(t *testing.T) {
 	srv := httptest.NewServer(Serve(NewFakeDataSource()))
 	defer srv.Close()
@@ -367,6 +473,25 @@ func TestHandleHealth(t *testing.T) {
 	}
 	if !h.Daemon.Running {
 		t.Fatalf("expected daemon running: %+v", h.Daemon)
+	}
+	if h.Daemon.Version == "" {
+		t.Fatalf("expected daemon version: %+v", h.Daemon)
+	}
+	// The update check is present and exercises the "update available" badge.
+	if h.Update == nil {
+		t.Fatalf("expected an update check in health")
+	}
+	if !h.Update.UpdateAvailable {
+		t.Fatalf("expected update available: %+v", h.Update)
+	}
+	if h.Update.Current == "" || h.Update.Latest == "" {
+		t.Fatalf("update missing current/latest: %+v", h.Update)
+	}
+	if h.Update.Current != h.Daemon.Version {
+		t.Fatalf("update.Current %q != daemon.Version %q", h.Update.Current, h.Daemon.Version)
+	}
+	if u := h.Update.ReleaseURL; u != "" && !strings.HasPrefix(u, "https://") && !strings.HasPrefix(u, "http://") {
+		t.Fatalf("update release url not http(s): %q", u)
 	}
 	if h.Locks == nil || h.ResourceLocks == nil || h.Stuck == nil || h.RecentFailures == nil {
 		t.Fatalf("health slices must be non-nil: %+v", h)
