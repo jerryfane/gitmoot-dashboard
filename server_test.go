@@ -25,6 +25,11 @@ func TestServeIndex(t *testing.T) {
 	if !strings.Contains(strings.ToLower(string(body[:n])), "<!doctype html") {
 		t.Fatalf("index body is not an HTML document: %q", string(body[:n]))
 	}
+	// Embedded assets have no validators, so the shell must force
+	// revalidation — otherwise browsers hold a stale app across deploys.
+	if got := resp.Header.Get("Cache-Control"); got != "no-cache" {
+		t.Fatalf("GET / Cache-Control = %q, want %q", got, "no-cache")
+	}
 }
 
 func TestServeSPAFallback(t *testing.T) {
