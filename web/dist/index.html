@@ -29,7 +29,7 @@
 </helmet>
 <div style="display:flex;height:100vh;width:100vw;overflow:hidden;background:#07080f;color:#a8aecf;font-family:Inter,system-ui,sans-serif;font-size:14px">
 
-  <aside style="width:216px;flex:none;border-right:1px solid rgba(160,168,220,0.08);background:#0a0b16;display:flex;flex-direction:column;padding:18px 12px 14px">
+  <aside style="{{ railStyle }}">
     <div style="display:flex;align-items:center;gap:9px;padding:2px 8px 18px">
       <span style="width:26px;height:26px;border-radius:7px;background:linear-gradient(150deg,#9ece6a,#5a8a3a);display:flex;align-items:center;justify-content:center;box-shadow:0 0 20px rgba(158,206,106,0.3)">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#07080f" stroke-width="2.2"><circle cx="6" cy="12" r="2.2"/><circle cx="18" cy="6" r="2.2"/><circle cx="18" cy="18" r="2.2"/><path d="M8 11l8-4M8 13l8 4"/></svg>
@@ -87,15 +87,15 @@
       <div style="width:1px;height:22px;background:rgba(160,168,220,0.12)"></div>
 
       <div style="display:flex;align-items:center;gap:9px;min-width:0">
-        <span style="font-family:'JetBrains Mono';font-size:12px;color:#868db5;white-space:nowrap">{{ crumbRepo }}</span>
-        <span style="color:#5a6088;font-size:12px">›</span>
+        <span style="{{ crumbRepoStyle }}">{{ crumbRepo }}</span>
+        <span style="{{ crumbSepStyle }}">›</span>
         <span style="{{ crumbDotStyle }}"></span>
         <span style="font-family:'JetBrains Mono';font-size:12px;color:#eef0ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ crumbTitle }}</span>
       </div>
 
       <div style="margin-left:auto;display:flex;align-items:center;gap:8px;padding:6px 12px;border-radius:20px;background:rgba(158,206,106,0.1);border:1px solid rgba(158,206,106,0.22)">
         <span style="width:7px;height:7px;border-radius:50%;background:#9ece6a;box-shadow:0 0 10px rgba(158,206,106,0.7);animation:livedot 1.6s ease-in-out infinite"></span>
-        <span style="font-family:'JetBrains Mono';font-size:11px;letter-spacing:0.08em;color:#c5f882;font-weight:600">LIVE</span>
+        <span style="{{ liveTextStyle }}">LIVE</span>
       </div>
     </header>
 
@@ -114,7 +114,7 @@
         </button>
       </sc-if>
 
-      <div style="position:absolute;left:16px;bottom:16px;display:flex;flex-direction:column;gap:6px;z-index:6">
+      <div style="{{ zoomCtrlStyle }}">
         <button onClick="{{ zoomIn }}" style="width:34px;height:34px;background:rgba(15,17,32,0.85);border:1px solid rgba(160,168,220,0.14);border-radius:8px;color:#a8aecf;font-size:18px;cursor:pointer;backdrop-filter:blur(6px)">+</button>
         <button onClick="{{ zoomOut }}" style="width:34px;height:34px;background:rgba(15,17,32,0.85);border:1px solid rgba(160,168,220,0.14);border-radius:8px;color:#a8aecf;font-size:18px;cursor:pointer;backdrop-filter:blur(6px)">−</button>
         <button onClick="{{ fit }}" title="Fit to view" style="width:34px;height:34px;background:rgba(15,17,32,0.85);border:1px solid rgba(160,168,220,0.14);border-radius:8px;color:#a8aecf;font-size:14px;cursor:pointer;backdrop-filter:blur(6px)">⤢</button>
@@ -123,7 +123,7 @@
       {{ minimapEl }}
 
       <sc-if value="{{ hasSelected }}" hint-placeholder-val="{{ false }}">
-        <aside style="position:absolute;right:0;top:0;bottom:0;width:360px;background:rgba(15,17,32,0.9);border-left:1px solid rgba(160,168,220,0.14);backdrop-filter:blur(16px);z-index:15;display:flex;flex-direction:column;box-shadow:-30px 0 60px rgba(0,0,0,0.5);animation:panelin .28s cubic-bezier(.2,.8,.2,1)">
+        <aside style="{{ detailAsideStyle }}">
           <div style="padding:18px 20px 14px;border-bottom:1px solid rgba(160,168,220,0.08)">
             <div style="display:flex;align-items:flex-start;gap:10px">
               <span style="{{ detail.dotStyle }}"></span>
@@ -199,7 +199,7 @@
       </sc-if>
     </div>
 
-    <footer style="height:42px;flex:none;display:flex;align-items:center;gap:20px;padding:0 22px;border-top:1px solid rgba(160,168,220,0.08);background:#0a0b16;font-size:11.5px;color:#5a6088;z-index:20">
+    <footer style="{{ footerStyle }}">
       <div style="display:flex;align-items:center;gap:7px"><span>nodes</span><span style="font-family:'JetBrains Mono';font-size:12.5px;color:#a8aecf">{{ stat.total }}</span></div>
       <div style="width:1px;height:14px;background:rgba(160,168,220,0.1)"></div>
       <div style="display:flex;align-items:center;gap:7px"><span>running</span><span style="font-family:'JetBrains Mono';font-size:12.5px;color:#7aa2f7">{{ stat.running }}</span></div>
@@ -211,6 +211,33 @@
       <div style="margin-left:auto;display:flex;align-items:center;gap:7px"><span>elapsed</span><span style="font-family:'JetBrains Mono';font-size:12.5px;color:#eef0ff">{{ stat.elapsed }}</span></div>
     </footer>
   </div>
+
+  <nav style="{{ tabBarStyle }}">
+    <div onClick="{{ showGraph }}" title="Graph" style="{{ tabGraphStyle }}">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="5" cy="12" r="2.4"/><circle cx="18" cy="6" r="2.4"/><circle cx="18" cy="18" r="2.4"/><path d="M7 11l9-4M7 13l9 4"/></svg>
+      <span style="{{ tabLabelStyle }}">Graph</span>
+    </div>
+    <div onClick="{{ showGalaxy }}" title="Galaxy" style="{{ tabGalaxyStyle }}">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="5" cy="6" r="1.7" fill="currentColor" stroke="none"/><circle cx="12.5" cy="12.5" r="1.7" fill="currentColor" stroke="none"/><circle cx="18.5" cy="7" r="1.7" fill="currentColor" stroke="none"/><circle cx="16.5" cy="17.5" r="1.7" fill="currentColor" stroke="none"/><circle cx="6.5" cy="17" r="1.7" fill="currentColor" stroke="none"/><path d="M5 6l7.5 6.5M12.5 12.5l6-5.5M12.5 12.5l4 5M12.5 12.5l-6 4.5" opacity="0.5"/></svg>
+      <span style="{{ tabLabelStyle }}">Galaxy</span>
+    </div>
+    <div onClick="{{ showJobs }}" title="Jobs" style="{{ tabJobsStyle }}">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8 6h11M8 12h11M8 18h11"/><circle cx="4" cy="6" r="1.1"/><circle cx="4" cy="12" r="1.1"/><circle cx="4" cy="18" r="1.1"/></svg>
+      <span style="{{ tabLabelStyle }}">Jobs</span>
+    </div>
+    <div onClick="{{ showAgents }}" title="Agents" style="{{ tabAgentsStyle }}">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="7" y="7" width="10" height="10" rx="2"/><path d="M10 2.5v3M14 2.5v3M10 18.5v3M14 18.5v3M2.5 10h3M2.5 14h3M18.5 10h3M18.5 14h3"/></svg>
+      <span style="{{ tabLabelStyle }}">Agents</span>
+    </div>
+    <div onClick="{{ showCharts }}" title="Charts" style="{{ tabChartsStyle }}">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="4" y="12" width="3.2" height="8" rx="1" fill="currentColor"/><rect x="10.4" y="7" width="3.2" height="13" rx="1" fill="currentColor"/><rect x="16.8" y="4" width="3.2" height="16" rx="1" fill="currentColor"/></svg>
+      <span style="{{ tabLabelStyle }}">Charts</span>
+    </div>
+    <div onClick="{{ showHealth }}" title="Health" style="{{ tabHealthStyle }}">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M3 12h4l2-6 4 12 2-6h6"/></svg>
+      <span style="{{ tabLabelStyle }}">Health</span>
+    </div>
+  </nav>
 </div>
 </x-dc>
 <script type="text/x-dc" data-dc-script data-props="{
@@ -366,7 +393,12 @@ class Component extends DCLogic {
     // Runs column
     runsOpen: true, runsQuery: '', facets: { status: [], kind: [], agent: [], repo: [] },
     openFacet: null, oneShotsExpanded: false, oneShotLimit: 6,
-    selectedRunId: null, hoverRun: null, listLoading: true, listError: false
+    selectedRunId: null, hoverRun: null, listLoading: true, listError: false,
+    // Mobile responsiveness: seeded from matchMedia so the very first render is
+    // correct; kept live by a matchMedia('(max-width:768px)') listener wired in
+    // componentDidMount. Every mobile branch in the UI is gated behind this flag
+    // (or a @media (max-width:768px) rule) so desktop stays pixel-identical.
+    isMobile: (typeof window !== 'undefined' && window.matchMedia) ? window.matchMedia('(max-width: 768px)').matches : false
   };
 
   // ---- run data (a real SSE feed could replace this by pushing the same shapes) ----
@@ -398,7 +430,47 @@ class Component extends DCLogic {
     this.startClock();
     let open = true;
     try { const v = localStorage.getItem('gitmoot.runsOpen'); if (v != null) open = v === '1'; } catch (e) {}
+    // On phones the Runs column becomes a full-screen drawer, so default it CLOSED
+    // (graph visible; the floating "Runs" tab reopens it). Mobile-only, not persisted.
+    if (this.state.isMobile) open = false;
     this.setState({ runsOpen: open });
+    // ---- responsive: track the 768px breakpoint + a coarse-pointer flag ----
+    // The breakpoint listener drives state.isMobile (re-renders the DC shell: rail,
+    // tab bar, crumb, runs drawer) AND re-docks the body-appended overlay roots
+    // (left/bottom), which live outside DC and must be repositioned imperatively.
+    // The coarse-pointer flag only sizes touch targets (galaxy hit-testing) so it
+    // needs no re-render.
+    try {
+      this._mqMobile = window.matchMedia('(max-width: 768px)');
+      this._mqCoarse = window.matchMedia('(pointer: coarse)');
+      this._coarsePointer = this._mqCoarse.matches;
+      this._onMobileChange = (e) => {
+        const m = !!e.matches;
+        // Run the imperative work AFTER isMobile commits, so _redockOverlays and the
+        // width-dependent re-renders (table<->cards for jobs; measured-pixel SVGs for
+        // charts) all read the new value rather than the pre-flip one.
+        const after = () => {
+          this._redockOverlays();
+          if (this.state.view === 'jobs') this.renderJobsTable();
+          if (this.state.view === 'charts' && this._chartsLoaded) this.renderCharts(false);
+          // Galaxy: re-fit the force-graph to the post-dock container. The re-dock
+          // above changes #galaxy-root's left (216px<->0), so measure it here (after
+          // _redockOverlays) rather than in the window-resize _galaxyResize, which
+          // races the deferred dock and would capture the stale pre-dock width.
+          if (this.state.view === 'galaxy' && this._galaxyGraph) {
+            const gr = this._galaxyGraphEl.getBoundingClientRect();
+            this._galaxyGraph.width(gr.width).height(gr.height);
+          }
+        };
+        if (this.state.isMobile !== m) this.setState({ isMobile: m }, after);
+        else after();
+      };
+      this._onCoarseChange = (e) => { this._coarsePointer = !!e.matches; };
+      if (this._mqMobile.addEventListener) this._mqMobile.addEventListener('change', this._onMobileChange);
+      else if (this._mqMobile.addListener) this._mqMobile.addListener(this._onMobileChange);
+      if (this._mqCoarse.addEventListener) this._mqCoarse.addEventListener('change', this._onCoarseChange);
+      else if (this._mqCoarse.addListener) this._mqCoarse.addListener(this._onCoarseChange);
+    } catch (e) {}
     window.addEventListener('resize', this.onResize);
     window.addEventListener('popstate', this._onPopState); // back/forward -> view state
     // safety: never leave the Runs column stuck on skeletons if /api/runs hangs
@@ -421,6 +493,8 @@ class Component extends DCLogic {
     try { if (this._es) this._es.close(); } catch (e) {}
     window.removeEventListener('resize', this.onResize);
     try { window.removeEventListener('popstate', this._onPopState); } catch (e) {}
+    try { if (this._mqMobile) { if (this._mqMobile.removeEventListener) this._mqMobile.removeEventListener('change', this._onMobileChange); else if (this._mqMobile.removeListener) this._mqMobile.removeListener(this._onMobileChange); } } catch (e) {}
+    try { if (this._mqCoarse) { if (this._mqCoarse.removeEventListener) this._mqCoarse.removeEventListener('change', this._onCoarseChange); else if (this._mqCoarse.removeListener) this._mqCoarse.removeListener(this._onCoarseChange); } } catch (e) {}
     try { window.removeEventListener('resize', this._galaxyResize); } catch (e) {}
     try { window.removeEventListener('resize', this._chartsResize); } catch (e) {}
     try { document.removeEventListener('keydown', this._jobsKeydown); } catch (e) {}
@@ -576,7 +650,11 @@ class Component extends DCLogic {
       ".graph-tooltip{font-family:'Inter',sans-serif!important;font-size:12px!important;background:rgba(9,11,22,.94)!important;color:#c8cce6!important;border:1px solid rgba(125,207,255,.18)!important;border-radius:10px!important;padding:9px 12px!important;box-shadow:0 8px 30px rgba(0,0,0,.6)!important;backdrop-filter:blur(6px);max-width:320px;line-height:1.5}",
       ".graph-tooltip .tt-title{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:12.5px;margin-bottom:4px}",
       ".graph-tooltip .tt-row{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#7f86ad}",
-      ".graph-tooltip .tt-row b{font-weight:500}"
+      ".graph-tooltip .tt-row b{font-weight:500}",
+      // Mobile: the node-detail panel becomes a full-screen sheet.
+      "@media (max-width:768px){#galaxy-root #g-detail{width:100%;left:0;border-left:none}}",
+      // Coarse pointers: bump the close target to >=44px.
+      "@media (pointer:coarse){#galaxy-root #g-detail .gd-close{width:44px;height:44px;font-size:17px}}"
     ].join('\n');
     document.head.appendChild(st);
 
@@ -611,6 +689,7 @@ class Component extends DCLogic {
       '</div>'
     ].join('\n');
     document.body.appendChild(root);
+    this._dockOverlay(root); // mobile: left:0 + bottom clears the tab bar
 
     this._galaxyRoot = root;
     this._galaxyGraphEl = root.querySelector('#g-graph');
@@ -1006,7 +1085,10 @@ class Component extends DCLogic {
       let sp; try { sp = G.graph2ScreenCoords(n.x, n.y); } catch (e) { continue; }
       const dx = sp.x - cx, dy = sp.y - cy;
       const d = Math.sqrt(dx * dx + dy * dy);
-      const thr = n.type === 'repo' ? 26 : n.type === 'agent' ? 18 : 12; // hit radius in CSS px
+      // Coarse pointers (touch) get a 1.4x larger hit radius per node type — fingers
+      // are less precise than a mouse.
+      const boost = this._coarsePointer ? 1.4 : 1;
+      const thr = (n.type === 'repo' ? 26 : n.type === 'agent' ? 18 : 12) * boost; // hit radius in CSS px
       if (d > thr) continue;
       const score = d / thr; // "how deep inside its own hit-circle" — lets hubs win near centre
       if (score < bestScore) { bestScore = score; best = n; }
@@ -1426,7 +1508,23 @@ class Component extends DCLogic {
       "#jobs-root #jobs-detail .jd-ev .t{font-family:'JetBrains Mono',monospace;font-size:10px;color:#5a6088;margin-top:2px}",
       "#jobs-root #jobs-detail .jd-block{background:#0a0b16;border:1px solid rgba(160,168,220,0.1);border-radius:9px;padding:12px 13px;font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:1.6;color:#c7c9e5;white-space:pre-wrap;word-break:break-word;margin-bottom:18px;max-height:260px;overflow-y:auto}",
       "#jobs-root #jobs-detail .jd-pr{display:flex;align-items:center;gap:10px;padding:12px 14px;background:rgba(158,206,106,0.1);border:1px solid rgba(158,206,106,0.24);border-radius:10px;color:#c5f882;text-decoration:none;font-size:13px;font-weight:500}",
-      "#jobs-root #jobs-detail .jd-pr span{flex:1;font-family:'JetBrains Mono',monospace;font-size:12px;word-break:break-all}"
+      "#jobs-root #jobs-detail .jd-pr span{flex:1;font-family:'JetBrains Mono',monospace;font-size:12px;word-break:break-all}",
+      // Facet-select wrapper: transparent on desktop (display:contents => the three
+      // selects lay out exactly as before, as direct flex items of .jb-filters).
+      "#jobs-root .jb-facets{display:contents}",
+      // Mobile card list (renderJobsTable emits these instead of the table).
+      "#jobs-root .jb-cards{display:flex;flex-direction:column;gap:8px;padding:12px}",
+      "#jobs-root .jb-card{background-color:#0d0f1c;border:1px solid rgba(160,168,220,0.1);border-radius:11px;padding:11px 13px;display:flex;flex-direction:column;gap:7px;cursor:pointer}",
+      "#jobs-root .jb-card.sel{border-color:rgba(158,206,106,0.45);background:rgba(158,206,106,0.07)}",
+      "#jobs-root .jb-card .jc-r1{display:flex;align-items:center;gap:8px}",
+      "#jobs-root .jb-card .jc-title{flex:1;min-width:0;font-size:13.5px;font-weight:600;color:#eef0ff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
+      "#jobs-root .jb-card .jc-r2{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11px;color:#c7c9e5;min-width:0}",
+      "#jobs-root .jb-card .jc-repo{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#7f86ad;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}",
+      "#jobs-root .jb-card .jc-r3{display:flex;align-items:center;gap:10px;font-family:'JetBrains Mono',monospace;font-size:10px;color:#5a6088}",
+      // Mobile: stack the filter bar (search full width; facets in one scrollable row)
+      // and turn the detail into a full-screen sheet.
+      "@media (max-width:768px){#jobs-root .jb-filters{flex-wrap:nowrap;flex-direction:column;align-items:stretch;gap:8px}#jobs-root .jb-search{max-width:none;min-width:0;width:100%}#jobs-root .jb-facets{display:flex;gap:8px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:2px}#jobs-root .jb-fl{flex:none}#jobs-root .jb-clear{margin-left:0;align-self:flex-start}#jobs-root #jobs-detail{width:100%;left:0;border-left:none}}",
+      "@media (pointer:coarse){#jobs-root #jobs-detail .jd-close{width:44px;height:44px;font-size:17px}}"
     ].join('\n');
     document.head.appendChild(st);
 
@@ -1443,15 +1541,18 @@ class Component extends DCLogic {
       "    <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'><circle cx='11' cy='11' r='7'></circle><path d='M21 21l-4.3-4.3'></path></svg>",
       '    <input id="jb-q" placeholder="Search title, agent, id, repo…" />',
       '  </div>',
-      '  <label class="jb-fl">State<select id="jb-state"><option value="">all</option></select></label>',
-      '  <label class="jb-fl">Repo<select id="jb-repo"><option value="">all</option></select></label>',
-      '  <label class="jb-fl">Agent<select id="jb-agent"><option value="">all</option></select></label>',
+      '  <div class="jb-facets">',
+      '    <label class="jb-fl">State<select id="jb-state"><option value="">all</option></select></label>',
+      '    <label class="jb-fl">Repo<select id="jb-repo"><option value="">all</option></select></label>',
+      '    <label class="jb-fl">Agent<select id="jb-agent"><option value="">all</option></select></label>',
+      '  </div>',
       '  <button id="jb-clear" class="jb-clear">Clear</button>',
       '</div>',
       '<div class="jb-tablewrap" id="jb-tablewrap"><div id="jb-table"></div></div>',
       '<div class="jb-foot" id="jb-foot"></div>'
     ].join('\n');
     document.body.appendChild(root);
+    this._dockOverlay(root); // mobile: left:0 + bottom clears the tab bar
     this._jobsRoot = root;
 
     const q = root.querySelector('#jb-q');
@@ -1478,7 +1579,9 @@ class Component extends DCLogic {
     // click on a data-id row opens its detail; anywhere else closes it. The detail
     // panel is a sibling of the table wrap, so clicks inside it never reach here.
     root.querySelector('#jb-tablewrap').addEventListener('click', (e) => {
-      const tr = (e.target.closest && e.target.closest('tr[data-id]')) || null;
+      // Matches both the desktop table rows (tr[data-id]) and the mobile cards
+      // (.jb-card[data-id]); a click landing outside any data-id element closes.
+      const tr = (e.target.closest && e.target.closest('[data-id]')) || null;
       if (tr) this.openJobsDetail(tr.getAttribute('data-id'));
       else this.closeJobsDetail();
     });
@@ -1554,6 +1657,10 @@ class Component extends DCLogic {
     if (tbl) {
       if (!shown.length) {
         tbl.innerHTML = '<div class="jb-empty">' + (this._jobsLoaded ? (data.length ? 'No jobs match the filters' : 'No jobs yet') : 'loading…') + '</div>';
+      } else if (this.state.isMobile) {
+        // Mobile: a card list instead of the wide table (same data-id click -> detail,
+        // same 400 cap + footer note handled below).
+        tbl.innerHTML = '<div class="jb-cards">' + shown.map(j => this._jobsCardHtml(j, esc)).join('') + '</div>';
       } else {
         const headCols = ['', 'Title', 'Agent', 'Repo', 'Kind', 'Depth', 'Tokens', 'Started', 'Duration'];
         tbl.innerHTML = '<table class="jb-table"><thead><tr>' +
@@ -1588,6 +1695,27 @@ class Component extends DCLogic {
       '<td class="jb-mono">' + esc(j.started ? this._relFromMs(j.started) : '—') + '</td>' +
       '<td class="jb-mono">' + esc(this._fmtDur(j.duration)) + '</td>' +
     '</tr>';
+  }
+
+  // Mobile card variant of a job row. Same data-id (so the delegated click opens the
+  // same detail) and the same selected highlight as the table row.
+  _jobsCardHtml(j, esc) {
+    const state = j.state || 'queued';
+    const col = this._galaxyStateColor(state);
+    const running = state === 'running';
+    const rt = j.runtime || '';
+    const rtCol = this._runtimeColor(rt);
+    const isSel = this._jobsSelected === j.id;
+    const rtBadge = rt ? '<span class="jb-rt" style="color:' + rtCol + ';border-color:' + rtCol + '55">' + esc(rt) + '</span>' : '';
+    const agentTxt = j.agent ? '<span>' + esc(j.agent) + '</span>' : '';
+    const kind = j.kind ? '<span class="jb-kind">' + esc(j.kind) + '</span>' : '';
+    const age = j.started ? esc(this._relFromMs(j.started)) : '';
+    const dur = esc(this._fmtDur(j.duration));
+    return '<div class="jb-card' + (isSel ? ' sel' : '') + '" data-id="' + esc(j.id) + '">' +
+      '<div class="jc-r1"><span class="jb-sdot" style="background:' + col + (running ? ';animation:dotpulse 1.4s ease-in-out infinite' : '') + '"></span><span class="jc-title">' + esc(j.title || j.id) + '</span></div>' +
+      '<div class="jc-r2">' + (agentTxt || rtBadge || j.repo ? (agentTxt + rtBadge + (j.repo ? '<span class="jc-repo">' + esc(j.repo) + '</span>' : '')) : '<span>—</span>') + '</div>' +
+      '<div class="jc-r3">' + kind + (age ? '<span>' + age + '</span>' : '') + (dur ? '<span>' + dur + '</span>' : '') + '</div>' +
+    '</div>';
   }
 
   ensureJobsDetailEl() {
@@ -1793,7 +1921,12 @@ class Component extends DCLogic {
       "#agents-root .ad-diff-add{background:rgba(158,206,106,0.10);border-left-color:#9ece6a;color:#c5f882}",
       "#agents-root .ad-diff-del{background:rgba(247,118,142,0.09);border-left-color:#f7768e;color:#f7a0b3}",
       "#agents-root .ad-diff-sep{text-align:center;color:#5a6088;font-size:10px;padding:4px 12px;font-family:'JetBrains Mono',monospace}",
-      "#agents-root .ad-diff-note{color:#5a6088;font-family:'JetBrains Mono',monospace;font-size:11.5px;padding:8px 12px}"
+      "#agents-root .ad-diff-note{color:#5a6088;font-family:'JetBrains Mono',monospace;font-size:11.5px;padding:8px 12px}",
+      // Mobile: single-column grid + tighter padding; the detail becomes a full-screen
+      // sheet. .ad-panel is position:fixed (not relative to the docked root), so it also
+      // needs an explicit bottom to clear the tab bar.
+      "@media (max-width:768px){#agents-root .ag-grid{grid-template-columns:1fr;padding-left:14px;padding-right:14px}#agents-root .ag-head{padding-left:16px;padding-right:16px}#agents-root .ad-panel{width:100%;left:0;border-left:none;bottom:calc(60px + env(safe-area-inset-bottom))}}",
+      "@media (pointer:coarse){#agents-root .ad-panel .ad-close{width:44px;height:44px;font-size:17px}}"
     ].join('\n');
     document.head.appendChild(st);
 
@@ -1808,6 +1941,7 @@ class Component extends DCLogic {
       '<div class="ag-grid" id="ag-grid"></div>'
     ].join('\n');
     document.body.appendChild(root);
+    this._dockOverlay(root); // mobile: left:0 + bottom clears the tab bar
     this._agentsRoot = root;
 
     // Card click -> opens that agent's detail panel; a click on the grid background
@@ -2278,7 +2412,11 @@ class Component extends DCLogic {
       "#charts-root .ch-tip-t{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:12px;color:#eef0ff;margin-bottom:4px}",
       "#charts-root .ch-tip-r{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#a8aecf;display:flex;align-items:center;gap:6px}",
       "#charts-root .ch-tip-r b{color:#eef0ff;font-weight:600}",
-      "#charts-root .ch-tip-sw{width:8px;height:8px;border-radius:2px;display:inline-block;flex:none}"
+      "#charts-root .ch-tip-sw{width:8px;height:8px;border-radius:2px;display:inline-block;flex:none}",
+      // Mobile: totals collapse to 2 columns, the two-up cards stack, tighter gutters.
+      // The day-bar SVGs measure their container width, so a breakpoint flip re-renders
+      // them (renderCharts) from componentDidMount's matchMedia listener.
+      "@media (max-width:768px){#charts-root .ch-totals{grid-template-columns:repeat(2,1fr);padding-left:14px;padding-right:14px}#charts-root .ch-two{grid-template-columns:1fr;padding-left:14px;padding-right:14px}#charts-root .ch-card{margin-left:14px;margin-right:14px}#charts-root .ch-head{padding-left:16px;padding-right:16px}}"
     ].join('\n');
     document.head.appendChild(st);
 
@@ -2306,6 +2444,7 @@ class Component extends DCLogic {
       '<div class="ch-tooltip" id="ch-tip" style="display:none"></div>'
     ].join('\n');
     document.body.appendChild(root);
+    this._dockOverlay(root); // mobile: left:0 + bottom clears the tab bar
     this._chartsRoot = root;
 
     root.querySelector('#ch-range').addEventListener('click', (e) => {
@@ -2595,7 +2734,11 @@ class Component extends DCLogic {
       "#health-root .hl-rl-owner{width:24%}",
       "#health-root .hl-rl-age{width:18%}",
       "#health-root .hl-rl-exp{width:18%}",
-      "#health-root .hl-tempty{padding:16px 12px;text-align:center;color:#5a6088;font-size:11.5px;font-family:'JetBrains Mono',monospace}"
+      "#health-root .hl-tempty{padding:16px 12px;text-align:center;color:#5a6088;font-size:11.5px;font-family:'JetBrains Mono',monospace}",
+      // Mobile: hero wraps, lock tables stack and scroll horizontally (table-layout:fixed
+      // keeps min-widths so columns stay legible), tighter gutters. The chip row already
+      // wraps (.hl-chips flex-wrap:wrap).
+      "@media (max-width:768px){#health-root .hl-hero{flex-wrap:wrap;margin-left:16px;margin-right:16px}#health-root .hl-head{padding-left:16px;padding-right:16px}#health-root .hl-section{margin-left:16px;margin-right:16px}#health-root .hl-locks{grid-template-columns:1fr}#health-root #hl-branchlocks,#health-root #hl-resourcelocks{overflow-x:auto;-webkit-overflow-scrolling:touch}#health-root #hl-branchlocks .hl-table,#health-root #hl-resourcelocks .hl-table{min-width:420px}}"
     ].join('\n');
     document.head.appendChild(st);
 
@@ -2611,6 +2754,7 @@ class Component extends DCLogic {
       '<div class="hl-section" style="padding-bottom:28px"><div class="hl-h">Recent failures</div><div id="hl-failures"></div></div>'
     ].join('\n');
     document.body.appendChild(root);
+    this._dockOverlay(root); // mobile: left:0 + bottom clears the tab bar
     this._healthRoot = root;
 
     const wireList = (id) => {
@@ -3007,6 +3151,24 @@ class Component extends DCLogic {
     }
   };
 
+  // ---- responsive overlay docking -------------------------------------------
+  // The five body-appended overlay roots (galaxy/jobs/agents/charts/health) sit
+  // to the right of the 216px nav rail on desktop. On mobile the rail is hidden
+  // and a 60px bottom tab bar appears, so the roots dock to left:0 and stop above
+  // the tab bar. Shared here so the creation-time cssText and the breakpoint
+  // re-dock can never drift.
+  _overlayLeft() { return this.state.isMobile ? '0' : '216px'; }
+  _overlayBottom() { return this.state.isMobile ? 'calc(60px + env(safe-area-inset-bottom))' : '0'; }
+  _dockOverlay(el) {
+    if (!el) return;
+    el.style.left = this._overlayLeft();
+    el.style.bottom = this._overlayBottom();
+  }
+  _redockOverlays() {
+    [this._galaxyRoot, this._jobsRoot, this._agentsRoot, this._chartsRoot, this._healthRoot]
+      .forEach(r => this._dockOverlay(r));
+  }
+
   // ---- live state: each node's real state/timestamps come from the feed ----
   simulate(p) {
     const m = {};
@@ -3366,10 +3528,14 @@ class Component extends DCLogic {
 
     const list = R('div', { key: 'ls', style: { flex: 1, overflowY: 'auto', overflowX: 'hidden', paddingBottom: '12px' } }, body);
 
-    return R('div', {
-      key: 'runscol',
-      style: { width: '320px', flex: 'none', background: '#0a0b16', borderRight: '1px solid rgba(160,168,220,0.08)', display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }
-    }, [header, search, facetBar, list]);
+    // Desktop: an inline 320px column. Mobile: a full-screen fixed drawer over the
+    // graph that clears the bottom tab bar; its header collapse button (toggleRuns)
+    // closes it, and the floating "Runs" tab (runsTabVisible) reopens it.
+    const colStyle = this.state.isMobile
+      ? { position: 'fixed', left: 0, right: 0, top: 0, bottom: 'calc(60px + env(safe-area-inset-bottom))', zIndex: 55, background: '#0a0b16', display: 'flex', flexDirection: 'column', overflow: 'hidden' }
+      : { width: '320px', flex: 'none', background: '#0a0b16', borderRight: '1px solid rgba(160,168,220,0.08)', display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' };
+
+    return R('div', { key: 'runscol', style: colStyle }, [header, search, facetBar, list]);
   }
 
   renderVals() {
@@ -3530,7 +3696,7 @@ class Component extends DCLogic {
       });
       minimapEl = R('div', {
         style: {
-          position: 'absolute', right: 16, bottom: 16, width: mmW, height: mmH,
+          position: 'absolute', right: 16, bottom: this.state.isMobile ? 'calc(72px + env(safe-area-inset-bottom))' : 16, width: mmW, height: mmH,
           background: 'rgba(10,11,22,0.85)', border: '1px solid rgba(160,168,220,0.14)',
           borderRadius: 9, overflow: 'hidden', zIndex: 6, backdropFilter: 'blur(6px)',
           boxShadow: '0 12px 34px rgba(0,0,0,0.4)'
@@ -3616,6 +3782,29 @@ class Component extends DCLogic {
     const healthNavStyle = { ...navActive(isHealth), position: 'relative' };
     const navDot = (on) => ({ width: '5px', height: '5px', borderRadius: '50%', background: on ? '#9ece6a' : 'transparent', boxShadow: on ? '0 0 8px rgba(158,206,106,0.7)' : 'none' });
 
+    // ---- responsive shell styling (all gated on isMobile; desktop untouched) ----
+    const isMobile = this.state.isMobile;
+    const hideOnMobile = isMobile ? { display: 'none' } : {};
+    // Nav rail: desktop unchanged (flex column); mobile hidden (bottom tab bar replaces it).
+    const railStyle = { width: '216px', flex: 'none', borderRight: '1px solid rgba(160,168,220,0.08)', background: '#0a0b16', display: isMobile ? 'none' : 'flex', flexDirection: 'column', padding: '18px 12px 14px' };
+    // Bottom tab bar: mobile-only fixed bar; desktop display:none (never shown).
+    const tabBarStyle = { display: isMobile ? 'flex' : 'none', position: 'fixed', left: 0, right: 0, bottom: 0, height: 'calc(60px + env(safe-area-inset-bottom))', paddingBottom: 'env(safe-area-inset-bottom)', background: '#0a0b16', borderTop: '1px solid rgba(160,168,220,0.1)', zIndex: 60, alignItems: 'stretch' };
+    const tabBase = { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '3px', minWidth: 0, minHeight: '44px', cursor: 'pointer', padding: '6px 0', WebkitTapHighlightColor: 'transparent' };
+    const tabStyle = (on) => ({ ...tabBase, color: on ? '#c5f882' : '#7c83a8', background: on ? 'rgba(158,206,106,0.10)' : 'transparent' });
+    const tabLabelStyle = { fontSize: '9px', fontFamily: 'Inter,system-ui,sans-serif', fontWeight: 500, lineHeight: 1, letterSpacing: '0.02em' };
+    // Graph header breadcrumb: on mobile drop the repo crumb + separator + the "LIVE"
+    // word (the animated dot stays) so the run title fits the narrow header.
+    const crumbRepoStyle = { fontFamily: "'JetBrains Mono'", fontSize: '12px', color: '#868db5', whiteSpace: 'nowrap', ...hideOnMobile };
+    const crumbSepStyle = { color: '#5a6088', fontSize: '12px', ...hideOnMobile };
+    const liveTextStyle = { fontFamily: "'JetBrains Mono'", fontSize: '11px', letterSpacing: '0.08em', color: '#c5f882', fontWeight: 600, ...hideOnMobile };
+    // Graph node detail aside: mobile full-width sheet; desktop 360px pinned right.
+    const detailAsideStyle = { position: 'absolute', right: 0, top: 0, bottom: 0, width: isMobile ? '100%' : '360px', background: 'rgba(15,17,32,0.9)', borderLeft: isMobile ? 'none' : '1px solid rgba(160,168,220,0.14)', backdropFilter: 'blur(16px)', zIndex: 15, display: 'flex', flexDirection: 'column', boxShadow: '-30px 0 60px rgba(0,0,0,0.5)', animation: 'panelin .28s cubic-bezier(.2,.8,.2,1)' };
+    // Graph zoom controls: lift above the 60px tab bar on mobile.
+    const zoomCtrlStyle = { position: 'absolute', left: '16px', bottom: isMobile ? 'calc(76px + env(safe-area-inset-bottom))' : '16px', display: 'flex', flexDirection: 'column', gap: '6px', zIndex: 6 };
+    // Graph stat footer: hidden on mobile — it is bottom-anchored (z-index 20) and
+    // would otherwise render behind the fixed bottom tab bar (z-index 60).
+    const footerStyle = { height: '42px', flex: 'none', display: 'flex', alignItems: 'center', gap: '20px', padding: '0 22px', borderTop: '1px solid rgba(160,168,220,0.08)', background: '#0a0b16', fontSize: '11.5px', color: '#5a6088', zIndex: 20, ...hideOnMobile };
+
     return {
       edgesEl, nodesEl, minimapEl, stat, detail, runsColumnEl,
       worldTransform: `translate(${this.state.panX}px,${this.state.panY}px) scale(${this.state.zoom})`,
@@ -3630,6 +3819,11 @@ class Component extends DCLogic {
       graphNavDotStyle: navDot(isGraph), galaxyNavDotStyle: navDot(isGalaxy),
       jobsNavDotStyle: navDot(isJobs), agentsNavDotStyle: navDot(isAgents),
       chartsNavDotStyle: navDot(isCharts), healthNavDotStyle: navDot(isHealth),
+      railStyle, tabBarStyle, tabLabelStyle,
+      tabGraphStyle: tabStyle(isGraph), tabGalaxyStyle: tabStyle(isGalaxy),
+      tabJobsStyle: tabStyle(isJobs), tabAgentsStyle: tabStyle(isAgents),
+      tabChartsStyle: tabStyle(isCharts), tabHealthStyle: tabStyle(isHealth),
+      crumbRepoStyle, crumbSepStyle, liveTextStyle, detailAsideStyle, zoomCtrlStyle, footerStyle,
       crumbRepo: activeRun.repo, crumbTitle: activeRun.title,
       crumbDotStyle: { width: '8px', height: '8px', borderRadius: '50%', flex: 'none', background: crumbCol.c, boxShadow: activeRun.state === 'running' ? '0 0 8px ' + crumbCol.g : 'none', animation: activeRun.state === 'running' ? 'dotpulse 1.4s ease-in-out infinite' : 'none' },
       hasSelected: !!sel && isGraph,
