@@ -1616,7 +1616,19 @@ class Component extends DCLogic {
       "#agents-root .ad-vempty{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#5a6088;padding:6px 0 12px}",
       "#agents-root .ad-foot{flex:none;padding:13px 20px;border-top:1px solid rgba(160,168,220,0.08)}",
       "#agents-root .ad-viewjobs{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;box-sizing:border-box;padding:10px 14px;background:rgba(158,206,106,0.1);border:1px solid rgba(158,206,106,0.24);border-radius:10px;color:#c5f882;font-size:13px;font-weight:500;cursor:pointer;font-family:Inter,system-ui,sans-serif}",
-      "#agents-root .ad-viewjobs:hover{background:rgba(158,206,106,0.16)}"
+      "#agents-root .ad-viewjobs:hover{background:rgba(158,206,106,0.16)}",
+      "#agents-root .ad-prompt{margin-top:10px}",
+      "#agents-root .ad-prompt-bar{display:flex;align-items:center;gap:8px}",
+      "#agents-root .ad-prompt-toggle{flex:1;min-width:0;display:flex;align-items:center;gap:6px;background:none;border:0;padding:2px 0;margin:0;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#868db5;text-align:left}",
+      "#agents-root .ad-prompt-toggle:hover{color:#c7c9e5}",
+      "#agents-root .ad-prompt-chev{display:inline-block;width:9px;flex:none;color:#7f86ad}",
+      "#agents-root .ad-prompt-lbl{flex:none}",
+      "#agents-root .ad-prompt-hint{color:#5a6088;font-size:9.5px;margin-left:2px;white-space:nowrap}",
+      "#agents-root .ad-prompt-copy{flex:none;background:rgba(160,168,220,0.08);border:1px solid rgba(160,168,220,0.12);border-radius:6px;color:#868db5;font-family:'JetBrains Mono',monospace;font-size:9.5px;padding:3px 8px;cursor:pointer;line-height:1}",
+      "#agents-root .ad-prompt-copy:hover{color:#c7c9e5;background:rgba(160,168,220,0.14)}",
+      "#agents-root .ad-prompt-copy.ok{color:#9ece6a;border-color:rgba(158,206,106,0.4);background:rgba(158,206,106,0.12)}",
+      "#agents-root .ad-prompt-view{margin-top:8px;max-height:40vh;overflow:auto;background:#07080f;border:1px solid rgba(160,168,220,0.14);border-radius:8px;padding:10px 12px;font-family:'JetBrains Mono',monospace;font-size:11px;line-height:1.5;color:#c7c9e5;white-space:pre-wrap;word-break:break-word}",
+      "#agents-root .ad-prompt-view[hidden]{display:none}"
     ].join('\n');
     document.head.appendChild(st);
 
@@ -1719,6 +1731,34 @@ class Component extends DCLogic {
   _agentStatCell(label, val, valCol, pulse) {
     return '<div class="ad-stat"><div class="ad-sv" style="color:' + (valCol || '#eef0ff') + (pulse ? ';animation:livedot 1.6s ease-in-out infinite' : '') + '">' + val + '</div><div class="ad-sl">' + label + '</div></div>';
   }
+  // A byte/line hint for a prompt body (e.g. "1.2 KB · 34 lines"). Bytes are the
+  // UTF-8 encoded length; lines are '\n'-split. Pure numeric/derived output.
+  _promptHint(content) {
+    const str = String(content == null ? '' : content);
+    let bytes;
+    try { bytes = new TextEncoder().encode(str).length; } catch (e) { bytes = str.length; }
+    const size = bytes < 1024 ? (bytes + ' B') : ((bytes / 1024).toFixed(1) + ' KB');
+    const lines = str.length ? str.replace(/\n$/, '').split('\n').length : 0;
+    return size + ' · ' + lines + ' line' + (lines === 1 ? '' : 's');
+  }
+  // Collapsible prompt viewer: a toggle row (chevron + label + byte/line hint) and a
+  // scrollable mono <pre> block holding the FULL escaped content. Collapsed by default
+  // ([hidden]). content is repo-controlled text — always escaped, rendered as text,
+  // never as markup. withCopy adds a clipboard button (template card only). Click
+  // wiring is attached generically in renderAgentsDetail after innerHTML.
+  _promptViewerHtml(esc, label, content, withCopy) {
+    return '<div class="ad-prompt">' +
+      '<div class="ad-prompt-bar">' +
+        '<button type="button" class="ad-prompt-toggle">' +
+          '<span class="ad-prompt-chev">▸</span>' +
+          '<span class="ad-prompt-lbl">' + esc(label) + '</span>' +
+          '<span class="ad-prompt-hint">' + esc(this._promptHint(content)) + '</span>' +
+        '</button>' +
+        (withCopy ? '<button type="button" class="ad-prompt-copy" title="copy prompt">copy</button>' : '') +
+      '</div>' +
+      '<pre class="ad-prompt-view" hidden>' + esc(content) + '</pre>' +
+    '</div>';
+  }
   ensureAgentsDetailEl() {
     if (this._agentsDetailEl && this._agentsDetailEl.parentNode) return this._agentsDetailEl;
     const el = document.createElement('div');
@@ -1786,6 +1826,7 @@ class Component extends DCLogic {
         (tmpl.id ? '<div class="ad-tid">' + esc(tmpl.id) + '</div>' : '') +
         (tmpl.description ? '<div class="ad-tdesc">' + esc(tmpl.description) + '</div>' : '') +
         (src.length ? '<div class="ad-trow">' + src.join('') + '</div>' : '') +
+        (tmpl.content ? this._promptViewerHtml(esc, 'view prompt', tmpl.content, true) : '') +
       '</div>';
     } else {
       tmplHtml = '<div class="ad-notmpl">' + (status === 'loading' ? 'loading…' : 'no template') + '</div>';
@@ -1814,6 +1855,7 @@ class Component extends DCLogic {
             '</div>' +
             line +
             (times.length ? '<div class="ad-vt">' + times.map(t => '<span>' + t + '</span>').join('') + '</div>' : '') +
+            (v.content ? this._promptViewerHtml(esc, 'prompt', v.content, false) : '') +
           '</div>' +
         '</div>';
       }).join('') + '</div>';
@@ -1858,6 +1900,29 @@ class Component extends DCLogic {
     if (closeBtn) closeBtn.addEventListener('click', () => this.closeAgentsDetail());
     const vj = el.querySelector('.ad-viewjobs');
     if (vj) vj.addEventListener('click', () => this.showJobs(name));
+    // Prompt viewers: each .ad-prompt box has a toggle (show/hide its <pre>) and, on
+    // the template card, a copy button. The panel rebuilds on every open so <pre>
+    // starts [hidden] — re-open always resets to collapsed. Independent toggles.
+    el.querySelectorAll('.ad-prompt').forEach((box) => {
+      const tog = box.querySelector('.ad-prompt-toggle');
+      const view = box.querySelector('.ad-prompt-view');
+      const chev = box.querySelector('.ad-prompt-chev');
+      if (tog && view) tog.addEventListener('click', () => {
+        const willOpen = view.hasAttribute('hidden');
+        view.toggleAttribute('hidden');
+        if (chev) chev.textContent = willOpen ? '▾' : '▸';
+      });
+      const copyBtn = box.querySelector('.ad-prompt-copy');
+      if (copyBtn && view) copyBtn.addEventListener('click', async (ev) => {
+        ev.stopPropagation();
+        try {
+          await navigator.clipboard.writeText(view.textContent);
+          copyBtn.textContent = 'copied';
+          copyBtn.classList.add('ok');
+          setTimeout(() => { copyBtn.textContent = 'copy'; copyBtn.classList.remove('ok'); }, 1200);
+        } catch (e) {}
+      });
+    });
   }
 
   // ============================================================

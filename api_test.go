@@ -150,17 +150,30 @@ func TestHandleAgent(t *testing.T) {
 	if detail.Template.ID == "" {
 		t.Fatalf("template missing id: %+v", detail.Template)
 	}
+	// The per-agent detail carries the template's full prompt body (multi-line).
+	if !strings.Contains(detail.Template.Content, "\n") || !strings.Contains(detail.Template.Content, "Researcher agent") {
+		t.Fatalf("template content missing/not the multi-line prompt body: %q", detail.Template.Content)
+	}
 	if len(detail.Versions) != 3 {
 		t.Fatalf("len(Versions) = %d, want 3", len(detail.Versions))
 	}
 	// Newest first, exactly one Current marker, states cover promoted/canary/
-	// pending, and the canary version carries a sample.
+	// pending, the canary version carries a sample, and every version carries its
+	// own full prompt body — distinct per version so the content viewer is exercised.
 	var current, canarySample int
 	states := map[string]bool{}
+	seenContent := map[string]bool{}
 	for i, v := range detail.Versions {
 		if v.ID == "" || v.State == "" {
 			t.Fatalf("version missing id/state: %+v", v)
 		}
+		if v.Content == "" {
+			t.Fatalf("version %s missing content body: %+v", v.ID, v)
+		}
+		if seenContent[v.Content] {
+			t.Fatalf("versions share identical content (expected distinct per version): %+v", detail.Versions)
+		}
+		seenContent[v.Content] = true
 		states[v.State] = true
 		if i > 0 && detail.Versions[i-1].Number < v.Number {
 			t.Fatalf("versions not newest-first: %+v", detail.Versions)

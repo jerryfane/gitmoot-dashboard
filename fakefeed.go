@@ -580,9 +580,65 @@ func (f *FakeDataSource) Agents(ctx context.Context) ([]AgentSummary, error) {
 // summary counts (and thus its whole AgentDetail) are byte-stable across calls.
 const fakeTemplatedAgent = "researcher"
 
+// The three prompt bodies below are fakeTemplatedAgent's full template content at
+// each version. They are multi-line markdown and deliberately DIFFERENT per
+// version (v1 base → v2 widens fan-out → v3 adds a verification pass) so the
+// detail view's content viewer is exercised, and each contains angle brackets,
+// ampersands, and quotes so the client's HTML-escaping is exercised too. Constant
+// (no time.Now()) so the whole AgentDetail stays byte-stable across calls.
+const (
+	fakeResearcherPromptV1 = `# Researcher agent
+
+You are a **research agent**. Given a question, find the current
+state-of-the-art answer & cite every source.
+
+## Method
+1. Decompose the question into sub-queries.
+2. Search the web; prefer primary sources & standards bodies over blog summaries.
+3. Synthesize a concise answer.
+
+## Output
+Return findings as <finding> blocks and quote sources verbatim inside
+"double quotes". Never invent a citation.
+`
+	fakeResearcherPromptV2 = `# Researcher agent
+
+You are a **research agent**. Given a question, find the current
+state-of-the-art answer & cite every source.
+
+## Method
+1. Decompose the question into up to 8 sub-queries.
+2. Fan out all sub-queries in parallel, then dedupe the results.
+3. Search the web; prefer primary sources & standards bodies over blog summaries.
+4. Synthesize a concise answer.
+
+## Output
+Return findings as <finding> blocks and quote sources verbatim inside
+"double quotes". Never invent a citation.
+`
+	fakeResearcherPromptV3 = `# Researcher agent
+
+You are a **research agent**. Given a question, find the current
+state-of-the-art answer & cite every source.
+
+## Method
+1. Decompose the question into up to 8 sub-queries.
+2. Fan out all sub-queries in parallel, then dedupe the results.
+3. Search the web; prefer primary sources & standards bodies over blog summaries.
+4. Adversarially verify each claim against a second source; drop any
+   claim you cannot corroborate.
+5. Synthesize a concise answer.
+
+## Output
+Return findings as <finding> blocks and quote sources verbatim inside
+"double quotes". Never invent a citation.
+`
+)
+
 // fakeAgentTemplate is the template fakeTemplatedAgent is instantiated from. Its
-// ResolvedCommit matches the currently-promoted version below. All values are
-// constant so the detail is deterministic.
+// ResolvedCommit and Content match the currently-promoted version below (v1, the
+// version the template currently resolves to). All values are constant so the
+// detail is deterministic.
 var fakeAgentTemplate = AgentTemplateInfo{
 	ID:             "tmpl-researcher",
 	Name:           "researcher",
@@ -591,6 +647,7 @@ var fakeAgentTemplate = AgentTemplateInfo{
 	SourceRef:      "main",
 	SourcePath:     "agents/researcher.md",
 	ResolvedCommit: "3c3824f9a1b2c4d5e6f70819a2b3c4d5e6f70819",
+	Content:        fakeResearcherPromptV1,
 }
 
 // fakeAgentVersions is fakeTemplatedAgent's version history, newest first, across
@@ -608,6 +665,7 @@ var fakeAgentVersions = []TemplateVersionInfo{
 		Description: "propose: add adversarial claim-verification pass",
 		SourceRef:   "main",
 		CreatedAt:   fakeChartsNow.Add(-6 * time.Hour).UnixMilli(),
+		Content:     fakeResearcherPromptV3,
 	},
 	{
 		ID:             "tmpl-researcher-v2",
@@ -619,6 +677,7 @@ var fakeAgentVersions = []TemplateVersionInfo{
 		ResolvedCommit: "9f8e7d6c5b4a39281706f5e4d3c2b1a09f8e7d6c",
 		CreatedAt:      fakeChartsNow.AddDate(0, 0, -2).UnixMilli(),
 		CanarySample:   0.15,
+		Content:        fakeResearcherPromptV2,
 	},
 	{
 		ID:             "tmpl-researcher-v1",
@@ -631,6 +690,7 @@ var fakeAgentVersions = []TemplateVersionInfo{
 		CreatedAt:      fakeChartsNow.AddDate(0, 0, -9).UnixMilli(),
 		PromotedAt:     fakeChartsNow.AddDate(0, 0, -8).UnixMilli(),
 		Current:        true,
+		Content:        fakeResearcherPromptV1,
 	},
 }
 

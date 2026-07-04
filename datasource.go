@@ -132,6 +132,9 @@ type TemplateVersionInfo struct {
 	PromotedAt     int64   `json:"promotedAt,omitempty"` // epoch ms, 0 unknown
 	CanarySample   float64 `json:"canarySample,omitempty"`
 	Current        bool    `json:"current,omitempty"` // true for the version the template currently resolves to
+	// Content is this version's full prompt text (the template body captured at
+	// this version). Can be multi-KB; served only by the per-agent detail endpoint.
+	Content string `json:"content,omitempty"`
 }
 
 // AgentTemplateInfo describes the template an agent is instantiated from: its
@@ -144,6 +147,9 @@ type AgentTemplateInfo struct {
 	SourceRef      string `json:"sourceRef,omitempty"`
 	SourcePath     string `json:"sourcePath,omitempty"`
 	ResolvedCommit string `json:"resolvedCommit,omitempty"`
+	// Content is the agent's full prompt text (the currently resolved template
+	// body). Can be multi-KB; served only by the per-agent detail endpoint.
+	Content string `json:"content,omitempty"`
 }
 
 // AgentDetail is the Agents page's click-through detail: the summary plus the
