@@ -50,10 +50,6 @@
       <span style="{{ galaxyNavDotStyle }}"></span>
     </div>
 
-    <div onClick="{{ toggleRuns }}" title="Toggle the Runs column" style="{{ runsNavStyle }}">
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="7" height="16" rx="1.5"/><path d="M13.5 7h7M13.5 12h7M13.5 17h4"/></svg>
-      <span style="flex:1">Runs</span>
-    </div>
 
     <div onClick="{{ showJobs }}" title="All jobs across every run" style="{{ jobsNavStyle }}">
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8 6h11M8 12h11M8 18h11"/><circle cx="4" cy="6" r="1.1"/><circle cx="4" cy="12" r="1.1"/><circle cx="4" cy="18" r="1.1"/></svg>
@@ -110,6 +106,13 @@
           {{ nodesEl }}
         </div>
       </div>
+
+      <sc-if value="{{ runsTabVisible }}" hint-placeholder-val="{{ false }}">
+        <button onClick="{{ toggleRuns }}" title="Show the Runs column" style="position:absolute;left:16px;top:16px;z-index:6;display:flex;align-items:center;gap:8px;padding:8px 13px;background:rgba(15,17,32,0.85);border:1px solid rgba(160,168,220,0.14);border-radius:8px;color:#a8aecf;font-family:'JetBrains Mono';font-size:11.5px;letter-spacing:0.04em;cursor:pointer;backdrop-filter:blur(6px)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="7" height="16" rx="1.5"/><path d="M13.5 7h7M13.5 12h7M13.5 17h4"/></svg>
+          Runs
+        </button>
+      </sc-if>
 
       <div style="position:absolute;left:16px;bottom:16px;display:flex;flex-direction:column;gap:6px;z-index:6">
         <button onClick="{{ zoomIn }}" style="width:34px;height:34px;background:rgba(15,17,32,0.85);border:1px solid rgba(160,168,220,0.14);border-radius:8px;color:#a8aecf;font-size:18px;cursor:pointer;backdrop-filter:blur(6px)">+</button>
@@ -2995,7 +2998,10 @@ class Component extends DCLogic {
     // shared nav-item base; active items pick up the green highlight
     const navBase = { display: 'flex', alignItems: 'center', gap: '11px', padding: '9px 11px', borderRadius: '9px', fontSize: '13.5px', fontWeight: 500, cursor: 'pointer', marginTop: '2px' };
     const navActive = (on) => ({ ...navBase, background: on ? 'rgba(158,206,106,0.11)' : 'transparent', color: on ? '#eef0ff' : '#a8aecf', border: '1px solid ' + (on ? 'rgba(158,206,106,0.2)' : 'transparent') });
-    const runsNavStyle = navActive(runsOpen && isGraph);
+    // The Runs picker lives INSIDE the Graph view (not the nav rail): the column
+    // renders when runsOpen && isGraph, and a floating "Runs" tab in the graph
+    // canvas reopens it after a collapse.
+    const runsTabVisible = isGraph && !runsOpen;
     const graphNavStyle = { ...navActive(isGraph), marginTop: 0, position: 'relative' };
     const galaxyNavStyle = { ...navActive(isGalaxy), position: 'relative' };
     const jobsNavStyle = { ...navActive(isJobs), position: 'relative' };
@@ -3010,7 +3016,7 @@ class Component extends DCLogic {
       canvasRef: this.canvasRef,
       onDown: this.onDown, onMove: this.onMove, onUp: this.onUp, onWheel: this.onWheel,
       zoomIn: this.zoomIn, zoomOut: this.zoomOut, fit: this.fit,
-      toggleRuns: this.toggleRuns, runsNavStyle,
+      toggleRuns: this.toggleRuns, runsTabVisible,
       showGraph: this.showGraph, showGalaxy: this.showGalaxy,
       showJobs: this.showJobs, showAgents: this.showAgents,
       showCharts: this.showCharts, showHealth: this.showHealth,
