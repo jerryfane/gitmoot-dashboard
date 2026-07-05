@@ -142,6 +142,50 @@ func (s *server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, h)
 }
 
+// handleLearningSkills serves GET /api/learning/skills -> Skills, the SkillOpt
+// evolution overview. Mirrors handleRuns; every list is coerced non-nil so the
+// client always sees JSON arrays.
+func (s *server) handleLearningSkills(w http.ResponseWriter, r *http.Request) {
+	skills, err := s.ds.Skills(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), statusForError(err))
+		return
+	}
+	if skills.Templates == nil {
+		skills.Templates = []SkillTemplate{}
+	}
+	for i := range skills.Templates {
+		if skills.Templates[i].Versions == nil {
+			skills.Templates[i].Versions = []SkillVersion{}
+		}
+		if skills.Templates[i].Pending == nil {
+			skills.Templates[i].Pending = []SkillCandidate{}
+		}
+	}
+	writeJSON(w, http.StatusOK, skills)
+}
+
+// handleLearningKnowledge serves GET /api/learning/knowledge -> Knowledge, the
+// memory brain graph. Mirrors handleRuns; every list is coerced non-nil so the
+// client always sees JSON arrays.
+func (s *server) handleLearningKnowledge(w http.ResponseWriter, r *http.Request) {
+	k, err := s.ds.Knowledge(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), statusForError(err))
+		return
+	}
+	if k.Agents == nil {
+		k.Agents = []KnowledgeAgent{}
+	}
+	if k.Facts == nil {
+		k.Facts = []KnowledgeFact{}
+	}
+	if k.Edges == nil {
+		k.Edges = []KnowledgeEdge{}
+	}
+	writeJSON(w, http.StatusOK, k)
+}
+
 // handleState serves GET /api/state?run=<id> -> State. An empty run resolves to
 // the active/most-recent run.
 func (s *server) handleState(w http.ResponseWriter, r *http.Request) {

@@ -343,6 +343,94 @@ type Health struct {
 	RecentFailures []HealthFailure      `json:"recentFailures"` // last 10 failed, newest first
 }
 
+// Skills — the SkillOpt evolution overview.
+
+// SkillVersion is one version in a skill template's evolution history, in
+// sparkline order. Score is present only when the version was scored (HasScore).
+type SkillVersion struct {
+	Number     int     `json:"number"`
+	State      string  `json:"state"`
+	Score      float64 `json:"score,omitempty"`
+	HasScore   bool    `json:"hasScore,omitempty"`
+	CreatedAt  int64   `json:"createdAt,omitempty"` // epoch ms
+	PromotedAt int64   `json:"promotedAt,omitempty"`
+}
+
+// SkillCandidate is a pending version awaiting review/promotion. Score is passed
+// through in the review's stored string form (e.g. a decimal or a verdict).
+type SkillCandidate struct {
+	VersionID string `json:"versionId"`
+	Number    int    `json:"number"`
+	Score     string `json:"score,omitempty"` // pass through the review's stored form
+	CreatedAt int64  `json:"createdAt,omitempty"`
+}
+
+// SkillTemplate is one skill template's evolution: its version history (for the
+// sparkline), the version it currently resolves to, any in-flight canary, and
+// its pending candidates.
+type SkillTemplate struct {
+	TemplateID      string           `json:"templateId"`
+	Name            string           `json:"name,omitempty"`
+	Agents          []string         `json:"agents,omitempty"` // registered agents using it, sorted
+	Versions        []SkillVersion   `json:"versions"`         // ascending by Number (sparkline order)
+	CurrentVersion  int              `json:"currentVersion,omitempty"`
+	CurrentState    string           `json:"currentState,omitempty"`
+	CanarySample    float64          `json:"canarySample,omitempty"`
+	CanaryStartedAt int64            `json:"canaryStartedAt,omitempty"`
+	LastPromotedAt  int64            `json:"lastPromotedAt,omitempty"`
+	Pending         []SkillCandidate `json:"pending"`
+}
+
+// Skills is the data behind the Learning page's Skills view: every skill
+// template's evolution, plus range rollups for the header.
+type Skills struct {
+	Templates      []SkillTemplate `json:"templates"` // sorted: pending-first, then most-recently-promoted
+	ActiveCanaries int             `json:"activeCanaries"`
+	PendingTotal   int             `json:"pendingTotal"`
+}
+
+// Knowledge — the memory brain graph.
+
+// KnowledgeAgent is one memory-enrolled agent hub in the brain graph, with the
+// size of its confirmed-fact / observation pool.
+type KnowledgeAgent struct {
+	Name         string `json:"name"`
+	Enrolled     bool   `json:"enrolled"`
+	Facts        int    `json:"facts"`
+	Observations int    `json:"observations"`
+}
+
+// KnowledgeFact is a single confirmed memory. Repo scopes the fact ("" = general
+// scope); Superseded marks a fact replaced by a newer one on the same key.
+type KnowledgeFact struct {
+	ID         string `json:"id"` // stable unique id (e.g. "fact:<rowid>")
+	Content    string `json:"content"`
+	Repo       string `json:"repo,omitempty"` // "" = general scope
+	Key        string `json:"key,omitempty"`
+	Owner      string `json:"owner"` // agent name
+	Witnesses  int    `json:"witnesses"`
+	FirstSeen  int64  `json:"firstSeen,omitempty"`
+	LastSeen   int64  `json:"lastSeen,omitempty"`
+	Superseded bool   `json:"superseded,omitempty"`
+}
+
+// KnowledgeEdge is one edge in the brain graph: a fact to its owner agent
+// (owner), a fact to its category/scope hub (category), or a newer fact to the
+// older fact it supersedes (supersede).
+type KnowledgeEdge struct {
+	Source string `json:"source"`
+	Target string `json:"target"`
+	Kind   string `json:"kind"` // owner | category | supersede
+}
+
+// Knowledge is the data behind the Learning page's Knowledge view: the memory
+// brain graph of enrolled agents, their facts and the edges between them.
+type Knowledge struct {
+	Agents []KnowledgeAgent `json:"agents"`
+	Facts  []KnowledgeFact  `json:"facts"`
+	Edges  []KnowledgeEdge  `json:"edges"`
+}
+
 // DataSource is the read-only feed the dashboard renders. Implementations must
 // be safe for concurrent use.
 type DataSource interface {
@@ -369,5 +457,16 @@ type DataSource interface {
 	// Health returns the daemon liveness, fleet totals, held locks, wedged jobs
 	// and recent failures behind the Health page.
 	Health(ctx context.Context) (Health, error)
+	// Skills returns the SkillOpt evolution overview behind the Learning page's
+	// Skills view: per-template version history, active canaries and pending
+	// candidates. Ordering must be deterministic (the UI polls with a
+	// signature-skip): templates pending-first then most-recently-promoted, each
+	// template's versions ascending by Number.
+	Skills(ctx context.Context) (Skills, error)
+	// Knowledge returns the memory brain graph behind the Learning page's
+	// Knowledge view: enrolled agents, their facts and the owner/category/
+	// supersede edges between them. Ordering must be deterministic (the UI polls
+	// with a signature-skip).
+	Knowledge(ctx context.Context) (Knowledge, error)
 	Subscribe(ctx context.Context, runID string) (<-chan State, func(), error) // for SSE
 }
