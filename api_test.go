@@ -127,6 +127,24 @@ func TestHandleAgents(t *testing.T) {
 	if registered == 0 {
 		t.Fatalf("registered agents = 0, want > 0")
 	}
+
+	// The MemoryEnabled chip mirrors the agent's config memory switch. The seeded
+	// fake feed spans both branches: at least one enrolled row and one not, so the
+	// serialized boolean is exercised in both directions.
+	byName := map[string]AgentSummary{}
+	for _, a := range agents {
+		byName[a.Name] = a
+	}
+	if !byName[fakeTemplatedAgent].MemoryEnabled {
+		t.Fatalf("expected %q to carry MemoryEnabled=true (memory chip)", fakeTemplatedAgent)
+	}
+	if byName["ci-runner"].MemoryEnabled {
+		t.Fatalf("expected ci-runner MemoryEnabled=false (not enrolled)")
+	}
+	// A config with memory OFF must still surface MemoryEnabled=false.
+	if byName["implementer"].MemoryEnabled {
+		t.Fatalf("expected implementer MemoryEnabled=false (config memory off)")
+	}
 }
 
 func TestHandleAgent(t *testing.T) {
@@ -149,6 +167,24 @@ func TestHandleAgent(t *testing.T) {
 	}
 	if detail.Template.ID == "" {
 		t.Fatalf("template missing id: %+v", detail.Template)
+	}
+	// The seeded templated agent carries a config section (memory on) and a
+	// non-empty memory pool, so the detail's config/memory fields are exercised.
+	if detail.Config == nil {
+		t.Fatalf("expected a config section for %q", fakeTemplatedAgent)
+	}
+	if !detail.Config.Memory {
+		t.Fatalf("expected config.memory=true for %q: %+v", fakeTemplatedAgent, detail.Config)
+	}
+	if !detail.MemoryEnabled {
+		t.Fatalf("expected MemoryEnabled=true on the detail's embedded summary")
+	}
+	// Pool knobs are populated (parse-time defaults are folded in server-side).
+	if detail.Config.MaxBackground == 0 || detail.Config.IdleTimeout == "" || detail.Config.JobTimeout == "" {
+		t.Fatalf("expected config pool knobs populated: %+v", detail.Config)
+	}
+	if detail.MemoryFacts <= 0 || detail.MemoryObservations <= 0 {
+		t.Fatalf("expected non-zero memory counts: facts=%d observations=%d", detail.MemoryFacts, detail.MemoryObservations)
 	}
 	// The per-agent detail carries the template's full prompt body (multi-line).
 	if !strings.Contains(detail.Template.Content, "\n") || !strings.Contains(detail.Template.Content, "Researcher agent") {
@@ -218,6 +254,45 @@ func TestHandleAgentNoTemplate(t *testing.T) {
 	}
 	if len(detail.Versions) != 0 {
 		t.Fatalf("len(Versions) = %d, want 0 for a template-less agent", len(detail.Versions))
+	}
+	// ci-runner has neither a config section nor an enrolled memory pool, so its
+	// detail omits Config entirely and reports zero memory counts.
+	if detail.Config != nil {
+		t.Fatalf("expected nil config for ci-runner (no config section): %+v", detail.Config)
+	}
+	if detail.MemoryEnabled {
+		t.Fatalf("expected MemoryEnabled=false for ci-runner")
+	}
+	if detail.MemoryFacts != 0 || detail.MemoryObservations != 0 {
+		t.Fatalf("expected zero memory counts for ci-runner: facts=%d observations=%d", detail.MemoryFacts, detail.MemoryObservations)
+	}
+}
+
+// TestHandleAgentMemoryWithConfig covers the branch where a memory-enrolled agent
+// (MemoryEnabled chip + a non-empty pool) carries its [agents.<name>] config
+// section. This mirrors the live webDataSource, which sets MemoryEnabled and
+// Config together in one comma-ok block, so memory-on always implies a non-nil
+// config — the fake feed must not present a memory-on/no-config state the real
+// backend can never emit.
+func TestHandleAgentMemoryWithConfig(t *testing.T) {
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+
+	var detail AgentDetail
+	if err := json.Unmarshal(getRaw(t, srv.URL+"/api/agent/reviewer-kimi"), &detail); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if !detail.MemoryEnabled {
+		t.Fatalf("expected reviewer-kimi MemoryEnabled=true")
+	}
+	if detail.Config == nil {
+		t.Fatalf("expected non-nil config for reviewer-kimi (enrolled agents always carry a config section)")
+	}
+	if !detail.Config.Memory {
+		t.Fatalf("expected reviewer-kimi config memory on: %+v", detail.Config)
+	}
+	if detail.MemoryFacts <= 0 || detail.MemoryObservations <= 0 {
+		t.Fatalf("expected non-zero memory counts: facts=%d observations=%d", detail.MemoryFacts, detail.MemoryObservations)
 	}
 }
 

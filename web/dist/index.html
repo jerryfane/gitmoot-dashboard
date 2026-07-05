@@ -1879,6 +1879,7 @@ class Component extends DCLogic {
       "#agents-root .ag-crow{display:flex;align-items:center;gap:9px}",
       "#agents-root .ag-name{flex:1;min-width:0;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:15px;color:#eef0ff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
       "#agents-root .ag-rt{font-family:'JetBrains Mono',monospace;font-size:9.5px;padding:2px 7px;border-radius:6px;text-transform:lowercase;flex:none}",
+      "#agents-root .ag-mem{font-family:'JetBrains Mono',monospace;font-size:9px;padding:2px 6px;border-radius:6px;text-transform:lowercase;flex:none;color:#7dcfff;background:rgba(125,207,255,0.08);border:1px solid rgba(125,207,255,0.22)}",
       "#agents-root .ag-meta{display:flex;align-items:center;gap:7px;font-size:11.5px;color:#a8aecf}",
       "#agents-root .ag-hdot{width:7px;height:7px;border-radius:50%;flex:none}",
       "#agents-root .ag-health{font-family:'JetBrains Mono',monospace;font-size:9.5px;color:#7f86ad;text-transform:uppercase;letter-spacing:0.08em}",
@@ -1915,6 +1916,17 @@ class Component extends DCLogic {
       "#agents-root .ad-sv{font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:600}",
       "#agents-root .ad-sl{font-size:9px;color:#5a6088;text-transform:uppercase;letter-spacing:0.06em;margin-top:3px}",
       "#agents-root .ad-sec{font-size:10.5px;color:#5a6088;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:10px}",
+      "#agents-root .ad-cfg{background:rgba(10,11,22,0.6);border:1px solid rgba(160,168,220,0.08);border-radius:10px;padding:12px 13px;margin-bottom:22px}",
+      "#agents-root .ad-cfg-grid{display:grid;grid-template-columns:auto 1fr;gap:7px 14px;align-items:baseline}",
+      "#agents-root .ad-cfg-k{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#5a6088}",
+      "#agents-root .ad-cfg-v{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#a8aecf;word-break:break-word;display:flex;flex-wrap:wrap;gap:5px;align-items:center}",
+      "#agents-root .ad-cfg-v.on{color:#7dcfff;font-weight:600}",
+      "#agents-root .ad-cfg-v.off{color:#5a6088}",
+      "#agents-root .ad-cfg-cap{font-family:'JetBrains Mono',monospace;font-size:9.5px;padding:2px 7px;border-radius:6px;color:#a8aecf;background:rgba(160,168,220,0.05);border:1px solid rgba(160,168,220,0.12)}",
+      "#agents-root .ad-cfg-note{font-family:'JetBrains Mono',monospace;font-size:9.5px;color:#5a6088;margin-top:11px;font-style:italic}",
+      "#agents-root .ad-cfg-mem{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#7dcfff;margin-top:10px;padding-top:10px;border-top:1px solid rgba(160,168,220,0.08);word-break:break-word}",
+      "#agents-root .ad-cfg-mem.empty{color:#7f86ad}",
+      "#agents-root .ad-nocfg{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#5a6088}",
       "#agents-root .ad-tmpl{background:rgba(10,11,22,0.6);border:1px solid rgba(160,168,220,0.08);border-radius:10px;padding:12px 13px;margin-bottom:22px}",
       "#agents-root .ad-tname{font-size:13.5px;font-weight:600;color:#eef0ff;word-break:break-word}",
       "#agents-root .ad-tid{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#7f86ad;margin-top:2px;word-break:break-all}",
@@ -2042,6 +2054,7 @@ class Component extends DCLogic {
       '<div class="ag-crow">' +
         '<div class="ag-name">' + esc(eph ? 'ephemeral workers' : (a.name || '—')) + '</div>' +
         (rt ? '<span class="ag-rt" style="color:' + rtCol + ';background:color-mix(in srgb,' + rtCol + ' 14%, transparent);border:1px solid color-mix(in srgb,' + rtCol + ' 34%, transparent)">' + esc(rt) + '</span>' : '') +
+        (a.memoryEnabled ? '<span class="ag-mem" title="memory enabled">memory</span>' : '') +
       '</div>' +
       ((a.role || health) ? '<div class="ag-meta">' + (health ? '<span class="ag-hdot" style="background:' + healthCol + '"></span>' : '') + (a.role ? '<span>' + esc(a.role) + '</span>' : '') + (health ? '<span class="ag-health">' + esc(health) + '</span>' : '') + '</div>' : '') +
       (a.model ? '<div class="ag-model">' + esc(a.model) + '</div>' : '') +
@@ -2327,6 +2340,48 @@ class Component extends DCLogic {
       versHtml = '<div class="ad-vempty">' + (status === 'loading' ? 'loading…' : 'no versions recorded') + '</div>';
     }
 
+    // Config section: the agent's [agents.<name>] section (nil => "no config entry"),
+    // plus a memory-pool line when the agent is enrolled in memory. The pool sizes are
+    // only surfaced once the detail has loaded (status 'ok') so a still-loading panel
+    // never falsely claims an empty pool. Every server value is escaped.
+    const cfg = d.config || null;
+    const enrolled = cfg ? !!cfg.memory : !!pick('memoryEnabled');
+    const memFacts = d.memoryFacts || 0;
+    const memObs = d.memoryObservations || 0;
+    let memLine = '';
+    if (status === 'ok' && enrolled) {
+      const emptyPool = (memFacts === 0 && memObs === 0);
+      memLine = '<div class="ad-cfg-mem' + (emptyPool ? ' empty' : '') + '">' +
+        (emptyPool
+          ? 'memory pool: empty — facts appear as jobs hit qualifying outcomes'
+          : 'memory pool: ' + memFacts + ' facts · ' + memObs + ' observations') +
+      '</div>';
+    }
+    let cfgHtml;
+    if (cfg) {
+      const rows = [];
+      const kv = (k, v) => rows.push('<div class="ad-cfg-k">' + esc(k) + '</div><div class="ad-cfg-v">' + v + '</div>');
+      // memory on/off, highlighted when on.
+      rows.push('<div class="ad-cfg-k">memory</div><div class="ad-cfg-v ' + (cfg.memory ? 'on' : 'off') + '">' + (cfg.memory ? 'on' : 'off') + '</div>');
+      if (cfg.maxBackground) kv('max_background', esc(String(cfg.maxBackground)));
+      if (cfg.idleTimeout) kv('idle_timeout', esc(cfg.idleTimeout));
+      if (cfg.jobTimeout) kv('job_timeout', esc(cfg.jobTimeout));
+      if (cfg.model) kv('model', esc(cfg.model));
+      if (cfg.template) kv('template', esc(cfg.template));
+      const caps = Array.isArray(cfg.capabilities) ? cfg.capabilities : [];
+      if (caps.length) kv('capabilities', caps.map(c => '<span class="ad-cfg-cap">' + esc(c) + '</span>').join(''));
+      cfgHtml = '<div class="ad-cfg">' +
+        '<div class="ad-cfg-grid">' + rows.join('') + '</div>' +
+        '<div class="ad-cfg-note">pool knobs apply to managed instances/temp workers</div>' +
+        memLine +
+      '</div>';
+    } else {
+      cfgHtml = '<div class="ad-cfg">' +
+        '<div class="ad-nocfg">' + (status === 'loading' ? 'loading…' : 'no config entry') + '</div>' +
+        memLine +
+      '</div>';
+    }
+
     const badges = [];
     if (model) badges.push('<span class="ad-badge">' + esc(model) + '</span>');
     if (policy) badges.push('<span class="ad-badge">policy · ' + esc(policy) + '</span>');
@@ -2352,6 +2407,8 @@ class Component extends DCLogic {
       '    ' + this._agentStatCell('ok', pick('succeededCount') || 0, '#9ece6a'),
       '    ' + this._agentStatCell('failed', pick('failedCount') || 0, (pick('failedCount') || 0) > 0 ? '#f7768e' : '#5a6088'),
       '  </div>',
+      '  <div class="ad-sec">Config</div>',
+      '  ' + cfgHtml,
       '  <div class="ad-sec">Template</div>',
       '  ' + tmplHtml,
       '  <div class="ad-sec">Version history</div>',
