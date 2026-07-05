@@ -485,18 +485,44 @@ type fakeAgent struct {
 	capabilities   []string
 	autonomyPolicy string
 	health         string
+	// memory mirrors the agent's config memory switch: it drives the card's
+	// "memory" chip (AgentSummary.MemoryEnabled) and, when a config is present,
+	// the config section's memory on/off row.
+	memory bool
+	// config is the agent's [agents.<name>] section for the detail panel, or nil
+	// when the agent has no config entry. memFacts/memObs are the pretend memory
+	// pool sizes surfaced by the detail panel. Constant (no time.Now()) so a
+	// clicked-through AgentDetail stays byte-stable.
+	config   *AgentConfigInfo
+	memFacts int
+	memObs   int
 }
 
 // fakeAgents is a handful of registered agents with varied runtimes/health so
 // the Agents page has realistic rows standalone. project-lead/implementer/
 // integrator match the names used by the seeded run (so their counts are live);
 // the rest are idle registrations.
+// The fake agents span every config/memory UI branch so the Agents page renders
+// them all standalone: a memory-on agent with a config and a live pool
+// (researcher); a memory-on agent whose pool is still empty (project-lead); a
+// config with memory OFF (implementer); a degraded kimi agent that is likewise
+// memory-on with a config and pool (reviewer-kimi — enrolled agents always carry
+// a config section, so memory-on implies a config just like real enrollment); and
+// plain agents with neither (integrator/ci-runner). All config/pool values are
+// constant (no time.Now()) so a clicked-through detail is byte-stable.
 var fakeAgents = []fakeAgent{
-	{name: "project-lead", role: "coordinator", runtime: "codex", model: "gpt-5.5", capabilities: []string{"orchestrate", "review"}, autonomyPolicy: "workspace-write", health: "healthy", repoScope: []string{fakeRepo}},
-	{name: "implementer", role: "implementer", runtime: "codex", model: "gpt-5.5", capabilities: []string{"implement"}, autonomyPolicy: "workspace-write", health: "healthy", repoScope: []string{fakeRepo}},
+	{name: "project-lead", role: "coordinator", runtime: "codex", model: "gpt-5.5", capabilities: []string{"orchestrate", "review"}, autonomyPolicy: "workspace-write", health: "healthy", repoScope: []string{fakeRepo},
+		memory: true, memFacts: 0, memObs: 0,
+		config: &AgentConfigInfo{Memory: true, MaxBackground: 4, IdleTimeout: "10m", JobTimeout: "1h", Model: "gpt-5.5", Template: "coordinator", Capabilities: []string{"orchestrate", "review"}}},
+	{name: "implementer", role: "implementer", runtime: "codex", model: "gpt-5.5", capabilities: []string{"implement"}, autonomyPolicy: "workspace-write", health: "healthy", repoScope: []string{fakeRepo},
+		config: &AgentConfigInfo{Memory: false, MaxBackground: 6, IdleTimeout: "5m", JobTimeout: "45m", Model: "gpt-5.5", Capabilities: []string{"implement"}}},
 	{name: "integrator", role: "integrator", runtime: "codex", model: "gpt-5.5", capabilities: []string{"review", "integrate"}, autonomyPolicy: "workspace-write", health: "healthy", repoScope: []string{fakeRepo}},
-	{name: "researcher", role: "researcher", runtime: "claude", model: "claude-opus-4-8", capabilities: []string{"research"}, autonomyPolicy: "read-only", health: "healthy"},
-	{name: "reviewer-kimi", role: "reviewer", runtime: "kimi", model: "kimi-code", capabilities: []string{"review"}, autonomyPolicy: "read-only", health: "degraded"},
+	{name: "researcher", role: "researcher", runtime: "claude", model: "claude-opus-4-8", capabilities: []string{"research"}, autonomyPolicy: "read-only", health: "healthy",
+		memory: true, memFacts: 42, memObs: 17,
+		config: &AgentConfigInfo{Memory: true, MaxBackground: 2, IdleTimeout: "15m", JobTimeout: "30m", Model: "claude-opus-4-8", Template: "researcher", Capabilities: []string{"research"}}},
+	{name: "reviewer-kimi", role: "reviewer", runtime: "kimi", model: "kimi-code", capabilities: []string{"review"}, autonomyPolicy: "read-only", health: "degraded",
+		memory: true, memFacts: 8, memObs: 3,
+		config: &AgentConfigInfo{Memory: true, MaxBackground: 3, IdleTimeout: "10m", JobTimeout: "30m", Model: "kimi-code", Template: "reviewer", Capabilities: []string{"review"}}},
 	{name: "ci-runner", role: "ci", runtime: "shell", capabilities: []string{"ci", "lint"}, autonomyPolicy: "workspace-write", health: "healthy", repoScope: []string{fakeRepo}},
 }
 
@@ -545,6 +571,7 @@ func (f *FakeDataSource) Agents(ctx context.Context) ([]AgentSummary, error) {
 			Capabilities:   fa.capabilities,
 			AutonomyPolicy: fa.autonomyPolicy,
 			Health:         fa.health,
+			MemoryEnabled:  fa.memory,
 		}
 		if a := byAgent[fa.name]; a != nil {
 			s.JobCount = a.jobs
@@ -713,6 +740,22 @@ func (f *FakeDataSource) Agent(ctx context.Context, name string) (AgentDetail, e
 			tmpl := fakeAgentTemplate
 			detail.Template = &tmpl
 			detail.Versions = append([]TemplateVersionInfo(nil), fakeAgentVersions...)
+		}
+		// Config section + memory pool sizes come from the registered fakeAgent (nil
+		// config => "no config entry" in the panel). Constant, so the detail stays
+		// byte-stable across calls.
+		for i := range fakeAgents {
+			fa := &fakeAgents[i]
+			if fa.name != name {
+				continue
+			}
+			if fa.config != nil {
+				cfg := *fa.config
+				detail.Config = &cfg
+			}
+			detail.MemoryFacts = fa.memFacts
+			detail.MemoryObservations = fa.memObs
+			break
 		}
 		return detail, nil
 	}

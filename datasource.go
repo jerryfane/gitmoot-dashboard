@@ -110,6 +110,9 @@ type AgentSummary struct {
 	Capabilities   []string `json:"capabilities,omitempty"`
 	AutonomyPolicy string   `json:"autonomyPolicy,omitempty"`
 	Health         string   `json:"health,omitempty"`
+	// MemoryEnabled is true when the agent's [agents.<name>] config section turns
+	// the memory feature on; the Agents page renders a small "memory" chip for it.
+	MemoryEnabled bool `json:"memoryEnabled,omitempty"`
 	// Ephemeral is true only for the synthetic ephemeral-workers rollup row.
 	Ephemeral      bool  `json:"ephemeral,omitempty"`
 	JobCount       int   `json:"jobCount"`
@@ -152,6 +155,23 @@ type AgentTemplateInfo struct {
 	Content string `json:"content,omitempty"`
 }
 
+// AgentConfigInfo holds the agent's [agents.<name>] config-section values as
+// resolved at config parse time (parse-time defaults included, so a field can be
+// populated even when the section did not set it explicitly). These are
+// configured knobs, not live runtime state: the pool knobs (MaxBackground,
+// IdleTimeout, JobTimeout) only take effect for the managed instances / temp
+// workers gitmoot spins up for this agent, so they do not describe a one-off
+// foreground invocation.
+type AgentConfigInfo struct {
+	Memory        bool     `json:"memory"`
+	MaxBackground int      `json:"maxBackground,omitempty"`
+	IdleTimeout   string   `json:"idleTimeout,omitempty"`
+	JobTimeout    string   `json:"jobTimeout,omitempty"`
+	Model         string   `json:"model,omitempty"`
+	Template      string   `json:"template,omitempty"`
+	Capabilities  []string `json:"capabilities,omitempty"`
+}
+
 // AgentDetail is the Agents page's click-through detail: the summary plus the
 // agent's template and its version history (newest first). Template is nil for
 // agents with no template.
@@ -159,6 +179,14 @@ type AgentDetail struct {
 	AgentSummary
 	Template *AgentTemplateInfo    `json:"template,omitempty"`
 	Versions []TemplateVersionInfo `json:"versions"`
+	// Config is the agent's [agents.<name>] config section, or nil when the agent
+	// has no such section.
+	Config *AgentConfigInfo `json:"config,omitempty"`
+	// MemoryFacts is the count of confirmed_memories rows owned by this agent
+	// (across all owner versions).
+	MemoryFacts int `json:"memoryFacts"`
+	// MemoryObservations is the count of memory_observations rows owned by this agent.
+	MemoryObservations int `json:"memoryObservations"`
 }
 
 // GraphNode is a node in the whole-history "galaxy" graph. Type is "job" (a real
