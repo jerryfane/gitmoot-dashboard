@@ -71,6 +71,11 @@
       <span style="flex:1">Health</span>
       <span style="{{ healthNavDotStyle }}"></span>
     </div>
+    <div onClick="{{ showLearning }}" title="SkillOpt evolution + the memory brain graph" style="{{ learningNavStyle }}">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M12 3l8 4.5-8 4.5-8-4.5L12 3z"/><path d="M4 12l8 4.5 8-4.5"/><path d="M4 16.5l8 4.5 8-4.5"/></svg>
+      <span style="flex:1">Learning</span>
+      <span style="{{ learningNavDotStyle }}"></span>
+    </div>
 
     <div style="margin-top:auto;padding:10px;border-top:1px solid rgba(160,168,220,0.08);display:flex;align-items:center;gap:8px">
       <span style="width:6px;height:6px;border-radius:50%;background:#9ece6a"></span>
@@ -237,6 +242,10 @@
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M3 12h4l2-6 4 12 2-6h6"/></svg>
       <span style="{{ tabLabelStyle }}">Health</span>
     </div>
+    <div onClick="{{ showLearning }}" title="Learning" style="{{ tabLearningStyle }}">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M12 3l8 4.5-8 4.5-8-4.5L12 3z"/><path d="M4 12l8 4.5 8-4.5"/><path d="M4 16.5l8 4.5 8-4.5"/></svg>
+      <span style="{{ tabLabelStyle }}">Learn</span>
+    </div>
   </nav>
 </div>
 </x-dc>
@@ -257,18 +266,19 @@ class Component extends DCLogic {
       this.state.view = r.view;
       if (r.view === 'jobs' && r.agent) this._jobsFacetAgent = r.agent;
       if (r.view === 'agents' && r.agent) this._pendingAgentDetail = r.agent;
+      if (r.view === 'learning') this._learningTab = r.tab || 'skills';
       // Normalize unknown paths to '/' (graph). Also tidy a non-canonical known
       // path (e.g. a trailing slash). Never rewrite a graph URL, so a
       // '/?run=<id>' deep-link survives to connectLive().
       if (r.unknown) {
         try { history.replaceState(null, '', '/'); } catch (e) {}
       } else if (r.view !== 'graph') {
-        const canon = this._routeUrl(r.view, { agent: r.agent });
+        const canon = this._routeUrl(r.view, { agent: r.agent, tab: r.tab });
         if ((location.pathname + location.search) !== canon) {
           try { history.replaceState(null, '', canon); } catch (e) {}
         }
       }
-      try { document.title = this._routeTitle(r.view, { agent: r.agent }); } catch (e) {}
+      try { document.title = this._routeTitle(r.view, { agent: r.agent, tab: r.tab }); } catch (e) {}
     } catch (e) {}
   }
 
@@ -283,6 +293,10 @@ class Component extends DCLogic {
     if (p === '/galaxy') return { view: 'galaxy' };
     if (p === '/charts') return { view: 'charts' };
     if (p === '/health') return { view: 'health' };
+    // /learning normalizes to /learning/skills (constructor/_onPopState canonicalize).
+    if (p === '/learning') return { view: 'learning', tab: 'skills' };
+    if (p === '/learning/skills') return { view: 'learning', tab: 'skills' };
+    if (p === '/learning/knowledge') return { view: 'learning', tab: 'knowledge' };
     if (p === '/jobs') { const a = this._routeQueryAgent(search); return a ? { view: 'jobs', agent: a } : { view: 'jobs' }; }
     if (p === '/agents') return { view: 'agents' };
     if (p.indexOf('/agents/') === 0) {
@@ -317,6 +331,7 @@ class Component extends DCLogic {
       case 'agents': return opts.agent ? '/agents/' + encodeURIComponent(opts.agent) : '/agents';
       case 'charts': return '/charts';
       case 'health': return '/health';
+      case 'learning': return '/learning/' + (opts.tab === 'knowledge' ? 'knowledge' : 'skills');
       default: {
         // graph: keep a '?run=<id>' deep-link if the URL already carries one, so
         // selecting a run (which replaceState's ?run) survives a Graph-tab click.
@@ -337,6 +352,7 @@ class Component extends DCLogic {
       case 'agents': return opts.agent ? 'gitmoot · agents · ' + opts.agent : 'gitmoot · agents';
       case 'charts': return 'gitmoot · charts';
       case 'health': return 'gitmoot · health';
+      case 'learning': return 'gitmoot · learning · ' + (opts.tab === 'knowledge' ? 'knowledge' : 'skills');
       default:       return 'gitmoot · graph';
     }
   }
@@ -363,8 +379,17 @@ class Component extends DCLogic {
     try { r = this._parseRoute(location.pathname, location.search); } catch (e) { r = { view: 'graph' }; }
     this._routing = true;
     try {
-      try { document.title = this._routeTitle(r.view, { agent: r.agent }); } catch (e) {}
-      if (r.view === 'agents') {
+      try { document.title = this._routeTitle(r.view, { agent: r.agent, tab: r.tab }); } catch (e) {}
+      if (r.view === 'learning') {
+        const tab = r.tab || 'skills';
+        if (this._learningRoot) {
+          // learning already mounted: switch sub-tab in place (view unchanged =>
+          // no setState re-render, so drive the tab side-effects directly).
+          if (this._learningTab !== tab) { this._learningTab = tab; this._applyLearningTab(); }
+        } else {
+          this._learningTab = tab; // applyView opens the right tab after it mounts.
+        }
+      } else if (r.view === 'agents') {
         if (this._agentsRoot) {
           // agents view already mounted (possibly hidden): open/close in place.
           if (r.agent) { if (this._agentsSelected !== r.agent) this.openAgentsDetail(r.agent); }
@@ -461,6 +486,11 @@ class Component extends DCLogic {
             const gr = this._galaxyGraphEl.getBoundingClientRect();
             this._galaxyGraph.width(gr.width).height(gr.height);
           }
+          // Learning/Knowledge: the second force-graph re-fits to the post-dock width.
+          if (this.state.view === 'learning' && this._learningTab === 'knowledge' && this._knowGraph && this._knowGraphEl) {
+            const kr = this._knowGraphEl.getBoundingClientRect();
+            this._knowGraph.width(kr.width).height(kr.height);
+          }
         };
         if (this.state.isMobile !== m) this.setState({ isMobile: m }, after);
         else after();
@@ -490,6 +520,8 @@ class Component extends DCLogic {
     this.stopAgentsPoll();
     this.stopChartsPoll();
     this.stopHealthPoll();
+    this.stopSkillsPoll();
+    this.stopKnowledgePoll();
     try { if (this._es) this._es.close(); } catch (e) {}
     window.removeEventListener('resize', this.onResize);
     try { window.removeEventListener('popstate', this._onPopState); } catch (e) {}
@@ -500,11 +532,14 @@ class Component extends DCLogic {
     try { document.removeEventListener('keydown', this._jobsKeydown); } catch (e) {}
     try { document.removeEventListener('keydown', this._agentsKeydown); } catch (e) {}
     try { document.removeEventListener('keydown', this._healthKeydown); } catch (e) {}
+    try { document.removeEventListener('keydown', this._learningKeydown); } catch (e) {}
+    try { window.removeEventListener('resize', this._knowResize); } catch (e) {}
     try { if (this._galaxyRoot) this._galaxyRoot.remove(); } catch (e) {}
     try { if (this._jobsRoot) this._jobsRoot.remove(); } catch (e) {}
     try { if (this._agentsRoot) this._agentsRoot.remove(); } catch (e) {}
     try { if (this._chartsRoot) this._chartsRoot.remove(); } catch (e) {}
     try { if (this._healthRoot) this._healthRoot.remove(); } catch (e) {}
+    try { if (this._learningRoot) this._learningRoot.remove(); } catch (e) {}
   }
 
   // ============================================================
@@ -576,6 +611,17 @@ class Component extends DCLogic {
     } else {
       this.stopHealthPoll();
       if (this._healthRoot) this._healthRoot.style.display = 'none';
+    }
+    // Learning overlay (Skills + Knowledge sub-tabs; a second force-graph lives inside).
+    if (v === 'learning') {
+      const root = this.ensureLearningDom();
+      root.style.display = 'flex';
+      this._applyLearningTab();
+    } else {
+      this.stopSkillsPoll();
+      this.stopKnowledgePoll();
+      try { if (this._knowGraph && this._knowGraph.pauseAnimation) this._knowGraph.pauseAnimation(); } catch (e) {}
+      if (this._learningRoot) this._learningRoot.style.display = 'none';
     }
   }
 
@@ -1450,6 +1496,7 @@ class Component extends DCLogic {
   showAgents = () => { this.setState({ view: 'agents' }); this._navRoute('agents', { agent: this._agentsSelected || undefined }); };
   showCharts = () => { this.setState({ view: 'charts' }); this._navRoute('charts'); };
   showHealth = () => { this.setState({ view: 'health' }); this._navRoute('health'); };
+  showLearning = () => { this.setState({ view: 'learning' }); this._navRoute('learning', { tab: this._learningTab || 'skills' }); };
 
   startJobsPoll() {
     if (this._jobsPoll) return;
@@ -2071,11 +2118,12 @@ class Component extends DCLogic {
   }
 
   // ---- Agent detail panel ----
-  // Version-history state colors: promoted (green), canary (blue), pending (amber),
-  // rejected/unknown (grey). Mirrors the Jobs detail's state palette.
+  // Version-history state colors: current (green; the store emits 'current' for the
+  // live version — 'promoted' kept as a defensive alias), canary (blue), pending
+  // (amber), superseded/rejected/unknown (grey). Mirrors the Jobs detail's palette.
   _versionStateColor(s) {
     s = String(s == null ? '' : s).toLowerCase();
-    if (s === 'promoted') return '#9ece6a';
+    if (s === 'current' || s === 'promoted') return '#9ece6a';
     if (s === 'canary') return '#7aa2f7';
     if (s === 'pending') return '#e0af68';
     return '#5a6088';
@@ -3119,6 +3167,754 @@ class Component extends DCLogic {
     return parts.join('');
   }
 
+  // ============================================================
+  // Learning page. Body-appended, position:fixed overlay (same pattern as
+  // galaxy/jobs/agents/charts/health). Two sub-tabs, each polled every 12s with
+  // a change-signature skip:
+  //   Skills    -> /api/learning/skills    : the SkillOpt evolution table.
+  //   Knowledge -> /api/learning/knowledge : a SECOND force-graph instance (the
+  //                galaxy overlay is untouched) of the memory brain — enrolled
+  //                agents, their facts and owner/category/supersede edges, with
+  //                the proven custom screen-space hit-testing + pinned float.
+  // ============================================================
+  startSkillsPoll() {
+    if (this._skillsPoll) return;
+    this._skillsPoll = setInterval(() => {
+      if (this.state.view !== 'learning' || this._learningTab !== 'skills') return;
+      this.fetchSkills(true);
+    }, 12000);
+  }
+  stopSkillsPoll() { try { clearInterval(this._skillsPoll); } catch (e) {} this._skillsPoll = null; }
+  startKnowledgePoll() {
+    if (this._knowPoll) return;
+    this._knowPoll = setInterval(() => {
+      if (this.state.view !== 'learning' || this._learningTab !== 'knowledge' || !this._knowGraph) return;
+      this.fetchKnowledge(true);
+    }, 12000);
+  }
+  stopKnowledgePoll() { try { clearInterval(this._knowPoll); } catch (e) {} this._knowPoll = null; }
+
+  // Switch the active sub-tab. A tab switch is a pushState (URL changes
+  // /learning/skills <-> /learning/knowledge) so back/forward crosses it.
+  switchLearningTab(tab) {
+    if (tab !== 'skills' && tab !== 'knowledge') return;
+    if (this._learningTab === tab) return;
+    this._learningTab = tab;
+    this._navRoute('learning', { tab: tab }); // pushState
+    this._applyLearningTab();
+  }
+  // Apply the current sub-tab: toggle the chips + container visibility, and start
+  // exactly the visible tab's poll (stopping the other). Called by applyView on
+  // entry, switchLearningTab on a tab click, and _onPopState on back/forward.
+  _applyLearningTab() {
+    if (!this._learningRoot) return;
+    const tab = this._learningTab || 'skills';
+    const root = this._learningRoot;
+    root.querySelectorAll('.lr-chip').forEach(b => b.classList.toggle('on', b.getAttribute('data-tab') === tab));
+    const skEl = root.querySelector('#lr-skills');
+    const knEl = root.querySelector('#lr-knowledge');
+    if (skEl) skEl.style.display = tab === 'skills' ? 'block' : 'none';
+    if (knEl) knEl.style.display = tab === 'knowledge' ? 'block' : 'none';
+    try { document.title = this._routeTitle('learning', { tab: tab }); } catch (e) {}
+    if (tab === 'skills') {
+      this.stopKnowledgePoll();
+      try { if (this._knowGraph && this._knowGraph.pauseAnimation) this._knowGraph.pauseAnimation(); } catch (e) {}
+      this.startSkillsPoll();
+      this.fetchSkills(false);
+    } else {
+      this.stopSkillsPoll();
+      try { if (this._knowGraph && this._knowGraph.resumeAnimation) this._knowGraph.resumeAnimation(); } catch (e) {}
+      this.initKnowledgeGraph();
+      this.startKnowledgePoll();
+    }
+  }
+
+  ensureLearningDom() {
+    if (this._learningRoot) return this._learningRoot;
+    const st = document.createElement('style');
+    st.textContent = [
+      "#learning-root{font-family:Inter,system-ui,sans-serif;color:#c8cce6;flex-direction:column}",
+      "#learning-root .lr-head{display:flex;align-items:center;gap:16px;padding:18px 24px 14px;flex:none;flex-wrap:wrap}",
+      "#learning-root .lr-title{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:20px;color:#eef0ff;letter-spacing:-0.02em}",
+      "#learning-root .lr-title .lr-tdot{color:#bb9af7;margin-left:1px}",
+      "#learning-root .lr-switch{display:flex;gap:4px;background:#0f1120;border:1px solid rgba(160,168,220,0.12);border-radius:9px;padding:3px}",
+      "#learning-root .lr-chip{background:none;border:none;color:#868db5;font-family:'JetBrains Mono',monospace;font-size:11.5px;padding:5px 14px;border-radius:7px;cursor:pointer}",
+      "#learning-root .lr-chip:hover{color:#c8cce6}",
+      "#learning-root .lr-chip.on{background:rgba(158,206,106,0.14);color:#c5f882}",
+      "#learning-root .lr-body{flex:1;position:relative;min-height:0}",
+      "#learning-root #lr-skills{position:absolute;inset:0;overflow-y:auto}",
+      "#learning-root #lr-knowledge{position:absolute;inset:0;background:#080a14}",
+      "#learning-root .lr-stats{display:flex;gap:22px;align-items:center;padding:0 24px 16px;font-family:'JetBrains Mono',monospace;font-size:12px;color:#7f86ad;flex-wrap:wrap}",
+      "#learning-root .lr-stat b{color:#eef0ff;font-weight:600;font-size:15px;margin-right:5px}",
+      "#learning-root .lr-stat b.cn{color:#7aa2f7}",
+      "#learning-root .lr-stat b.pd{color:#e0af68}",
+      "#learning-root .lr-tablewrap{padding:0 24px 30px}",
+      "#learning-root .lr-table{width:100%;table-layout:fixed;border-collapse:collapse;font-size:13px}",
+      "#learning-root .lr-table th:nth-child(2){width:180px}",
+      "#learning-root .lr-table th:nth-child(3){width:240px}",
+      "#learning-root .lr-table th:nth-child(4){width:130px}",
+      "#learning-root .lr-table thead th{text-align:left;padding:9px 12px;font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:0.1em;color:#5a6088;font-weight:600;border-bottom:1px solid rgba(160,168,220,0.1);white-space:nowrap}",
+      "#learning-root .lr-table tbody tr.lr-row{border-bottom:1px solid rgba(160,168,220,0.05)}",
+      "#learning-root .lr-table tbody tr.lr-row[data-agent]{cursor:pointer}",
+      "#learning-root .lr-table tbody tr.lr-row[data-agent]:hover{background:rgba(160,168,220,0.04)}",
+      "#learning-root .lr-table td{padding:11px 12px;vertical-align:middle;color:#a8aecf;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
+      "#learning-root .lr-tname{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:14px;color:#eef0ff;overflow:hidden;text-overflow:ellipsis}",
+      "#learning-root .lr-tagents{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#5a6088;margin-top:2px;overflow:hidden;text-overflow:ellipsis}",
+      "#learning-root .lr-sparkwrap{display:flex;align-items:center;gap:8px}",
+      "#learning-root .lr-spark{flex:none}",
+      "#learning-root .lr-sparkval{font-family:'JetBrains Mono',monospace;font-size:12px;color:#9ece6a;font-weight:600}",
+      "#learning-root .lr-nosl{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#5a6088}",
+      "#learning-root .lr-live{display:inline-flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:10.5px;font-weight:600;padding:4px 9px;border-radius:7px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
+      "#learning-root .lr-live.current{color:#9ece6a;background:rgba(158,206,106,0.1);border:1px solid rgba(158,206,106,0.26)}",
+      "#learning-root .lr-live.canary{color:#7aa2f7;background:rgba(122,162,247,0.12);border:1px solid rgba(122,162,247,0.3)}",
+      "#learning-root .lr-needs-btn{display:inline-flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;padding:4px 9px;border-radius:7px;border:1px solid rgba(224,175,104,0.3);background:rgba(224,175,104,0.1);color:#e0af68;cursor:pointer}",
+      "#learning-root .lr-needs-btn .chev{color:#e0af68}",
+      "#learning-root .lr-needs-none{font-family:'JetBrains Mono',monospace;font-size:11px;color:#5a6088}",
+      "#learning-root tr.lr-exp>td{padding:0 12px 12px;background:rgba(10,11,22,0.4)}",
+      "#learning-root .lr-cand{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:11px 12px;border:1px solid rgba(224,175,104,0.18);border-radius:9px;margin-top:10px;background:rgba(224,175,104,0.04)}",
+      "#learning-root .lr-cand .cv{font-family:'JetBrains Mono',monospace;font-size:12px;color:#e0af68;font-weight:600}",
+      "#learning-root .lr-cand .cs{font-family:'JetBrains Mono',monospace;font-size:11px;color:#a8aecf}",
+      "#learning-root .lr-cand .ca{font-family:'JetBrains Mono',monospace;font-size:10px;color:#5a6088}",
+      "#learning-root .lr-cmd{display:flex;align-items:center;gap:8px;margin-left:auto;flex-wrap:wrap}",
+      "#learning-root .lr-cmd code{font-family:'JetBrains Mono',monospace;font-size:11px;color:#c7c9e5;background:#0a0b16;border:1px solid rgba(160,168,220,0.14);border-radius:7px;padding:6px 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:340px}",
+      "#learning-root .lr-copy{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#7aa2f7;background:rgba(122,162,247,0.1);border:1px solid rgba(122,162,247,0.28);border-radius:7px;padding:6px 11px;cursor:pointer}",
+      "#learning-root .lr-copy.done{color:#9ece6a;border-color:rgba(158,206,106,0.4);background:rgba(158,206,106,0.12)}",
+      "#learning-root .lr-empty-tbl{padding:60px 20px;text-align:center;color:#5a6088;font-size:13px}",
+      "#learning-root #lr-know-graph{position:absolute;inset:0}",
+      "#learning-root .lr-kchip{position:absolute;z-index:10;background:rgba(14,16,30,.72);border:1px solid rgba(187,154,247,.2);border-radius:12px;backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px);box-shadow:0 6px 30px rgba(0,0,0,.55)}",
+      "#learning-root #lr-know-count{top:16px;left:16px;padding:9px 13px;font-family:'JetBrains Mono',monospace;font-size:11px;color:#c8cce6}",
+      "#learning-root #lr-know-count b{color:#bb9af7;font-weight:500}",
+      "#learning-root #lr-know-legend{bottom:16px;left:16px;padding:12px 14px;max-width:230px}",
+      "#learning-root #lr-know-legend .h{font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:1.2px;color:#7f86ad;margin-bottom:7px}",
+      "#learning-root #lr-know-legend .row{display:flex;align-items:center;gap:8px;font-size:12px;line-height:1.85;color:#c8cce6}",
+      "#learning-root #lr-know-legend .sw{width:11px;height:11px;border-radius:50%;flex:0 0 auto;box-shadow:0 0 8px 1px currentColor}",
+      "#learning-root #lr-know-loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:20;font-family:'JetBrains Mono',monospace;font-size:13px;color:#7f86ad;pointer-events:none;transition:opacity .5s}",
+      "#learning-root #lr-know-loading.hidden{opacity:0}",
+      "#learning-root #lr-empty{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);z-index:15;text-align:center;padding:0 40px;font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.7;color:#7f86ad;pointer-events:none}",
+      "#learning-root #lr-empty b{color:#bb9af7;font-weight:500}",
+      "#learning-root .lr-detail{position:absolute;right:0;top:0;bottom:0;width:360px;z-index:30;background:rgba(15,17,32,0.92);border-left:1px solid rgba(160,168,220,0.14);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:-30px 0 60px rgba(0,0,0,0.5);display:flex;flex-direction:column;animation:panelin .28s cubic-bezier(.2,.8,.2,1)}",
+      "#learning-root .lr-dhead{padding:18px 20px 14px;border-bottom:1px solid rgba(160,168,220,0.08)}",
+      "#learning-root .lr-drow{display:flex;align-items:flex-start;gap:10px}",
+      "#learning-root .lr-ddot{width:11px;height:11px;border-radius:50%;flex:none;margin-top:4px}",
+      "#learning-root .lr-dtitle{font-size:15px;font-weight:600;color:#eef0ff;font-family:Inter;line-height:1.3;word-break:break-word}",
+      "#learning-root .lr-dsub{font-family:'JetBrains Mono',monospace;font-size:11px;color:#868db5;margin-top:3px;word-break:break-word}",
+      "#learning-root .lr-dclose{width:26px;height:26px;flex:none;background:rgba(160,168,220,0.08);border:1px solid rgba(160,168,220,0.12);border-radius:7px;color:#868db5;font-size:14px;cursor:pointer;line-height:1}",
+      "#learning-root .lr-dbadges{display:flex;gap:8px;margin-top:13px;flex-wrap:wrap}",
+      "#learning-root .lr-dbadge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:7px;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600}",
+      "#learning-root .lr-dbadge.mut{color:#868db5;background:rgba(160,168,220,0.06);border:1px solid rgba(160,168,220,0.1);font-weight:400}",
+      "#learning-root .lr-dbody{flex:1;overflow-y:auto;padding:16px 20px 24px}",
+      "#learning-root .lr-dblock{background:#0a0b16;border:1px solid rgba(160,168,220,0.1);border-radius:9px;padding:12px 13px;font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.6;color:#c7c9e5;white-space:pre-wrap;word-break:break-word;margin-bottom:18px}",
+      "#learning-root .lr-dgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:18px}",
+      "#learning-root .lr-dcell{background:rgba(10,11,22,0.6);border:1px solid rgba(160,168,220,0.08);border-radius:9px;padding:10px 11px}",
+      "#learning-root .lr-dk{font-size:10px;color:#5a6088;letter-spacing:0.04em;text-transform:uppercase}",
+      "#learning-root .lr-dv{font-family:'JetBrains Mono',monospace;font-size:13px;color:#a8aecf;margin-top:4px;word-break:break-word}",
+      "#learning-root .lr-dv.hi{color:#eef0ff}",
+      "#learning-root .lr-dsec{font-size:10.5px;color:#5a6088;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:10px}",
+      "#learning-root .lr-dlink{display:flex;align-items:center;gap:10px;padding:11px 14px;background:rgba(187,154,247,0.1);border:1px solid rgba(187,154,247,0.26);border-radius:10px;color:#d7c4ff;text-decoration:none;font-size:13px;font-weight:500;cursor:pointer}",
+      "@media (max-width:768px){#learning-root .lr-head{padding-left:16px;padding-right:16px}#learning-root .lr-stats{padding-left:16px;padding-right:16px;gap:16px}#learning-root .lr-tablewrap{padding-left:14px;padding-right:14px}#learning-root .lr-table,#learning-root .lr-table tbody{display:block}#learning-root .lr-table thead{display:none}#learning-root .lr-table tr.lr-row{display:block;background:#0d0f1c;border:1px solid rgba(160,168,220,0.1);border-radius:11px;padding:11px 13px;margin-bottom:8px}#learning-root .lr-table tr.lr-row td{display:block;width:auto;padding:5px 0;border:none;white-space:normal;overflow:visible;text-overflow:clip}#learning-root .lr-table tr.lr-row td .lr-live{max-width:none;white-space:normal}#learning-root .lr-table tr.lr-exp{display:block}#learning-root .lr-table tr.lr-exp[hidden]{display:none}#learning-root .lr-table tr.lr-exp>td{display:block;padding:0 0 11px}#learning-root .lr-detail{width:100%;left:0;border-left:none}#learning-root .lr-cmd code{max-width:180px}}",
+      "@media (pointer:coarse){#learning-root .lr-dclose{width:44px;height:44px;font-size:17px}}"
+    ].join('\n');
+    document.head.appendChild(st);
+
+    const root = document.createElement('div');
+    root.id = 'learning-root';
+    root.style.cssText = 'position:fixed;left:216px;top:0;right:0;bottom:0;z-index:40;background:#07080f;display:none';
+    root.innerHTML = [
+      '<div class="lr-head">',
+      '  <div class="lr-title">Learning<span class="lr-tdot">.</span></div>',
+      '  <div class="lr-switch" id="lr-switch">',
+      '    <button class="lr-chip" data-tab="skills">Skills</button>',
+      '    <button class="lr-chip" data-tab="knowledge">Knowledge</button>',
+      '  </div>',
+      '</div>',
+      '<div class="lr-body">',
+      '  <div id="lr-skills">',
+      '    <div class="lr-stats" id="lr-stats"></div>',
+      '    <div class="lr-tablewrap" id="lr-skills-body"></div>',
+      '  </div>',
+      '  <div id="lr-knowledge" style="display:none">',
+      '    <div id="lr-know-graph"></div>',
+      '    <div id="lr-know-loading">summoning the brain…</div>',
+      '    <div id="lr-know-count" class="lr-kchip">showing <b id="lr-kAgents">0</b> agents / <b id="lr-kFacts">0</b> facts</div>',
+      '    <div id="lr-know-legend" class="lr-kchip">',
+      '      <div class="h">nodes</div>',
+      '      <div class="row"><span class="sw" style="color:#bb9af7;background:#bb9af7"></span>agent</div>',
+      '      <div class="row"><span class="sw" style="color:#7dcfff;background:#7dcfff"></span>repo fact</div>',
+      '      <div class="row"><span class="sw" style="color:#e0af68;background:#e0af68"></span>general fact</div>',
+      '      <div class="row"><span class="sw" style="color:#5a6088;background:#5a6088"></span>superseded</div>',
+      '    </div>',
+      '    <div id="lr-empty" style="display:none"></div>',
+      '  </div>',
+      '</div>'
+    ].join('\n');
+    document.body.appendChild(root);
+    this._dockOverlay(root); // mobile: left:0 + bottom clears the tab bar
+    this._learningRoot = root;
+    this._knowGraphEl = root.querySelector('#lr-know-graph');
+
+    root.querySelector('#lr-switch').addEventListener('click', (e) => {
+      const b = (e.target.closest && e.target.closest('.lr-chip')) || null;
+      if (b) this.switchLearningTab(b.getAttribute('data-tab'));
+    });
+    // Skills table delegation: copy button > needs expander > row-nav-to-agent.
+    const sbody = root.querySelector('#lr-skills-body');
+    sbody.addEventListener('click', (e) => {
+      const copy = (e.target.closest && e.target.closest('.lr-copy')) || null;
+      if (copy) { e.stopPropagation(); this._copySkillCmd(copy); return; }
+      const needs = (e.target.closest && e.target.closest('.lr-needs-btn')) || null;
+      if (needs) { e.stopPropagation(); this._toggleSkillExpand(needs); return; }
+      const row = (e.target.closest && e.target.closest('tr.lr-row')) || null;
+      if (row && row.getAttribute('data-agent')) this._learningGotoAgent(row.getAttribute('data-agent'));
+    });
+    // Knowledge: escape closes the node-detail panel; resize re-fits the graph.
+    this._learningKeydown = (e) => { if (e.key === 'Escape' && this.state.view === 'learning' && this._learningTab === 'knowledge' && this._knowSelected) this.closeKnowledgeDetail(); };
+    document.addEventListener('keydown', this._learningKeydown);
+    this._knowResize = () => {
+      if (this.state.view !== 'learning' || this._learningTab !== 'knowledge' || !this._knowGraph) return;
+      const r = this._knowGraphEl.getBoundingClientRect();
+      this._knowGraph.width(r.width).height(r.height);
+    };
+    window.addEventListener('resize', this._knowResize);
+    return root;
+  }
+
+  // ---- Skills tab ------------------------------------------------------------
+  fetchSkills(isPoll) {
+    fetch('/api/learning/skills', { cache: 'no-store' })
+      .then(r => r.ok ? r.text() : Promise.reject(new Error('HTTP ' + r.status)))
+      .then(txt => {
+        if (isPoll && this._skillsSig === txt) return; // unchanged — skip the re-render
+        this._skillsSig = txt;
+        let json = null; try { json = JSON.parse(txt); } catch (e) { json = null; }
+        this._skillsData = json || { templates: [], activeCanaries: 0, pendingTotal: 0 };
+        this._skillsLoaded = true;
+        this.renderSkills();
+      })
+      .catch(err => {
+        if (isPoll) return; // keep the current table on a transient poll failure
+        this._skillsLoaded = true;
+        const body = this._learningRoot && this._learningRoot.querySelector('#lr-skills-body');
+        if (body) body.innerHTML = '<div class="lr-empty-tbl" style="color:#f7768e">could not load /api/learning/skills (' + this._galaxyEsc(err && err.message) + ')</div>';
+      });
+  }
+
+  renderSkills() {
+    if (!this._learningRoot) return;
+    const data = this._skillsData || { templates: [], activeCanaries: 0, pendingTotal: 0 };
+    const tpls = Array.isArray(data.templates) ? data.templates : [];
+    const nc = data.activeCanaries || 0, np = data.pendingTotal || 0;
+    const stats = this._learningRoot.querySelector('#lr-stats');
+    if (stats) {
+      stats.innerHTML =
+        '<span class="lr-stat"><b>' + tpls.length + '</b>template' + (tpls.length === 1 ? '' : 's') + '</span>' +
+        '<span class="lr-stat"><b class="cn">' + nc + '</b>canar' + (nc === 1 ? 'y' : 'ies') + '</span>' +
+        '<span class="lr-stat"><b class="pd">' + np + '</b>pending</span>';
+    }
+    const body = this._learningRoot.querySelector('#lr-skills-body');
+    if (!body) return;
+    if (!tpls.length) { body.innerHTML = '<div class="lr-empty-tbl">' + (this._skillsLoaded ? 'no templates tracked yet' : 'loading…') + '</div>'; return; }
+    const rows = tpls.map((t, i) => this._skillRowHtml(t, i)).join('');
+    body.innerHTML = '<table class="lr-table"><thead><tr><th>template</th><th>score trend</th><th>live now</th><th>needs you</th></tr></thead><tbody>' + rows + '</tbody></table>';
+  }
+
+  // Inline SVG sparkline (~110x24) of a template's SCORED versions in Number
+  // order, with the last (newest) value printed. A flat run centers; a single
+  // point shows just the dot. Only versions with hasScore are plotted.
+  _skillSparkline(versions) {
+    const esc = (s) => this._galaxyEsc(s);
+    const scored = (Array.isArray(versions) ? versions : []).filter(v => v && v.hasScore).slice().sort((a, b) => (a.number || 0) - (b.number || 0));
+    if (!scored.length) return '<span class="lr-nosl">no scores yet</span>';
+    const W = 110, H = 24, pad = 3, n = scored.length;
+    const vals = scored.map(v => v.score || 0);
+    const min = Math.min.apply(null, vals), max = Math.max.apply(null, vals);
+    const flat = (max === min), span = flat ? 1 : (max - min);
+    const x = (i) => n === 1 ? W / 2 : (pad + i * (W - 2 * pad) / (n - 1));
+    const y = (v) => flat ? H / 2 : (H - pad - ((v - min) / span) * (H - 2 * pad));
+    let svg = '<svg class="lr-spark" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '">';
+    if (n > 1) {
+      const pts = scored.map((v, i) => x(i).toFixed(1) + ',' + y(v.score || 0).toFixed(1)).join(' ');
+      svg += '<polyline points="' + pts + '" fill="none" stroke="#9ece6a" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>';
+    }
+    const last = scored[n - 1];
+    svg += '<circle cx="' + x(n - 1).toFixed(1) + '" cy="' + y(last.score || 0).toFixed(1) + '" r="2.4" fill="#c5f882"/>';
+    svg += '</svg>';
+    const lastStr = (last.score != null) ? (last.score).toFixed(2) : '';
+    return '<div class="lr-sparkwrap">' + svg + '<span class="lr-sparkval">' + esc(lastStr) + '</span></div>';
+  }
+
+  // LIVE NOW chip. An in-flight canary (canarySample > 0) tints blue and shows
+  // the canary version + sample% + elapsed-since-start; otherwise the current
+  // (live) version + age since it was promoted.
+  _skillLiveHtml(t) {
+    const esc = (s) => this._galaxyEsc(s);
+    if ((t.canarySample || 0) > 0) {
+      let cv = t.currentVersion || 0;
+      (t.versions || []).forEach(v => { if (String(v.state || '').toLowerCase() === 'canary') cv = v.number; });
+      const pct = Math.round((t.canarySample || 0) * 100);
+      const el = t.canaryStartedAt ? this._relFromMs(t.canaryStartedAt) : '—';
+      return '<span class="lr-live canary" title="canary sampling ' + pct + '%">CANARY v' + esc(cv) + ' · ' + pct + '% · ' + esc(el) + '</span>';
+    }
+    const age = t.lastPromotedAt ? this._relFromMs(t.lastPromotedAt) : '—';
+    return '<span class="lr-live current" title="' + esc(t.currentState || 'current') + '">current v' + esc(t.currentVersion || '?') + ' · ' + esc(age) + '</span>';
+  }
+
+  _skillRowHtml(t, i) {
+    const esc = (s) => this._galaxyEsc(s);
+    const agents = Array.isArray(t.agents) ? t.agents : [];
+    const firstAgent = agents.length ? agents[0] : '';
+    const pending = Array.isArray(t.pending) ? t.pending : [];
+    const np = pending.length;
+    const set = this._skillsExpanded || {};
+    const expanded = !!set[t.templateId];
+    const needsCell = np > 0
+      ? '<button class="lr-needs-btn' + (expanded ? ' open' : '') + '">' + np + ' pending <span class="chev">' + (expanded ? '▾' : '▸') + '</span></button>'
+      : '<span class="lr-needs-none">—</span>';
+    const rowAttr = firstAgent ? ' data-agent="' + esc(firstAgent) + '" title="view ' + esc(firstAgent) + '"' : '';
+    let out = '<tr class="lr-row" data-tpl="' + esc(t.templateId) + '"' + rowAttr + '>' +
+      '<td><div class="lr-tname">' + esc(t.name || t.templateId) + '</div><div class="lr-tagents">' + (agents.length ? esc(agents.join(' · ')) : 'no registered agents') + '</div></td>' +
+      '<td>' + this._skillSparkline(t.versions || []) + '</td>' +
+      '<td>' + this._skillLiveHtml(t) + '</td>' +
+      '<td>' + needsCell + '</td>' +
+    '</tr>';
+    let cand = '';
+    pending.forEach(c => {
+      const cmd = 'gitmoot skillopt promote ' + (c.versionId || '');
+      cand += '<div class="lr-cand">' +
+        '<span class="cv">v' + esc(c.number != null ? c.number : '?') + '</span>' +
+        (c.score ? '<span class="cs">score ' + esc(c.score) + '</span>' : '') +
+        (c.createdAt ? '<span class="ca">' + esc(this._relFromMs(c.createdAt)) + '</span>' : '') +
+        '<span class="lr-cmd"><code>' + esc(cmd) + '</code><button class="lr-copy" data-cmd="' + esc(cmd) + '">copy</button></span>' +
+      '</div>';
+    });
+    out += '<tr class="lr-exp" data-exp="' + i + '"' + (expanded ? '' : ' hidden') + '><td colspan="4">' + cand + '</td></tr>';
+    return out;
+  }
+
+  _toggleSkillExpand(btn) {
+    const row = btn.closest && btn.closest('tr'); if (!row) return;
+    const exp = row.nextElementSibling;
+    if (!exp || !exp.classList.contains('lr-exp')) return;
+    const open = exp.hasAttribute('hidden');
+    if (open) exp.removeAttribute('hidden'); else exp.setAttribute('hidden', '');
+    btn.classList.toggle('open', open);
+    const chev = btn.querySelector('.chev'); if (chev) chev.textContent = open ? '▾' : '▸';
+    const tpl = row.getAttribute('data-tpl');
+    const set = this._skillsExpanded || (this._skillsExpanded = {});
+    if (tpl) set[tpl] = open; // persist across re-renders
+  }
+
+  _copySkillCmd(btn) {
+    const cmd = btn.getAttribute('data-cmd') || '';
+    const flash = () => { btn.classList.add('done'); btn.textContent = 'copied'; setTimeout(() => { btn.classList.remove('done'); btn.textContent = 'copy'; }, 1500); };
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(cmd).then(flash, () => { this._copyFallback(cmd); flash(); });
+      else { this._copyFallback(cmd); flash(); }
+    } catch (e) { this._copyFallback(cmd); flash(); }
+  }
+  _copyFallback(text) {
+    try { const ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.focus(); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); } catch (e) {}
+  }
+
+  // Navigate to /agents/<name> and open that agent's detail panel (the existing
+  // Agents panel carries the version history). Mirrors the deep-link path.
+  _learningGotoAgent(name) {
+    if (!name) return;
+    this._pendingAgentDetail = name; // applyView opens the panel after Agents mounts
+    this.setState({ view: 'agents' });
+    this._navRoute('agents', { agent: name });
+  }
+
+  // ---- Knowledge tab: a SECOND force-graph instance --------------------------
+  _knowColor(n) {
+    if (n.type === 'agent') return '#bb9af7';           // violet wells
+    if (n.type === 'scope') return n.id === 'general' ? '#e0af68' : '#7dcfff';
+    if (n.superseded) return '#5a6088';                 // superseded facts (dim)
+    return n.repo ? '#7dcfff' : '#e0af68';              // repo-scoped teal / general amber
+  }
+  _knowAlpha(n) {
+    if (n.type === 'agent') return (n.facts > 0) ? 0.95 : 0.4; // dim agent well when 0 facts
+    if (n.type === 'scope') return 0.72;
+    return n.superseded ? 0.4 : 0.92;                   // superseded at 40% alpha
+  }
+  _knowRadius(n) {
+    if (n.type === 'agent') return 9;
+    if (n.type === 'scope') return 6.5;
+    return Math.min(7, 2.5 + (n.witnesses || 0) * 0.6); // fact: 2.5 + witnesses*0.6 capped ~7
+  }
+
+  initKnowledgeGraph() {
+    if (this._knowGraph) { // reuse: refit + refetch (poll may have paused during the away)
+      const r = this._knowGraphEl.getBoundingClientRect();
+      this._knowGraph.width(r.width).height(r.height);
+      try { if (this._knowGraph.resumeAnimation) this._knowGraph.resumeAnimation(); } catch (e) {}
+      try { this._knowGraph.zoomToFit(400, 55); } catch (e) {}
+      this.fetchKnowledge(false);
+      return;
+    }
+    if (this._knowBuilding) return; // build-and-wait at most once while the lib downloads
+    this._knowBuilding = true;
+    let tries = 0;
+    const poll = () => {
+      if (this._knowGraph) return;
+      if (typeof window.ForceGraph === 'function') { this.buildKnowledgeGraph(); return; }
+      if (tries++ > 200) { this._knowBuilding = false; const l = this._learningRoot.querySelector('#lr-know-loading'); if (l) l.textContent = 'failed to load graph library'; return; }
+      setTimeout(poll, 50);
+    };
+    poll();
+  }
+
+  buildKnowledgeGraph() {
+    if (this._knowGraph) return; // only ever mount one instance
+    const esc = (s) => this._galaxyEsc(s);
+    const hexToRgb = (h) => { const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(h); return m ? [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)] : [160, 168, 220]; };
+    const rgba = (h, a) => { const c = hexToRgb(h); return 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + a + ')'; };
+    const tooltip = (n) => {
+      if (n.type === 'agent') return '<div class="tt-title">' + esc(n.label) + '</div><div class="tt-row">agent · <b>' + (n.facts || 0) + '</b> facts</div>';
+      if (n.type === 'scope') return '<div class="tt-title">' + esc(n.label) + '</div><div class="tt-row">' + (n.id === 'general' ? 'general scope' : 'repository scope') + '</div>';
+      return '<div class="tt-title">fact</div><div class="tt-row">' + esc(String(n.content || '').slice(0, 120)) + '</div>';
+    };
+    const linkStyle = (kind) => {
+      switch (kind) {
+        case 'owner':     return { color: '#bb9af7', alpha: 0.14, width: 0.5, dash: null };  // dim
+        case 'category':  return { color: '#7dcfff', alpha: 0.3,  width: 0.7, dash: null };  // brighter
+        case 'supersede': return { color: '#f7768e', alpha: 0.5,  width: 0.9, dash: [3, 3] }; // dashed-look
+        default:          return { color: '#a0a8dc', alpha: 0.2,  width: 0.5, dash: null };
+      }
+    };
+    const G = window.ForceGraph()(this._knowGraphEl)
+      .backgroundColor('#080a14')
+      .nodeRelSize(1)
+      .nodeLabel(tooltip)
+      .cooldownTicks(200)
+      .warmupTicks(0)
+      .d3AlphaDecay(0.025)
+      .d3VelocityDecay(0.34)
+      .nodeCanvasObjectMode(() => 'replace')
+      .nodeCanvasObject((n, ctx, scale) => {
+        const sel = this._knowSelected;
+        let dim = 1, hi = false;
+        if (sel) { if (n.id === sel.id || (sel.neighbors && sel.neighbors.has(n.id))) hi = true; else dim = 0.16; }
+        const col = this._knowColor(n);
+        let r = this._knowRadius(n);
+        // pixel-floor radii (graph-units are sub-pixel at fit zoom) so tiny facts stay visible
+        const floor = (n.type === 'agent' ? 4 : n.type === 'scope' ? 3 : 1.8) / scale;
+        if (r < floor) r = floor;
+        const blur = n.type === 'agent' ? 14 : n.type === 'scope' ? 9 : 5;
+        ctx.shadowColor = col; ctx.shadowBlur = blur;
+        ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 2 * Math.PI);
+        ctx.fillStyle = col; ctx.globalAlpha = this._knowAlpha(n) * dim; ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.beginPath(); ctx.arc(n.x, n.y, r * 0.5, 0, 2 * Math.PI);
+        ctx.fillStyle = '#ffffff'; ctx.globalAlpha = 0.4 * this._knowAlpha(n) * dim; ctx.fill();
+        if (hi) { ctx.beginPath(); ctx.arc(n.x, n.y, r + 1.8, 0, 2 * Math.PI); ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.globalAlpha = 0.9; ctx.stroke(); }
+        if (n.type !== 'fact' && scale > 1.3) {
+          ctx.globalAlpha = Math.min(1, (scale - 1.3) / 1.2) * dim;
+          ctx.font = '600 ' + (n.type === 'agent' ? 4.2 : 3.6) + "px 'Space Grotesk',sans-serif";
+          ctx.fillStyle = col; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+          const txt = n.type === 'scope' ? (String(n.label || '').split('/').pop()) : n.label;
+          ctx.fillText(txt || '', n.x, n.y + r + 1.5);
+        }
+        ctx.globalAlpha = 1;
+      })
+      .nodePointerAreaPaint((n, color, ctx) => { ctx.fillStyle = color; ctx.beginPath(); ctx.arc(n.x, n.y, this._knowRadius(n) + 4, 0, 2 * Math.PI); ctx.fill(); })
+      .linkColor(() => 'rgba(0,0,0,0)')
+      .linkCanvasObject((l, ctx, scale) => {
+        const s = l.source, t = l.target;
+        if (!s || !t || s.x == null || t.x == null) return;
+        const stl = linkStyle(l.kind);
+        let alpha = stl.alpha, width = stl.width;
+        const sel = this._knowSelected;
+        if (sel) {
+          const sid = (s.id != null ? s.id : s), tid = (t.id != null ? t.id : t);
+          if (sel.links && sel.links.has(sid + ' ' + tid)) { alpha = Math.min(1, alpha + 0.4); width = width + 0.6 / scale; }
+          else alpha = 0.05;
+        }
+        if (stl.dash) ctx.setLineDash(stl.dash.map(d => d / scale));
+        ctx.strokeStyle = rgba(stl.color, alpha);
+        ctx.lineWidth = Math.max(width, 0.4 / scale);
+        ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(t.x, t.y); ctx.stroke();
+        if (stl.dash) ctx.setLineDash([]);
+      })
+      .onEngineStop(() => {
+        if (this._knowNeedFit && !this._knowFitDone) { this._knowFitDone = true; this._knowNeedFit = false; try { G.zoomToFit(600, 55); } catch (e) {} }
+        // pin every settled node at its HOME + record a random phase, then float
+        try { (G.graphData().nodes || []).forEach((n) => { if (n.__hx != null) { n.fx = n.__hx; n.fy = n.__hy; } else if (n.x != null) { n.__hx = n.x; n.__hy = n.y; if (n.__ph == null) n.__ph = Math.random() * Math.PI * 2; n.fx = n.__hx; n.fy = n.__hy; } }); } catch (e) {}
+        this._knowPinned = true;
+        // perpetual gentle float; strip the now-idle layout forces (stashed in applyKnowledgeForces)
+        try { G.cooldownTicks(Infinity); G.d3ReheatSimulation(); } catch (e) {}
+        try { G.d3Force('charge', null); G.d3Force('link', null); G.d3Force('center', null); } catch (e) {}
+      })
+      .onEngineTick(() => {
+        if (!this._knowPinned) return;
+        const AMP = 1.6, SP = 0.4, t = Date.now() / 1000;
+        const held = (this._knowSelected && this._knowSelected.id) || null;
+        try { (G.graphData().nodes || []).forEach((n) => {
+          if (n.__hx == null && n.x != null && n.fx != null) { n.__hx = n.x; n.__hy = n.y; n.__ph = Math.random() * Math.PI * 2; }
+          if (n.__hx != null) {
+            if (n.id === held) { n.fx = n.__hx; n.fy = n.__hy; return; }
+            n.fx = n.__hx + AMP * Math.sin(t * SP + n.__ph);
+            n.fy = n.__hy + AMP * Math.cos(t * SP * 0.9 + n.__ph);
+          }
+        }); } catch (e) {}
+      })
+      .enableNodeDrag(false);
+    this.applyKnowledgeForces(G);
+    const r = this._knowGraphEl.getBoundingClientRect();
+    G.width(r.width).height(r.height);
+    this._knowGraph = G;
+    // CUSTOM HIT-TESTING (force-graph's built-in picking is unusable at this scale):
+    // drive hover-cursor + click from pointer events via knowledgeNodeAt (screen-space).
+    try {
+      const el = this._knowGraphEl;
+      let downX = 0, downY = 0, dragged = false;
+      el.addEventListener('pointerdown', (e) => { downX = e.clientX; downY = e.clientY; dragged = false; });
+      el.addEventListener('pointermove', (e) => {
+        if (e.buttons && (Math.abs(e.clientX - downX) > 4 || Math.abs(e.clientY - downY) > 4)) dragged = true;
+        this._knowPointer = { x: e.clientX, y: e.clientY };
+        if (this._knowHoverRAF) return;
+        this._knowHoverRAF = requestAnimationFrame(() => {
+          this._knowHoverRAF = 0;
+          const p = this._knowPointer; if (!p) return;
+          const node = this.knowledgeNodeAt(p.x, p.y);
+          try { el.style.cursor = node ? 'pointer' : 'default'; } catch (e2) {}
+        });
+      });
+      el.addEventListener('pointerup', (e) => {
+        if (dragged) return;
+        const node = this.knowledgeNodeAt(e.clientX, e.clientY);
+        if (node) this.openKnowledgeDetail(node); else this.closeKnowledgeDetail();
+      });
+      el.addEventListener('pointerleave', () => { if (this._knowHoverRAF) { try { cancelAnimationFrame(this._knowHoverRAF); } catch (e2) {} this._knowHoverRAF = 0; } this._knowPointer = null; try { el.style.cursor = 'default'; } catch (e2) {} });
+    } catch (e) {}
+    this.fetchKnowledge(false);
+  }
+
+  // Nearest node to a client point in SCREEN space, within a per-type pixel radius
+  // (adapts galaxyNodeAt). Screen-space thresholds stay constant px at any zoom.
+  knowledgeNodeAt(clientX, clientY) {
+    const G = this._knowGraph; if (!G) return null;
+    let el = null; try { el = this._knowGraphEl.querySelector('canvas'); } catch (e) {}
+    if (!el) el = this._knowGraphEl; if (!el) return null;
+    const rect = el.getBoundingClientRect();
+    const cx = clientX - rect.left, cy = clientY - rect.top;
+    let nodes = null; try { nodes = (G.graphData() || {}).nodes; } catch (e) {}
+    if (!nodes) return null;
+    let best = null, bestScore = Infinity;
+    for (let i = 0; i < nodes.length; i++) {
+      const n = nodes[i]; if (n.x == null || n.y == null) continue;
+      let sp; try { sp = G.graph2ScreenCoords(n.x, n.y); } catch (e) { continue; }
+      const dx = sp.x - cx, dy = sp.y - cy; const d = Math.sqrt(dx * dx + dy * dy);
+      const boost = this._coarsePointer ? 1.4 : 1;
+      const thr = (n.type === 'agent' ? 20 : n.type === 'scope' ? 15 : 11) * boost;
+      if (d > thr) continue;
+      const score = d / thr;
+      if (score < bestScore) { bestScore = score; best = n; }
+    }
+    return best;
+  }
+
+  // (re)apply + STASH the layout forces (the one-way d3Force(name,null) lesson):
+  // onEngineStop strips them for the idle float loop; the poll-resettle re-attaches.
+  applyKnowledgeForces(G) {
+    try {
+      if (!this._knowForces) this._knowForces = { charge: G.d3Force('charge'), link: G.d3Force('link'), center: G.d3Force('center') };
+      const s = this._knowForces;
+      if (!G.d3Force('charge') && s.charge) G.d3Force('charge', s.charge);
+      if (!G.d3Force('link') && s.link) G.d3Force('link', s.link);
+      if (!G.d3Force('center') && s.center) G.d3Force('center', s.center);
+      G.d3Force('charge').strength(-150).distanceMax(320);
+      G.d3Force('link').distance((l) => l.kind === 'category' ? 68 : l.kind === 'owner' ? 46 : 40).strength(0.32);
+    } catch (e) {}
+  }
+
+  fetchKnowledge(isPoll) {
+    fetch('/api/learning/knowledge', { cache: 'no-store' })
+      .then(r => r.ok ? r.text() : Promise.reject(new Error('HTTP ' + r.status)))
+      .then(txt => {
+        if (isPoll && this._knowRawSig === txt) return; // unchanged — leave the layout/loop alone
+        this._knowRawSig = txt;
+        let json = null; try { json = JSON.parse(txt); } catch (e) { json = null; }
+        this._knowRaw = json || { agents: [], facts: [], edges: [] };
+        this.renderKnowledge(isPoll);
+        const l = this._learningRoot && this._learningRoot.querySelector('#lr-know-loading');
+        if (l) { l.classList.add('hidden'); setTimeout(() => { l.style.display = 'none'; }, 600); }
+      })
+      .catch(err => {
+        if (isPoll) return; // keep the current graph on a transient poll failure
+        const l = this._learningRoot && this._learningRoot.querySelector('#lr-know-loading');
+        if (l) { l.classList.remove('hidden'); l.style.display = 'flex'; l.textContent = 'could not load /api/learning/knowledge (' + (err && err.message) + ')'; }
+      });
+  }
+
+  // Build the graph node/link arrays. Agents + facts become nodes; any edge
+  // endpoint that is neither (the repo / "general" scope hubs the server points
+  // category edges at) is synthesized into a 'scope' hub node so facts cluster by
+  // scope as well as by owner.
+  _knowBuild(raw) {
+    const agents = Array.isArray(raw.agents) ? raw.agents : [];
+    const facts = Array.isArray(raw.facts) ? raw.facts : [];
+    const edges = Array.isArray(raw.edges) ? raw.edges : [];
+    const nodes = [], seen = {};
+    agents.forEach(a => { if (a && !seen[a.name]) { seen[a.name] = 1; nodes.push({ id: a.name, type: 'agent', label: a.name, enrolled: !!a.enrolled, facts: a.facts || 0, observations: a.observations || 0 }); } });
+    facts.forEach(f => { if (f && !seen[f.id]) { seen[f.id] = 1; nodes.push({ id: f.id, type: 'fact', label: f.id, content: f.content || '', repo: f.repo || '', key: f.key || '', owner: f.owner || '', witnesses: f.witnesses || 0, firstSeen: f.firstSeen || 0, lastSeen: f.lastSeen || 0, superseded: !!f.superseded }); } });
+    const links = [];
+    edges.forEach(e => {
+      if (!e || e.source == null || e.target == null) return;
+      [e.source, e.target].forEach(id => { if (!seen[id]) { seen[id] = 1; nodes.push({ id: id, type: 'scope', label: id }); } });
+      links.push({ source: e.source, target: e.target, kind: e.kind || '' });
+    });
+    return { nodes: nodes, links: links, agentCount: agents.length, factCount: facts.length };
+  }
+
+  renderKnowledge(isPoll) {
+    if (!this._knowGraph) return;
+    const built = this._knowBuild(this._knowRaw || { agents: [], facts: [], edges: [] });
+    const nodes = built.nodes, links = built.links;
+    // change signature over ids + superseded flags (state that changes rendering)
+    let h = 0;
+    for (let i = 0; i < nodes.length; i++) { const str = (nodes[i].id || '') + ':' + (nodes[i].superseded ? '1' : '0'); for (let j = 0; j < str.length; j++) h = (h * 31 + str.charCodeAt(j)) | 0; }
+    const sig = nodes.length + '/' + links.length + '/' + h;
+    if (isPoll && this._knowSig === sig) return; // unchanged — leave the layout + idle loop alone
+    this._knowSig = sig;
+    const ca = this._learningRoot.querySelector('#lr-kAgents'); if (ca) ca.textContent = built.agentCount;
+    const cf = this._learningRoot.querySelector('#lr-kFacts'); if (cf) cf.textContent = built.factCount;
+    // adjacency (id -> neighbor ids / connected link keys) for the selected-node highlight
+    const neighbors = {}, nodeLinks = {};
+    nodes.forEach(n => { neighbors[n.id] = new Set(); nodeLinks[n.id] = new Set(); });
+    links.forEach(l => { const s = l.source, t = l.target, key = s + ' ' + t; if (neighbors[s]) { neighbors[s].add(t); nodeLinks[s].add(key); } if (neighbors[t]) { neighbors[t].add(s); nodeLinks[t].add(key); } });
+    this._knowAdj = { neighbors: neighbors, nodeLinks: nodeLinks };
+    const empty = built.factCount === 0;
+    const emptyEl = this._learningRoot.querySelector('#lr-empty');
+    if (empty && emptyEl) {
+      emptyEl.innerHTML = 'knowledge graph is empty — facts appear as enrolled agents hit qualifying outcomes <b>(' + built.agentCount + ' agent' + (built.agentCount === 1 ? '' : 's') + ' enrolled)</b>';
+      emptyEl.style.display = 'block';
+    } else if (emptyEl) { emptyEl.style.display = 'none'; }
+    // preserve positions across poll refreshes; seed brand-new nodes near a neighbor
+    let pollHasNew = false;
+    if (isPoll) {
+      const prev = {}; try { (this._knowGraph.graphData().nodes || []).forEach(pn => { prev[pn.id] = pn; }); } catch (e) {}
+      const fresh = [];
+      nodes.forEach(n => { const p = prev[n.id]; if (p) { n.x = p.x; n.y = p.y; n.vx = p.vx; n.vy = p.vy; n.fx = p.x; n.fy = p.y; n.__hx = p.__hx; n.__hy = p.__hy; n.__ph = p.__ph; } else { pollHasNew = true; fresh.push(n); } });
+      if (fresh.length) {
+        const freshIds = {}; fresh.forEach(n => freshIds[n.id] = n);
+        links.forEach(l => { const seed = (nn, other) => { if (nn && nn.x == null) { const a = prev[other]; if (a && a.x != null) { nn.x = a.x + (Math.random() - 0.5) * 26; nn.y = a.y + (Math.random() - 0.5) * 26; } } }; seed(freshIds[l.source], l.target); seed(freshIds[l.target], l.source); });
+      }
+    }
+    if (empty) {
+      // EMPTY (today's reality): pin the enrolled agents on a ring of dim wells so
+      // it reads as an intentional constellation behind the centered note.
+      const R = 92, m = nodes.length || 1;
+      nodes.forEach((n, i) => { const ang = (i / m) * 2 * Math.PI - Math.PI / 2; n.x = n.fx = R * Math.cos(ang); n.y = n.fy = R * Math.sin(ang); n.__hx = n.x; n.__hy = n.y; if (n.__ph == null) n.__ph = Math.random() * Math.PI * 2; });
+      this._knowPinned = true;
+    }
+    if (!isPoll) { this._knowNeedFit = true; this._knowFitDone = false; if (!empty) this._knowPinned = false; this.closeKnowledgeDetail(); }
+    // a poll that introduces brand-new nodes needs the (stripped) forces back for a finite resettle
+    if (isPoll && pollHasNew && !empty) { this._knowPinned = false; this.applyKnowledgeForces(this._knowGraph); try { this._knowGraph.cooldownTicks(200); } catch (e) {} }
+    this._knowGraph.graphData({ nodes: nodes, links: links });
+    if (isPoll && pollHasNew && !empty) { try { this._knowGraph.d3ReheatSimulation(); } catch (e) {} }
+    if (!isPoll) setTimeout(() => { if (!this._knowFitDone) { try { this._knowGraph.zoomToFit(600, empty ? 60 : 55); } catch (e) {} } }, empty ? 200 : 1400);
+  }
+
+  ensureKnowledgeDetailEl() {
+    if (this._knowDetailEl && this._knowDetailEl.parentNode) return this._knowDetailEl;
+    const el = document.createElement('div');
+    el.className = 'lr-detail';
+    this._learningRoot.querySelector('#lr-knowledge').appendChild(el);
+    this._knowDetailEl = el;
+    return el;
+  }
+  closeKnowledgeDetail() {
+    this._knowSelected = null;
+    try { if (this._knowDetailEl) this._knowDetailEl.remove(); } catch (e) {}
+    this._knowDetailEl = null;
+  }
+  openKnowledgeDetail(node) {
+    if (!node) { this.closeKnowledgeDetail(); return; }
+    if (this._knowAdj) this._knowSelected = { id: node.id, neighbors: this._knowAdj.neighbors[node.id] || new Set(), links: this._knowAdj.nodeLinks[node.id] || new Set() };
+    else this._knowSelected = { id: node.id, neighbors: new Set(), links: new Set() };
+    if (node.type === 'agent') this.renderKnowledgeAgentDetail(node);
+    else if (node.type === 'scope') this.renderKnowledgeScopeDetail(node);
+    else this.renderKnowledgeFactDetail(node);
+  }
+
+  renderKnowledgeFactDetail(node) {
+    const el = this.ensureKnowledgeDetailEl();
+    const esc = (s) => this._galaxyEsc(s);
+    const scope = node.repo ? node.repo : 'general';
+    const scopeCol = node.repo ? '#7dcfff' : '#e0af68';
+    const col = node.superseded ? '#5a6088' : scopeCol;
+    el.innerHTML = [
+      '<div class="lr-dhead"><div class="lr-drow">',
+      '<span class="lr-ddot" style="background:' + col + ';box-shadow:0 0 10px ' + col + '"></span>',
+      '<div style="flex:1;min-width:0"><div class="lr-dtitle">confirmed fact</div><div class="lr-dsub">owned by ' + esc(node.owner || '—') + '</div></div>',
+      '<button class="lr-dclose" title="close">✕</button>',
+      '</div><div class="lr-dbadges">',
+      '<span class="lr-dbadge" style="color:' + scopeCol + ';background:color-mix(in srgb,' + scopeCol + ' 12%, transparent);border:1px solid color-mix(in srgb,' + scopeCol + ' 30%, transparent)">' + esc(scope) + '</span>',
+      (node.superseded ? '<span class="lr-dbadge mut">superseded</span>' : ''),
+      '</div></div>',
+      '<div class="lr-dbody">',
+      '<div class="lr-dblock">' + esc(node.content || '') + '</div>',
+      '<div class="lr-dgrid">',
+      '<div class="lr-dcell"><div class="lr-dk">owner</div><div class="lr-dv hi">' + esc(node.owner || '—') + '</div></div>',
+      '<div class="lr-dcell"><div class="lr-dk">witnesses</div><div class="lr-dv hi">' + (node.witnesses || 0) + '</div></div>',
+      (node.key ? '<div class="lr-dcell"><div class="lr-dk">category</div><div class="lr-dv">' + esc(node.key) + '</div></div>' : ''),
+      '<div class="lr-dcell"><div class="lr-dk">scope</div><div class="lr-dv">' + esc(scope) + '</div></div>',
+      '</div>',
+      '<div class="lr-dsec">seen</div>',
+      '<div class="lr-dgrid">',
+      '<div class="lr-dcell"><div class="lr-dk">first seen</div><div class="lr-dv">' + esc(this._relFromMs(node.firstSeen)) + '</div></div>',
+      '<div class="lr-dcell"><div class="lr-dk">last seen</div><div class="lr-dv">' + esc(this._relFromMs(node.lastSeen)) + '</div></div>',
+      '</div>',
+      '</div>'
+    ].join('');
+    el.querySelector('.lr-dclose').addEventListener('click', () => this.closeKnowledgeDetail());
+  }
+
+  renderKnowledgeAgentDetail(node) {
+    const el = this.ensureKnowledgeDetailEl();
+    const esc = (s) => this._galaxyEsc(s);
+    const col = '#bb9af7';
+    const enrolled = !!node.enrolled;
+    el.innerHTML = [
+      '<div class="lr-dhead"><div class="lr-drow">',
+      '<span class="lr-ddot" style="background:' + col + ';box-shadow:0 0 10px ' + col + '"></span>',
+      '<div style="flex:1;min-width:0"><div class="lr-dtitle">' + esc(node.label || node.id) + '</div><div class="lr-dsub">memory agent</div></div>',
+      '<button class="lr-dclose" title="close">✕</button>',
+      '</div><div class="lr-dbadges">',
+      (enrolled ? '<span class="lr-dbadge" style="color:#7dcfff;background:rgba(125,207,255,0.1);border:1px solid rgba(125,207,255,0.28)">enrolled</span>' : '<span class="lr-dbadge mut">not enrolled</span>'),
+      '</div></div>',
+      '<div class="lr-dbody">',
+      '<div class="lr-dgrid">',
+      '<div class="lr-dcell"><div class="lr-dk">facts</div><div class="lr-dv hi">' + (node.facts || 0) + '</div></div>',
+      '<div class="lr-dcell"><div class="lr-dk">observations</div><div class="lr-dv hi">' + (node.observations || 0) + '</div></div>',
+      '</div>',
+      '<a class="lr-dlink"><span style="flex:1">View agent</span><span>→</span></a>',
+      '</div>'
+    ].join('');
+    el.querySelector('.lr-dclose').addEventListener('click', () => this.closeKnowledgeDetail());
+    const link = el.querySelector('.lr-dlink');
+    if (link) link.addEventListener('click', () => this._learningGotoAgent(node.id));
+  }
+
+  renderKnowledgeScopeDetail(node) {
+    const el = this.ensureKnowledgeDetailEl();
+    const esc = (s) => this._galaxyEsc(s);
+    const isGeneral = node.id === 'general';
+    const col = isGeneral ? '#e0af68' : '#7dcfff';
+    let n = 0; try { const set = this._knowAdj && this._knowAdj.neighbors[node.id]; n = set ? set.size : 0; } catch (e) {}
+    el.innerHTML = [
+      '<div class="lr-dhead"><div class="lr-drow">',
+      '<span class="lr-ddot" style="background:' + col + ';box-shadow:0 0 10px ' + col + '"></span>',
+      '<div style="flex:1;min-width:0"><div class="lr-dtitle">' + esc(node.label || node.id) + '</div><div class="lr-dsub">' + (isGeneral ? 'general scope' : 'repository scope') + '</div></div>',
+      '<button class="lr-dclose" title="close">✕</button>',
+      '</div><div class="lr-dbadges">',
+      '<span class="lr-dbadge" style="color:' + col + ';background:color-mix(in srgb,' + col + ' 12%, transparent);border:1px solid color-mix(in srgb,' + col + ' 30%, transparent)">' + (isGeneral ? 'general' : 'repo') + '</span>',
+      '</div></div>',
+      '<div class="lr-dbody"><div class="lr-dgrid" style="grid-template-columns:1fr"><div class="lr-dcell"><div class="lr-dk">facts in scope</div><div class="lr-dv hi">' + n + '</div></div></div></div>'
+    ].join('');
+    el.querySelector('.lr-dclose').addEventListener('click', () => this.closeKnowledgeDetail());
+  }
+
   // ---- live feed: /api/state (graph) + /events (SSE) + /api/runs (list) ----
   connectLive() {
     this.currentRunId = new URLSearchParams(location.search).get('run') || '';
@@ -3249,8 +4045,8 @@ class Component extends DCLogic {
   };
 
   // ---- responsive overlay docking -------------------------------------------
-  // The five body-appended overlay roots (galaxy/jobs/agents/charts/health) sit
-  // to the right of the 216px nav rail on desktop. On mobile the rail is hidden
+  // The six body-appended overlay roots (galaxy/jobs/agents/charts/health/
+  // learning) sit to the right of the 216px nav rail on desktop. On mobile the rail is hidden
   // and a 60px bottom tab bar appears, so the roots dock to left:0 and stop above
   // the tab bar. Shared here so the creation-time cssText and the breakpoint
   // re-dock can never drift.
@@ -3262,7 +4058,7 @@ class Component extends DCLogic {
     el.style.bottom = this._overlayBottom();
   }
   _redockOverlays() {
-    [this._galaxyRoot, this._jobsRoot, this._agentsRoot, this._chartsRoot, this._healthRoot]
+    [this._galaxyRoot, this._jobsRoot, this._agentsRoot, this._chartsRoot, this._healthRoot, this._learningRoot]
       .forEach(r => this._dockOverlay(r));
   }
 
@@ -3864,6 +4660,7 @@ class Component extends DCLogic {
     const isAgents = view === 'agents';
     const isCharts = view === 'charts';
     const isHealth = view === 'health';
+    const isLearning = view === 'learning';
     // shared nav-item base; active items pick up the green highlight
     const navBase = { display: 'flex', alignItems: 'center', gap: '11px', padding: '9px 11px', borderRadius: '9px', fontSize: '13.5px', fontWeight: 500, cursor: 'pointer', marginTop: '2px' };
     const navActive = (on) => ({ ...navBase, background: on ? 'rgba(158,206,106,0.11)' : 'transparent', color: on ? '#eef0ff' : '#a8aecf', border: '1px solid ' + (on ? 'rgba(158,206,106,0.2)' : 'transparent') });
@@ -3877,6 +4674,7 @@ class Component extends DCLogic {
     const agentsNavStyle = { ...navActive(isAgents), position: 'relative' };
     const chartsNavStyle = { ...navActive(isCharts), position: 'relative' };
     const healthNavStyle = { ...navActive(isHealth), position: 'relative' };
+    const learningNavStyle = { ...navActive(isLearning), position: 'relative' };
     const navDot = (on) => ({ width: '5px', height: '5px', borderRadius: '50%', background: on ? '#9ece6a' : 'transparent', boxShadow: on ? '0 0 8px rgba(158,206,106,0.7)' : 'none' });
 
     // ---- responsive shell styling (all gated on isMobile; desktop untouched) ----
@@ -3911,15 +4709,17 @@ class Component extends DCLogic {
       toggleRuns: this.toggleRuns, runsTabVisible,
       showGraph: this.showGraph, showGalaxy: this.showGalaxy,
       showJobs: this.showJobs, showAgents: this.showAgents,
-      showCharts: this.showCharts, showHealth: this.showHealth,
-      graphNavStyle, galaxyNavStyle, jobsNavStyle, agentsNavStyle, chartsNavStyle, healthNavStyle,
+      showCharts: this.showCharts, showHealth: this.showHealth, showLearning: this.showLearning,
+      graphNavStyle, galaxyNavStyle, jobsNavStyle, agentsNavStyle, chartsNavStyle, healthNavStyle, learningNavStyle,
       graphNavDotStyle: navDot(isGraph), galaxyNavDotStyle: navDot(isGalaxy),
       jobsNavDotStyle: navDot(isJobs), agentsNavDotStyle: navDot(isAgents),
       chartsNavDotStyle: navDot(isCharts), healthNavDotStyle: navDot(isHealth),
+      learningNavDotStyle: navDot(isLearning),
       railStyle, tabBarStyle, tabLabelStyle,
       tabGraphStyle: tabStyle(isGraph), tabGalaxyStyle: tabStyle(isGalaxy),
       tabJobsStyle: tabStyle(isJobs), tabAgentsStyle: tabStyle(isAgents),
       tabChartsStyle: tabStyle(isCharts), tabHealthStyle: tabStyle(isHealth),
+      tabLearningStyle: tabStyle(isLearning),
       crumbRepoStyle, crumbSepStyle, liveTextStyle, detailAsideStyle, zoomCtrlStyle, footerStyle,
       crumbRepo: activeRun.repo, crumbTitle: activeRun.title,
       crumbDotStyle: { width: '8px', height: '8px', borderRadius: '50%', flex: 'none', background: crumbCol.c, boxShadow: activeRun.state === 'running' ? '0 0 8px ' + crumbCol.g : 'none', animation: activeRun.state === 'running' ? 'dotpulse 1.4s ease-in-out infinite' : 'none' },

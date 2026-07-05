@@ -193,7 +193,7 @@ func TestHandleAgent(t *testing.T) {
 	if len(detail.Versions) != 3 {
 		t.Fatalf("len(Versions) = %d, want 3", len(detail.Versions))
 	}
-	// Newest first, exactly one Current marker, states cover promoted/canary/
+	// Newest first, exactly one Current marker, states cover current/canary/
 	// pending, the canary version carries a sample, and every version carries its
 	// own full prompt body — distinct per version so the content viewer is exercised.
 	var current, canarySample int
@@ -227,7 +227,7 @@ func TestHandleAgent(t *testing.T) {
 	if canarySample == 0 {
 		t.Fatalf("expected a canary version with a CanarySample: %+v", detail.Versions)
 	}
-	for _, want := range []string{"promoted", "canary", "pending"} {
+	for _, want := range []string{"current", "canary", "pending"} {
 		if !states[want] {
 			t.Fatalf("versions missing state %q: %+v", want, detail.Versions)
 		}
@@ -642,6 +642,245 @@ func assertContinuousDays(t *testing.T, days []ChartDay) {
 			}
 		}
 		prev = cur
+	}
+}
+
+// realSkillStates is the set of version states the live SkillOpt store can emit;
+// the fake feed must never present a state outside it. Promotion writes 'current'
+// to the live version and 'superseded' to the one it replaces (store.go
+// PromoteAgentTemplateVersion); there is NO 'promoted' version state. Candidates
+// are 'pending' or an in-flight 'canary', and a declined candidate is 'rejected'.
+var realSkillStates = map[string]bool{"current": true, "superseded": true, "canary": true, "pending": true, "rejected": true}
+
+func TestHandleLearningSkills(t *testing.T) {
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+
+	var skills Skills
+	if err := json.Unmarshal(getRaw(t, srv.URL+"/api/learning/skills"), &skills); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if skills.Templates == nil {
+		t.Fatalf("Templates must be non-nil: %+v", skills)
+	}
+	if n := len(skills.Templates); n < 2 || n > 3 {
+		t.Fatalf("len(Templates) = %d, want 2..3", n)
+	}
+
+	var canaryTemplates, pendingSum, roseFive int
+	for _, tpl := range skills.Templates {
+		if tpl.TemplateID == "" {
+			t.Fatalf("template missing id: %+v", tpl)
+		}
+		if tpl.Versions == nil || len(tpl.Versions) == 0 {
+			t.Fatalf("template %s has no versions", tpl.TemplateID)
+		}
+		if tpl.Pending == nil {
+			t.Fatalf("template %s Pending must be non-nil", tpl.TemplateID)
+		}
+		// Versions ascending by Number (sparkline order); states real-emittable;
+		// scored versions carry HasScore.
+		var scored []float64
+		for i, v := range tpl.Versions {
+			if !realSkillStates[v.State] {
+				t.Fatalf("template %s version %d has non-real state %q", tpl.TemplateID, v.Number, v.State)
+			}
+			if i > 0 && tpl.Versions[i-1].Number >= v.Number {
+				t.Fatalf("template %s versions not ascending by Number: %+v", tpl.TemplateID, tpl.Versions)
+			}
+			if v.HasScore {
+				scored = append(scored, v.Score)
+			}
+		}
+		if tpl.CanarySample > 0 {
+			canaryTemplates++
+		}
+		pendingSum += len(tpl.Pending)
+		// The healthy template is the 5-version one with a strictly rising score.
+		if len(tpl.Versions) == 5 {
+			rising := len(scored) == 5
+			for i := 1; i < len(scored); i++ {
+				if scored[i] <= scored[i-1] {
+					rising = false
+				}
+			}
+			if rising {
+				roseFive++
+			}
+		}
+		// Every pending candidate must map to a real version number in the template.
+		for _, c := range tpl.Pending {
+			if c.VersionID == "" {
+				t.Fatalf("pending candidate missing versionId: %+v", c)
+			}
+			found := false
+			for _, v := range tpl.Versions {
+				if v.Number == c.Number {
+					found = true
+				}
+			}
+			if !found {
+				t.Fatalf("pending candidate %d not among template %s versions", c.Number, tpl.TemplateID)
+			}
+		}
+	}
+	if roseFive != 1 {
+		t.Fatalf("want exactly one healthy 5-version rising-score template, got %d", roseFive)
+	}
+	if canaryTemplates == 0 {
+		t.Fatalf("expected at least one template with an active canary")
+	}
+	if skills.ActiveCanaries != canaryTemplates {
+		t.Fatalf("ActiveCanaries = %d, want %d (templates with CanarySample>0)", skills.ActiveCanaries, canaryTemplates)
+	}
+	if skills.PendingTotal != pendingSum {
+		t.Fatalf("PendingTotal = %d, want %d (sum of per-template Pending)", skills.PendingTotal, pendingSum)
+	}
+	if skills.PendingTotal == 0 {
+		t.Fatalf("expected at least one pending candidate")
+	}
+
+	// Sort order: pending-first, then most-recently-promoted (LastPromotedAt desc).
+	for i := 1; i < len(skills.Templates); i++ {
+		a, b := skills.Templates[i-1], skills.Templates[i]
+		ap, bp := len(a.Pending) > 0, len(b.Pending) > 0
+		if !ap && bp {
+			t.Fatalf("templates not pending-first: %q(pending=%v) before %q(pending=%v)", a.TemplateID, ap, b.TemplateID, bp)
+		}
+		if ap == bp && a.LastPromotedAt < b.LastPromotedAt {
+			t.Fatalf("templates not most-recently-promoted within group: %q(%d) before %q(%d)", a.TemplateID, a.LastPromotedAt, b.TemplateID, b.LastPromotedAt)
+		}
+	}
+}
+
+func TestHandleLearningSkillsDeterministic(t *testing.T) {
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+
+	url := srv.URL + "/api/learning/skills"
+	if a, b := getRaw(t, url), getRaw(t, url); !bytes.Equal(a, b) {
+		t.Fatalf("skills not byte-stable across calls\nfirst:  %s\nsecond: %s", a, b)
+	}
+}
+
+func TestHandleLearningKnowledge(t *testing.T) {
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+
+	var k Knowledge
+	if err := json.Unmarshal(getRaw(t, srv.URL+"/api/learning/knowledge"), &k); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if k.Agents == nil || k.Facts == nil || k.Edges == nil {
+		t.Fatalf("knowledge slices must be non-nil: %+v", k)
+	}
+
+	// Exactly three enrolled agents; every agent is enrolled and named.
+	agentNames := map[string]bool{}
+	enrolled := 0
+	for _, a := range k.Agents {
+		if a.Name == "" {
+			t.Fatalf("knowledge agent missing name: %+v", a)
+		}
+		agentNames[a.Name] = true
+		if a.Enrolled {
+			enrolled++
+		}
+	}
+	if enrolled != 3 {
+		t.Fatalf("enrolled agents = %d, want 3", enrolled)
+	}
+	// Agents sorted by name asc.
+	for i := 1; i < len(k.Agents); i++ {
+		if k.Agents[i-1].Name > k.Agents[i].Name {
+			t.Fatalf("agents not name-sorted: %+v", k.Agents)
+		}
+	}
+
+	// Facts: enough to fill the graph, witnesses within 1..7, exactly one
+	// superseded fact, facts span more than one repo scope plus a general scope.
+	if len(k.Facts) < 8 {
+		t.Fatalf("len(Facts) = %d, want >= 8", len(k.Facts))
+	}
+	factIDs := map[string]bool{}
+	superseded, generalScope := 0, 0
+	repos := map[string]bool{}
+	for _, fct := range k.Facts {
+		if fct.ID == "" || fct.Content == "" || fct.Owner == "" {
+			t.Fatalf("fact missing id/content/owner: %+v", fct)
+		}
+		if !agentNames[fct.Owner] {
+			t.Fatalf("fact %s owner %q is not an enrolled agent", fct.ID, fct.Owner)
+		}
+		if fct.Witnesses < 1 || fct.Witnesses > 7 {
+			t.Fatalf("fact %s witnesses = %d, want 1..7", fct.ID, fct.Witnesses)
+		}
+		factIDs[fct.ID] = true
+		if fct.Superseded {
+			superseded++
+		}
+		if fct.Repo == "" {
+			generalScope++
+		} else {
+			repos[fct.Repo] = true
+		}
+	}
+	if superseded != 1 {
+		t.Fatalf("superseded facts = %d, want exactly 1 (one chain)", superseded)
+	}
+	if len(repos) < 2 {
+		t.Fatalf("repo-scoped facts span %d repos, want >= 2", len(repos))
+	}
+	if generalScope < 2 {
+		t.Fatalf("general-scope facts = %d, want >= 2", generalScope)
+	}
+
+	// Edges: only the three real kinds, at least one of each; owner/category
+	// sources and supersede endpoints reference known facts; owner targets are
+	// enrolled agents.
+	kinds := map[string]int{}
+	for _, e := range k.Edges {
+		switch e.Kind {
+		case "owner", "category", "supersede":
+		default:
+			t.Fatalf("edge has unexpected kind %q: %+v", e.Kind, e)
+		}
+		kinds[e.Kind]++
+		if !factIDs[e.Source] {
+			t.Fatalf("edge source %q is not a known fact", e.Source)
+		}
+		switch e.Kind {
+		case "owner":
+			if !agentNames[e.Target] {
+				t.Fatalf("owner edge target %q is not an enrolled agent", e.Target)
+			}
+		case "supersede":
+			if !factIDs[e.Target] {
+				t.Fatalf("supersede edge target %q is not a known fact", e.Target)
+			}
+		}
+	}
+	for _, kind := range []string{"owner", "category", "supersede"} {
+		if kinds[kind] == 0 {
+			t.Fatalf("expected at least one %q edge: %+v", kind, kinds)
+		}
+	}
+	// One owner + one category edge per fact.
+	if kinds["owner"] != len(k.Facts) {
+		t.Fatalf("owner edges = %d, want one per fact (%d)", kinds["owner"], len(k.Facts))
+	}
+	if kinds["category"] != len(k.Facts) {
+		t.Fatalf("category edges = %d, want one per fact (%d)", kinds["category"], len(k.Facts))
+	}
+}
+
+func TestHandleLearningKnowledgeDeterministic(t *testing.T) {
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+
+	url := srv.URL + "/api/learning/knowledge"
+	if a, b := getRaw(t, url), getRaw(t, url); !bytes.Equal(a, b) {
+		t.Fatalf("knowledge not byte-stable across calls\nfirst:  %s\nsecond: %s", a, b)
 	}
 }
 

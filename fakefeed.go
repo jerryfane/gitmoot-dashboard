@@ -709,7 +709,7 @@ var fakeAgentVersions = []TemplateVersionInfo{
 	{
 		ID:             "tmpl-researcher-v1",
 		Number:         1,
-		State:          "promoted",
+		State:          "current", // live version (store emits 'current', never 'promoted')
 		Name:           "researcher",
 		Description:    "initial captured researcher agent",
 		SourceRef:      "main",
@@ -1127,4 +1127,177 @@ func (f *FakeDataSource) Health(ctx context.Context) (Health, error) {
 		Stuck:          stuck,
 		RecentFailures: failures,
 	}, nil
+}
+
+// fakeSkills builds the fixed SkillOpt evolution fixture behind the Learning
+// page's Skills view. Every timestamp is anchored on fakeChartsNow (never
+// time.Now()) so the view is byte-stable across polls. It models three templates
+// that together exercise the UI: a healthy rising-score template evolved through
+// five versions (researcher); a template with an in-flight canary being sampled
+// AND a freshly proposed pending candidate (reviewer); and a flat two-version
+// template whose score never moved (coordinator). Only real-emittable version
+// states are used: the live version is "current" and each promoted-then-replaced
+// predecessor is "superseded" (the store never emits a "promoted" version state —
+// PromoteAgentTemplateVersion writes 'current'/'superseded'), plus "canary" and
+// "pending" for in-flight candidates.
+func fakeSkills() Skills {
+	dA := func(n int) int64 { return fakeChartsNow.AddDate(0, 0, -n).UnixMilli() }
+	hA := func(n int) int64 { return fakeChartsNow.Add(-time.Duration(n) * time.Hour).UnixMilli() }
+
+	templates := []SkillTemplate{
+		// Healthy, rising score: four superseded predecessors and the live "current"
+		// version (the store supersedes the old current on each promotion).
+		{
+			TemplateID: "skill-researcher",
+			Name:       "researcher",
+			Agents:     []string{"researcher"},
+			Versions: []SkillVersion{
+				{Number: 1, State: "superseded", Score: 0.62, HasScore: true, CreatedAt: dA(20), PromotedAt: dA(19)},
+				{Number: 2, State: "superseded", Score: 0.68, HasScore: true, CreatedAt: dA(15), PromotedAt: dA(14)},
+				{Number: 3, State: "superseded", Score: 0.71, HasScore: true, CreatedAt: dA(10), PromotedAt: dA(9)},
+				{Number: 4, State: "superseded", Score: 0.77, HasScore: true, CreatedAt: dA(5), PromotedAt: dA(4)},
+				{Number: 5, State: "current", Score: 0.83, HasScore: true, CreatedAt: dA(2), PromotedAt: dA(1)},
+			},
+			CurrentVersion: 5,
+			CurrentState:   "current",
+			LastPromotedAt: dA(1),
+			Pending:        []SkillCandidate{},
+		},
+		// Active canary being sampled at 0.15, plus a pending candidate awaiting
+		// review while the live "current" version stays in production.
+		{
+			TemplateID: "skill-reviewer",
+			Name:       "reviewer",
+			Agents:     []string{"reviewer-kimi"},
+			Versions: []SkillVersion{
+				{Number: 1, State: "current", Score: 0.70, HasScore: true, CreatedAt: dA(9), PromotedAt: dA(8)},
+				{Number: 2, State: "canary", CreatedAt: dA(2)}, // mid-canary: no final score yet
+				{Number: 3, State: "pending", CreatedAt: hA(6)},
+			},
+			CurrentVersion:  1,
+			CurrentState:    "current",
+			CanarySample:    0.15,
+			CanaryStartedAt: dA(2),
+			LastPromotedAt:  dA(8),
+			Pending: []SkillCandidate{
+				{VersionID: "skill-reviewer-v3", Number: 3, Score: "0.81", CreatedAt: hA(6)},
+			},
+		},
+		// Flat: a superseded predecessor and the live "current" version, unchanged score.
+		{
+			TemplateID: "skill-coordinator",
+			Name:       "coordinator",
+			Agents:     []string{"project-lead"},
+			Versions: []SkillVersion{
+				{Number: 1, State: "superseded", Score: 0.75, HasScore: true, CreatedAt: dA(12), PromotedAt: dA(11)},
+				{Number: 2, State: "current", Score: 0.75, HasScore: true, CreatedAt: dA(6), PromotedAt: dA(5)},
+			},
+			CurrentVersion: 2,
+			CurrentState:   "current",
+			LastPromotedAt: dA(5),
+			Pending:        []SkillCandidate{},
+		},
+	}
+
+	// Pending-first, then most-recently-promoted (LastPromotedAt desc), with a
+	// TemplateID tie-break so the order is fully deterministic.
+	sort.SliceStable(templates, func(i, j int) bool {
+		pi, pj := len(templates[i].Pending) > 0, len(templates[j].Pending) > 0
+		if pi != pj {
+			return pi
+		}
+		if templates[i].LastPromotedAt != templates[j].LastPromotedAt {
+			return templates[i].LastPromotedAt > templates[j].LastPromotedAt
+		}
+		return templates[i].TemplateID < templates[j].TemplateID
+	})
+
+	skills := Skills{Templates: templates}
+	for i := range templates {
+		if templates[i].CanarySample > 0 {
+			skills.ActiveCanaries++
+		}
+		skills.PendingTotal += len(templates[i].Pending)
+	}
+	return skills
+}
+
+// Skills implements DataSource. It returns the fixed fakeSkills fixture; output
+// is deterministic and byte-stable across calls.
+func (f *FakeDataSource) Skills(ctx context.Context) (Skills, error) {
+	return fakeSkills(), nil
+}
+
+// fakeKnowledge builds the fixed memory brain-graph fixture behind the Learning
+// page's Knowledge view. Timestamps are anchored on fakeChartsNow (never
+// time.Now()) so the view is byte-stable across polls. It models three enrolled
+// agents owning ten facts spread across two repos and two general-scope entries,
+// with witness counts varied across 1..7 and one superseded chain (an older
+// auth-flow fact replaced by a newer one). Some fact bodies carry angle brackets,
+// ampersands and quotes so the client's HTML-escaping is exercised.
+func fakeKnowledge() Knowledge {
+	dA := func(n int) int64 { return fakeChartsNow.AddDate(0, 0, -n).UnixMilli() }
+
+	facts := []KnowledgeFact{
+		{ID: "fact:1", Content: `Build with GOTOOLCHAIN=local & GOFLAGS=-mod=mod; the pinned go1.26.4 toolchain lives under /root/.local.`, Repo: fakeRepo, Key: "build-toolchain", Owner: "researcher", Witnesses: 5, FirstSeen: dA(18), LastSeen: dA(1)},
+		{ID: "fact:2", Content: `TestExport is flaky under -race; retry once before failing the job.`, Repo: fakeRepo, Key: "test-flake", Owner: "reviewer-kimi", Witnesses: 3, FirstSeen: dA(16), LastSeen: dA(2)},
+		{ID: "fact:3", Content: `Auth uses <bearer> tokens & refreshes 5m before expiry; header is "Authorization".`, Repo: fakeRepo, Key: "auth-flow", Owner: "researcher", Witnesses: 7, FirstSeen: dA(15), LastSeen: dA(2), Superseded: true},
+		{ID: "fact:4", Content: `Exports default to CSV; JSON is opt-in via --format json.`, Repo: "jerryfane/noted", Key: "export-format", Owner: "project-lead", Witnesses: 2, FirstSeen: dA(12), LastSeen: dA(3)},
+		{ID: "fact:5", Content: `Search index rebuilds lazily on the first query after a write.`, Repo: "jerryfane/noted", Key: "search-index", Owner: "researcher", Witnesses: 4, FirstSeen: dA(10), LastSeen: dA(1)},
+		{ID: "fact:6", Content: `Bulk delete requires a confirm token & is soft-delete for 30 days.`, Repo: "jerryfane/noted", Key: "delete-safety", Owner: "reviewer-kimi", Witnesses: 1, FirstSeen: dA(9), LastSeen: dA(4)},
+		{ID: "fact:7", Content: `Rate limiting is per-token: 100 req/min, burst 20; 429 carries Retry-After.`, Repo: "jerryfane/noted", Key: "rate-limit", Owner: "researcher", Witnesses: 4, FirstSeen: dA(7), LastSeen: dA(2)},
+		{ID: "fact:8", Content: `Cut GA releases only with explicit sign-off; "deploy latest" means build & install locally.`, Key: "release-policy", Owner: "researcher", Witnesses: 6, FirstSeen: dA(5), LastSeen: dA(1)},
+		{ID: "fact:9", Content: `Auth migrated to <PASETO> tokens & rotating keys; refresh 10m before "expiry".`, Repo: fakeRepo, Key: "auth-flow", Owner: "researcher", Witnesses: 2, FirstSeen: dA(2), LastSeen: dA(1)},
+		{ID: "fact:10", Content: `Prefer table-driven tests & gofmt; avoid naked returns in long functions.`, Key: "coding-style", Owner: "project-lead", Witnesses: 3, FirstSeen: dA(4), LastSeen: dA(1)},
+	}
+	// Newest-first by FirstSeen (distinct across the fixture), ID tie-break.
+	sort.SliceStable(facts, func(i, j int) bool {
+		if facts[i].FirstSeen != facts[j].FirstSeen {
+			return facts[i].FirstSeen > facts[j].FirstSeen
+		}
+		return facts[i].ID < facts[j].ID
+	})
+
+	// Enrolled agents. Facts is the INJECTABLE count (the real datasource fills it
+	// from CountConfirmedMemoriesForOwner, which excludes superseded_by IS NOT NULL
+	// rows), so it deliberately differs from the on-graph owned-node count where an
+	// agent has a superseded fact. researcher OWNS six fact nodes but one (fact:3,
+	// the old auth-flow entry superseded by fact:9) is excluded, so its injectable
+	// count is 5; reviewer-kimi owns 2 and project-lead owns 2 (none superseded).
+	agents := []KnowledgeAgent{
+		{Name: "project-lead", Enrolled: true, Facts: 2, Observations: 3},
+		{Name: "researcher", Enrolled: true, Facts: 5, Observations: 12},
+		{Name: "reviewer-kimi", Enrolled: true, Facts: 2, Observations: 4},
+	}
+	sort.SliceStable(agents, func(i, j int) bool { return agents[i].Name < agents[j].Name })
+
+	// Owner + category edges per fact, then the one supersede chain (the newer
+	// auth-flow fact supersedes the older one).
+	edges := make([]KnowledgeEdge, 0, len(facts)*2+1)
+	for _, fct := range facts {
+		edges = append(edges, KnowledgeEdge{Source: fct.ID, Target: fct.Owner, Kind: "owner"})
+		cat := fct.Repo
+		if cat == "" {
+			cat = "general"
+		}
+		edges = append(edges, KnowledgeEdge{Source: fct.ID, Target: cat, Kind: "category"})
+	}
+	edges = append(edges, KnowledgeEdge{Source: "fact:9", Target: "fact:3", Kind: "supersede"})
+	sort.SliceStable(edges, func(i, j int) bool {
+		if edges[i].Kind != edges[j].Kind {
+			return edges[i].Kind < edges[j].Kind
+		}
+		if edges[i].Source != edges[j].Source {
+			return edges[i].Source < edges[j].Source
+		}
+		return edges[i].Target < edges[j].Target
+	})
+
+	return Knowledge{Agents: agents, Facts: facts, Edges: edges}
+}
+
+// Knowledge implements DataSource. It returns the fixed fakeKnowledge fixture;
+// output is deterministic and byte-stable across calls.
+func (f *FakeDataSource) Knowledge(ctx context.Context) (Knowledge, error) {
+	return fakeKnowledge(), nil
 }
