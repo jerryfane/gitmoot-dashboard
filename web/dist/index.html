@@ -3348,12 +3348,13 @@ class Component extends DCLogic {
       '    <div id="lr-know-loading">summoning the brain…</div>',
       '    <div id="lr-know-count" class="lr-kchip">showing <b id="lr-kAgents">0</b> agents / <b id="lr-kFacts">0</b> facts</div>',
       '    <div id="lr-know-legend" class="lr-kchip">',
-      '      <div class="h">nodes</div>',
-      '      <div class="row"><span class="sw" style="color:#bb9af7;background:#bb9af7"></span>agent</div>',
+      '      <div class="h">nodes · left → right</div>',
+      '      <div class="row"><span class="sw" style="color:#5a6088;background:#5a6088;width:6px;height:6px;box-shadow:none;opacity:.7"></span>evidence</div>',
       '      <div class="row"><span class="sw" style="color:#7dcfff;background:#7dcfff"></span>repo fact</div>',
       '      <div class="row"><span class="sw" style="color:#e0af68;background:#e0af68"></span>general fact</div>',
       '      <div class="row"><span class="sw" style="color:#5a6088;background:#5a6088"></span>superseded</div>',
-      '      <div class="row"><span class="sw" style="color:#5a6088;background:#5a6088;width:6px;height:6px;box-shadow:none;opacity:.7"></span>evidence</div>',
+      '      <div class="row"><span class="sw" style="color:#bb9af7;background:#bb9af7;width:8px;height:8px"></span>category hub</div>',
+      '      <div class="row"><span class="sw" style="color:#bb9af7;background:#bb9af7"></span>agent</div>',
       '    </div>',
       '    <div id="lr-empty" style="display:none"></div>',
       '  </div>',
@@ -3543,22 +3544,24 @@ class Component extends DCLogic {
 
   // ---- Knowledge tab: a SECOND force-graph instance --------------------------
   _knowColor(n) {
-    if (n.type === 'agent') return '#bb9af7';           // violet wells
-    if (n.type === 'scope') return n.id === 'general' ? '#e0af68' : '#7dcfff';
-    if (n.superseded) return '#5a6088';                 // superseded facts (dim)
+    if (n.type === 'agent') return '#bb9af7';           // violet agent wells (output layer)
+    if (n.type === 'category') return '#bb9af7';        // violet category hubs
+    if (n.superseded) return '#5a6088';                 // superseded fact ghosts (dim)
     return n.repo ? '#7dcfff' : '#e0af68';              // repo-scoped teal / general amber
   }
   _knowAlpha(n) {
     if (n.type === 'agent') return (n.facts > 0) ? 0.95 : 0.4; // dim agent well when 0 facts
-    if (n.type === 'scope') return 0.72;
+    if (n.type === 'category') return 0.9;
     return n.superseded ? 0.4 : 0.92;                   // superseded at 40% alpha
   }
   _knowRadius(n) {
-    if (n.type === 'agent') return 9;
-    if (n.type === 'scope') return 6.5;
-    if (n.type === 'evidence') return 1.6;              // dim observation dots (input layer)
-    return Math.min(7, 2.5 + (n.witnesses || 0) * 0.6); // fact: 2.5 + witnesses*0.6 capped ~7
+    if (n.type === 'agent') return 7;
+    if (n.type === 'category') return 3;
+    if (n.type === 'evidence') return 1.4;              // dim observation dots (input layer)
+    return 2.4;                                         // facts: tiny + uniform (scope-colored)
   }
+  // Strip the server's `cat:` namespace prefix off a category-hub id for display.
+  _knowCatLabel(id) { const s = String(id || ''); return s.indexOf('cat:') === 0 ? s.slice(4) : s; }
   // Deterministic string hash (FNV-1a) → uint32. Used for STABLE seeded jitter so
   // the 12s poll re-render never reshuffles evidence dots or fact seeds (no
   // Math.random at layout time for the banded layout).
@@ -3570,35 +3573,78 @@ class Component extends DCLogic {
   }
   _knowRand(str) { return (this._knowHash(str) % 100000) / 100000; } // deterministic [0,1)
 
-  // The three vertical bands of the LAYERED neural layout, in GRAPH coordinates
-  // (zoomToFit maps them to screen). Recomputed from the live container size so the
-  // column spread tracks the width on resize/breakpoint. left=evidence, mid=facts,
-  // right=agents. GH is the graph-space height the agent column spans.
+  // The FOUR vertical columns of the layered layout, in GRAPH coordinates (zoomToFit
+  // maps them to screen). Recomputed from the live container size so the spread tracks
+  // the width on resize/breakpoint. cols = [0]evidence [1]facts [2]category [3]agents,
+  // evenly spaced; GH is the graph-space height each column spans.
   _knowComputeBands() {
     let W = 1000, H = 700;
     try { const r = this._knowGraphEl.getBoundingClientRect(); if (r && r.width) { W = r.width; H = r.height; } } catch (e) {}
-    const GH = 480;                                                   // agent-column vertical extent (graph units)
-    const aspect = Math.max(0.55, Math.min(2.2, W / Math.max(1, H))); // clamp so extreme shapes stay readable
-    const half = 0.46 * (GH * aspect);                               // half the band spread (matches container aspect)
-    this._knowBandX = { left: -half, mid: 0, right: half, GH: GH, W: W, H: H };
+    const GH = 460;                                                  // column vertical extent (graph units)
+    const aspect = Math.max(0.5, Math.min(2.4, W / Math.max(1, H))); // clamp so extreme shapes stay readable
+    // spread the 4 columns to ~44% of the aspect-scaled height, but COMPRESS on narrow
+    // (portrait/mobile) widths so the rightmost agent labels never clip off the edge.
+    const spanFactor = 0.44 * Math.max(0.6, Math.min(1, (W - 40) / 700));
+    const spanHalf = spanFactor * (GH * aspect);                    // half the 4-column horizontal spread
+    const cols = [-spanHalf, -spanHalf / 3, spanHalf / 3, spanHalf]; // evidence | facts | category | agents
+    this._knowBandX = { cols: cols, left: cols[0], fact: cols[1], cat: cols[2], right: cols[3], GH: GH, W: W, H: H };
     return this._knowBandX;
   }
 
-  // Re-band + re-settle the layout for the current container width (called on resize +
-  // breakpoint re-dock). Re-pins the agent column at the new right band and unpins the
-  // fact column so the forces + banding re-lay it into the new geometry, then re-fits.
+  // Compute the STATIC 4-column layout: every node gets a PINNED (fx/fy) position from
+  // a DETERMINISTIC sort — no physics runs, positions are computed, committed, done.
+  // facts grouped by category then id; category hubs at the mean-y of their facts;
+  // agents by name; evidence clustered beside its fact with small seeded offsets.
+  _knowLayout(nodes, links) {
+    const b = this._knowComputeBands();
+    const cols = b.cols, GH = b.GH, top = -GH / 2;
+    const spanY = (n, i) => (n <= 1 ? 0 : top + i * (GH / (n - 1)));
+    // fact -> category id, read off the server's authored category edges
+    const factCat = {};
+    for (let i = 0; i < links.length; i++) { const l = links[i]; if (l.kind === 'category') { const s = (l.source && l.source.id != null) ? l.source.id : l.source, t = (l.target && l.target.id != null) ? l.target.id : l.target; factCat[s] = t; } }
+    const catOf = (id) => factCat[id] || '~none';
+    // order categories by id; sort facts by (categoryOrder, id) so each category's
+    // facts are contiguous and its fan converges cleanly onto one hub.
+    const facts = nodes.filter(n => n.type === 'fact');
+    const catIds = Array.from(new Set(facts.map(f => catOf(f.id)))).sort();
+    const catOrder = {}; catIds.forEach((c, i) => { catOrder[c] = i; });
+    facts.sort((a, bb) => { const ca = catOrder[catOf(a.id)], cb = catOrder[catOf(bb.id)]; if (ca !== cb) return ca - cb; return a.id < bb.id ? -1 : a.id > bb.id ? 1 : 0; });
+    // evenly space facts down the column, inserting a small gap between category groups
+    const GAP = 1.4;                                                 // extra slots between adjacent category groups
+    let units = Math.max(0, facts.length - 1), prev = null;
+    facts.forEach(f => { const c = catOf(f.id); if (prev !== null && c !== prev) units += GAP; prev = c; });
+    const denom = Math.max(1, units);
+    let slot = 0; prev = null;
+    const cySum = {}, cyCnt = {};
+    facts.forEach(f => {
+      const c = catOf(f.id);
+      if (prev !== null && c !== prev) slot += GAP;
+      prev = c;
+      const y = top + (slot / denom) * GH;
+      f.fx = cols[1]; f.fy = y; f.x = f.fx; f.y = f.fy; f.vx = 0; f.vy = 0;
+      cySum[c] = (cySum[c] || 0) + y; cyCnt[c] = (cyCnt[c] || 0) + 1;
+      slot += 1;
+    });
+    // category hubs at the mean-y of their member facts (converging fan waists)
+    nodes.forEach(n => { if (n.type !== 'category') return; const cnt = cyCnt[n.id] || 0; n.fx = cols[2]; n.fy = cnt ? (cySum[n.id] / cnt) : 0; n.x = n.fx; n.y = n.fy; n.vx = 0; n.vy = 0; });
+    // agents: right column, evenly spaced, sorted by name
+    const agents = nodes.filter(n => n.type === 'agent').sort((a, bb) => (a.id < bb.id ? -1 : a.id > bb.id ? 1 : 0));
+    const na = agents.length;
+    agents.forEach((a, i) => { a.fx = cols[3]; a.fy = spanY(na, i); a.x = a.fx; a.y = a.fy; a.vx = 0; a.vy = 0; });
+    // evidence: left column, clustered beside its fact's y with deterministic offsets
+    const fById = {}; facts.forEach(f => { fById[f.id] = f; });
+    nodes.forEach(n => { if (n.type !== 'evidence') return; const f = fById[n.factId]; const fy = f ? f.fy : 0; n.fx = cols[0] + (n.__eox || 0); n.fy = fy + (n.__eoy || 0); n.x = n.fx; n.y = n.fy; n.vx = 0; n.vy = 0; });
+  }
+
+  // Recompute the STATIC layout for the current container width (called on resize +
+  // breakpoint re-dock). Positions are deterministic, so this just re-measures, re-lays,
+  // and re-fits — no reheat.
   _knowRelayout() {
-    if (!this._knowGraph || this._knowEmpty || !this._knowBandsActive) return;
-    const bands = this._knowComputeBands();
-    let nodes = null; try { nodes = this._knowGraph.graphData().nodes || []; } catch (e) { return; }
-    const agentNodes = nodes.filter(n => n.type === 'agent').sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-    const na = agentNodes.length;
-    agentNodes.forEach((a, i) => { a.fx = bands.right; a.fy = na <= 1 ? 0 : (-bands.GH / 2 + i * (bands.GH / (na - 1))); a.__hx = a.fx; a.__hy = a.fy; });
-    nodes.forEach(n => { if (n.type === 'fact' || n.type === 'scope') { n.fx = null; n.fy = null; n.__hx = null; n.__hy = null; } });
-    this._knowPinned = false;
-    this._knowNeedFit = true; this._knowFitDone = false;
-    this.applyKnowledgeForces(this._knowGraph, true);
-    try { this._knowGraph.cooldownTicks(220); this._knowGraph.d3ReheatSimulation(); } catch (e) {}
+    if (!this._knowGraph || this._knowEmpty) return;
+    let data = null; try { data = this._knowGraph.graphData(); } catch (e) { return; }
+    if (!data || !data.nodes) return;
+    this._knowLayout(data.nodes, data.links || []);
+    try { this._knowGraph.zoomToFit(400, 42); } catch (e) {}
   }
 
   initKnowledgeGraph() {
@@ -3630,26 +3676,37 @@ class Component extends DCLogic {
     const tooltip = (n) => {
       if (n.type === 'evidence') return ''; // observation dots are non-interactive decoration
       if (n.type === 'agent') return '<div class="tt-title">' + esc(n.label) + '</div><div class="tt-row">agent · <b>' + (n.facts || 0) + '</b> facts</div>';
-      if (n.type === 'scope') return '<div class="tt-title">' + esc(n.label) + '</div><div class="tt-row">' + (n.id === 'general' ? 'general scope' : 'repository scope') + '</div>';
+      if (n.type === 'category') return '<div class="tt-title">' + esc(this._knowCatLabel(n.id)) + '</div><div class="tt-row">category hub</div>';
       return '<div class="tt-title">fact</div><div class="tt-row">' + esc(String(n.content || '').slice(0, 120)) + '</div>';
     };
-    const linkStyle = (kind) => {
-      switch (kind) {
-        case 'owner':     return { color: '#bb9af7', alpha: 0.14, width: 0.5, dash: null };  // dim
-        case 'category':  return { color: '#7dcfff', alpha: 0.3,  width: 0.7, dash: null };  // brighter
-        case 'supersede': return { color: '#f7768e', alpha: 0.5,  width: 0.9, dash: [3, 3] }; // dashed-look
-        case 'evidence':  return { color: '#5a6088', alpha: 0.08, width: 0.4, dash: null };  // very dim input filaments
-        default:          return { color: '#a0a8dc', alpha: 0.2,  width: 0.5, dash: null };
+    // EDGE BUNDLES — the soul of the look. Every edge is a thin, low-alpha, additively
+    // blended QUADRATIC bezier whose control point is pulled toward the layout centerline
+    // (y=0) so each column-gap bundle bulges into a lens/waist. Colors are multi-hue by
+    // meaning; the translucent overlaps + 'lighter' blend glow at the dense waists.
+    const CURVE = 0.46;                 // 0..1: pull of the control point toward the centerline
+    const SUPBOW = 52;                  // sideways bow for same-column supersede edges
+    const ctrl = (s, t, kind) => {
+      const mx = (s.x + t.x) / 2, my = (s.y + t.y) / 2;
+      if (kind === 'supersede') return { x: mx - SUPBOW, y: my };
+      return { x: mx, y: my * (1 - CURVE) };
+    };
+    const bez = (s, c, d, ph) => { const u = 1 - ph; return { x: u * u * s.x + 2 * u * ph * c.x + ph * ph * d.x, y: u * u * s.y + 2 * u * ph * c.y + ph * ph * d.y }; };
+    const edgeStyle = (l) => {
+      switch (l.kind) {
+        case 'evidence':  { const t = l.target; return { color: (t && t.repo) ? '#7dcfff' : '#e0af68', alpha: 0.15, width: 0.55 }; } // evidence->fact in the fact's scope hue
+        case 'category':  return { color: '#bb9af7', alpha: 0.22, width: 0.6 };                                                       // fact->category violet
+        case 'catagent':  { const c = Math.min(l.count || 1, 10); return { color: '#9ece6a', alpha: 0.16 + c * 0.04, width: 0.6 + c * 0.06 }; } // category->agent green, alpha by count
+        case 'supersede': return { color: '#f7768e', alpha: 0.42, width: 0.8 };                                                       // supersede dim red
+        default:          return { color: '#a0a8dc', alpha: 0.14, width: 0.5 };
       }
     };
     const G = window.ForceGraph()(this._knowGraphEl)
       .backgroundColor('#080a14')
       .nodeRelSize(1)
       .nodeLabel(tooltip)
-      .cooldownTicks(200)
+      .cooldownTicks(0)                 // STATIC: no physics — every node is pinned + committed
       .warmupTicks(0)
-      .d3AlphaDecay(0.025)
-      .d3VelocityDecay(0.34)
+      .autoPauseRedraw(false)           // keep the rAF loop alive for the packet animation
       .nodeCanvasObjectMode(() => 'replace')
       .nodeCanvasObject((n, ctx, scale) => {
         const sel = this._knowSelected;
@@ -3657,150 +3714,104 @@ class Component extends DCLogic {
         if (sel) { if (n.id === sel.id || (sel.neighbors && sel.neighbors.has(n.id))) hi = true; else dim = 0.16; }
         // EVIDENCE input layer: tiny dim observation dots, no glow / core / label.
         if (n.type === 'evidence') {
-          let er = 1.6; const efl = 1.1 / scale; if (er < efl) er = efl;
+          let er = 1.4; const efl = 0.9 / scale; if (er < efl) er = efl;
           ctx.beginPath(); ctx.arc(n.x, n.y, er, 0, 2 * Math.PI);
           ctx.fillStyle = '#5a6088'; ctx.globalAlpha = (hi ? 0.85 : 0.42) * (sel && !hi ? 0.4 : 1); ctx.fill();
           ctx.globalAlpha = 1; return;
         }
         const col = this._knowColor(n);
         let r = this._knowRadius(n);
-        // pixel-floor radii (graph-units are sub-pixel at fit zoom) so tiny facts stay visible
-        const floor = (n.type === 'agent' ? 4 : n.type === 'scope' ? 3 : 1.8) / scale;
+        // pixel-floor radii (graph-units are sub-pixel at fit zoom) so tiny nodes stay visible
+        const floor = (n.type === 'agent' ? 4 : n.type === 'category' ? 2.4 : 1.6) / scale;
         if (r < floor) r = floor;
-        const blur = n.type === 'agent' ? 14 : n.type === 'scope' ? 9 : 5;
+        const blur = n.type === 'agent' ? 12 : n.type === 'category' ? 7 : 4;
         ctx.shadowColor = col; ctx.shadowBlur = blur;
         ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 2 * Math.PI);
         ctx.fillStyle = col; ctx.globalAlpha = this._knowAlpha(n) * dim; ctx.fill();
         ctx.shadowBlur = 0;
         ctx.beginPath(); ctx.arc(n.x, n.y, r * 0.5, 0, 2 * Math.PI);
         ctx.fillStyle = '#ffffff'; ctx.globalAlpha = 0.4 * this._knowAlpha(n) * dim; ctx.fill();
-        if (hi) { ctx.beginPath(); ctx.arc(n.x, n.y, r + 1.8, 0, 2 * Math.PI); ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.globalAlpha = 0.9; ctx.stroke(); }
-        // AGENT labels always visible (the right-column output layer stays legible at
-        // fit zoom); scope labels still fade in on zoom-in to avoid clutter.
+        if (hi) { ctx.beginPath(); ctx.arc(n.x, n.y, r + 1.8, 0, 2 * Math.PI); ctx.strokeStyle = col; ctx.lineWidth = 1 / scale; ctx.globalAlpha = 0.9; ctx.stroke(); }
+        // AGENT labels always visible (right column); CATEGORY labels always visible (small mono).
         if (n.type === 'agent') {
           const fs = Math.max(4.2, 11 / scale);
           ctx.globalAlpha = (hi || !sel ? 1 : 0.5) * (dim < 1 ? dim : 1);
           ctx.font = '600 ' + fs + "px 'Space Grotesk',sans-serif";
           ctx.fillStyle = col; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
           ctx.fillText(n.label || '', n.x + r + (4 / scale), n.y);
-        } else if (n.type === 'scope' && scale > 1.3) {
-          ctx.globalAlpha = Math.min(1, (scale - 1.3) / 1.2) * dim;
-          ctx.font = "600 3.6px 'Space Grotesk',sans-serif";
-          ctx.fillStyle = col; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-          ctx.fillText(String(n.label || '').split('/').pop() || '', n.x, n.y + r + 1.5);
+        } else if (n.type === 'category') {
+          const fs = Math.max(3.4, 8 / scale);
+          ctx.globalAlpha = (hi || !sel ? 0.85 : 0.4) * (dim < 1 ? dim : 1);
+          ctx.font = '500 ' + fs + "px 'JetBrains Mono',monospace";
+          ctx.fillStyle = '#cabff2'; ctx.textBaseline = 'middle';
+          // On narrow (mobile) widths the category column sits only pixels from the agent
+          // column, so grow the label LEFT into the empty fact-gap instead of rightward
+          // across the gap into the agent glyphs/labels. Desktop keeps the right-side label.
+          if (this.state.isMobile) { ctx.textAlign = 'right'; ctx.fillText(n.label || '', n.x - r - (3 / scale), n.y); }
+          else { ctx.textAlign = 'left'; ctx.fillText(n.label || '', n.x + r + (3 / scale), n.y); }
         }
         ctx.globalAlpha = 1;
       })
       .nodePointerAreaPaint((n, color, ctx) => { if (n.type === 'evidence') return; ctx.fillStyle = color; ctx.beginPath(); ctx.arc(n.x, n.y, this._knowRadius(n) + 4, 0, 2 * Math.PI); ctx.fill(); })
-      .linkColor(() => 'rgba(0,0,0,0)')
-      .linkCanvasObject((l, ctx, scale) => {
-        const s = l.source, t = l.target;
-        if (!s || !t || s.x == null || t.x == null) return;
-        const stl = linkStyle(l.kind);
-        let alpha = stl.alpha, width = stl.width;
-        const sel = this._knowSelected;
-        if (sel) {
-          const sid = (s.id != null ? s.id : s), tid = (t.id != null ? t.id : t);
-          if (sel.links && sel.links.has(sid + ' ' + tid)) { alpha = Math.min(1, alpha + 0.4); width = width + 0.6 / scale; }
-          else alpha = 0.05;
+      // Links are drawn by hand in onRenderFramePre (curved + additive), not by force-graph.
+      .linkVisibility(false)
+      // ADDITIVE CURVED EDGE PASS — all bundles in ONE 'lighter' block, under the nodes, so
+      // overlapping translucent colors glow at the dense waists.
+      .onRenderFramePre((ctx, scale) => {
+        ctx.save(); ctx.globalCompositeOperation = 'lighter';
+        let links = null; try { links = G.graphData().links; } catch (e) {}
+        if (links) {
+          const sel = this._knowSelected;
+          for (let i = 0; i < links.length; i++) {
+            const l = links[i], s = l.source, t = l.target;
+            if (!s || !t || s.x == null || t.x == null) continue;
+            const st = edgeStyle(l);
+            let alpha = st.alpha, width = st.width;
+            if (sel) {
+              const sid = (s.id != null ? s.id : s), tid = (t.id != null ? t.id : t);
+              if (sel.links && sel.links.has(sid + ' ' + tid)) { alpha = Math.min(1, alpha + 0.4); width += 0.5; }
+              else alpha = 0.035;
+            }
+            const c = ctrl(s, t, l.kind);
+            ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.quadraticCurveTo(c.x, c.y, t.x, t.y);
+            ctx.strokeStyle = rgba(st.color, alpha);
+            ctx.lineWidth = Math.max(width / scale, 0.35 / scale);
+            ctx.stroke();
+          }
         }
-        if (stl.dash) ctx.setLineDash(stl.dash.map(d => d / scale));
-        ctx.strokeStyle = rgba(stl.color, alpha);
-        ctx.lineWidth = Math.max(width, 0.4 / scale);
-        ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(t.x, t.y); ctx.stroke();
-        if (stl.dash) ctx.setLineDash([]);
+        ctx.restore();
       })
       .onEngineStop(() => {
-        if (this._knowNeedFit && !this._knowFitDone) { this._knowFitDone = true; this._knowNeedFit = false; try { G.zoomToFit(600, this._knowEmpty ? 55 : 44); } catch (e) {} }
-        // Record HOME at the settled position + pin, then float. In the BANDED layout
-        // evidence dots are never homed (they stay pin-followed to their fact each tick);
-        // agents were hard-pinned from the start so they keep their crisp column.
-        try { (G.graphData().nodes || []).forEach((n) => {
-          if (n.type === 'evidence') return;
-          if (n.__hx != null) { n.fx = n.__hx; n.fy = n.__hy; }
-          else if (n.x != null) { n.__hx = n.x; n.__hy = n.y; if (n.__ph == null) n.__ph = this._knowRand(n.id + ':ph') * Math.PI * 2; n.fx = n.__hx; n.fy = n.__hy; }
-        }); } catch (e) {}
+        if (this._knowNeedFit && !this._knowFitDone) { this._knowFitDone = true; this._knowNeedFit = false; try { G.zoomToFit(600, this._knowEmpty ? 60 : 42); } catch (e) {} }
         this._knowPinned = true;
-        // perpetual gentle float; strip the now-idle layout forces (stashed in applyKnowledgeForces)
-        try { G.cooldownTicks(Infinity); G.d3ReheatSimulation(); } catch (e) {}
+        // static layout: drop the (unused) layout forces so nothing can ever perturb the pins
         try { G.d3Force('charge', null); G.d3Force('link', null); G.d3Force('center', null); } catch (e) {}
       })
-      .onEngineTick(() => {
-        const t = Date.now() / 1000;
-        const bands = this._knowBandX;
-        const fmap = this._knowFactById || {};
-        // EMPTY ring: original gentle float on every (agent) well.
-        if (this._knowEmpty) {
-          if (!this._knowPinned) return;
-          const EAMP = 1.6, ESP = 0.4;
-          const eheld = (this._knowSelected && this._knowSelected.id) || null;
-          try { (G.graphData().nodes || []).forEach((n) => {
-            if (n.__hx == null && n.x != null && n.fx != null) { n.__hx = n.x; n.__hy = n.y; n.__ph = this._knowRand(n.id + ':ph') * Math.PI * 2; }
-            if (n.__hx != null) {
-              if (n.id === eheld) { n.fx = n.__hx; n.fy = n.__hy; return; }
-              n.fx = n.__hx + EAMP * Math.sin(t * ESP + n.__ph);
-              n.fy = n.__hy + EAMP * Math.cos(t * ESP * 0.9 + n.__ph);
-            }
-          }); } catch (e) {}
-          return;
-        }
-        // HAND-ROLLED banding while the layout is still settling (bands active, not yet
-        // pinned): nudge free fact/scope x-velocity toward the middle band; agents are
-        // hard-pinned; evidence dots are pinned-followed to their fact in the left band.
-        if (this._knowBandsActive && !this._knowPinned && bands) {
-          const KF = 0.09;
-          try { (G.graphData().nodes || []).forEach((n) => {
-            if (n.type === 'agent') { if (n.__hx != null) { n.fx = n.__hx; n.fy = n.__hy; } return; }
-            if (n.type === 'evidence') { const f = fmap[n.factId]; const fy = f ? (f.fy != null ? f.fy : f.y) : 0; n.fx = bands.left + (n.__eox || 0); n.fy = (fy == null ? 0 : fy) + (n.__eoy || 0); return; }
-            // clamp x to the fact band, with a small seeded per-node offset so the middle
-            // layer has a little width (reads as a column of neurons, not one stacked line)
-            if (n.x != null && n.fx == null) n.vx += ((bands.mid + (this._knowRand(n.id + 'mx') - 0.5) * 34) - n.x) * KF;
-          }); } catch (e) {}
-          return;
-        }
-        if (!this._knowPinned) return;
-        // SETTLED float: gentle bob for facts/scopes, crisp agent column, evidence follow.
-        const AMP = 1.4, SP = 0.4;
-        const held = (this._knowSelected && this._knowSelected.id) || null;
-        try { (G.graphData().nodes || []).forEach((n) => {
-          if (n.type === 'agent') { if (n.__hx != null) { n.fx = n.__hx; n.fy = n.__hy; } return; }
-          if (n.type === 'evidence') { if (bands) { const f = fmap[n.factId]; const fy = f ? (f.fy != null ? f.fy : f.y) : 0; n.fx = bands.left + (n.__eox || 0); n.fy = (fy == null ? 0 : fy) + (n.__eoy || 0); } return; }
-          if (n.__hx == null && n.x != null && n.fx != null) { n.__hx = n.x; n.__hy = n.y; n.__ph = this._knowRand(n.id + ':ph') * Math.PI * 2; }
-          if (n.__hx != null) {
-            if (n.id === held) { n.fx = n.__hx; n.fy = n.__hy; return; }
-            n.fx = n.__hx + AMP * Math.sin(t * SP + n.__ph);
-            n.fy = n.__hy + AMP * Math.cos(t * SP * 0.9 + n.__ph);
-          }
-        }); } catch (e) {}
-      })
-      // DIRECTIONAL FLOW (LEFT->RIGHT): custom screen-sized packets flow along the input
-      // (evidence->fact) and owner (fact->agent) filaments — both edges are already
-      // authored source->target left-to-right, so no endpoint flip is needed. Category /
-      // supersede edges stay a static mesh. Gated on the Knowledge view being active +
-      // the flow-link sets cached by signature, per the galaxy idle-perf lessons.
+      // SPARSE LEFT->RIGHT PACKETS along the curved evidence->fact and category->agent
+      // bundles — the only motion in the otherwise-static picture. Flow-link sets cached by
+      // signature; gated on the Knowledge view being active (galaxy idle-perf lessons).
       .onRenderFramePost((ctx, scale) => {
-        if (!this._knowBandsActive) return;
+        if (this._knowEmpty) return;
         if (this.state.view !== 'learning' || this._learningTab !== 'knowledge') return;
         let all = null; try { all = G.graphData().links; } catch (e) {}
         if (!all) return;
         if (this._knowFlowSig !== this._knowSig) {
           this._knowFlowSig = this._knowSig;
           const ev = [], ow = [];
-          for (let i = 0; i < all.length; i++) { const l = all[i]; if (l.kind === 'evidence') { if (l.__pf == null) l.__pf = (i * 0.6180339887) % 1; ev.push(l); } else if (l.kind === 'owner') { if (l.__pf == null) l.__pf = (i * 0.6180339887) % 1; ow.push(l); } }
+          for (let i = 0; i < all.length; i++) { const l = all[i]; if (l.kind === 'evidence') { if (l.__pf == null) l.__pf = (i * 0.6180339887) % 1; ev.push(l); } else if (l.kind === 'catagent') { if (l.__pf == null) l.__pf = (i * 0.6180339887) % 1; ow.push(l); } }
           this._knowFlowEv = ev; this._knowFlowOw = ow;
         }
         const t = Date.now() / 1000;
         ctx.save(); ctx.globalCompositeOperation = 'lighter';
-        // evidence flow: sparse, dim (1 slow packet per filament)
-        const evs = this._knowFlowEv || [], Re = 1.5 / scale;
-        for (let i = 0; i < evs.length; i++) { const l = evs[i], s = l.source, d = l.target; if (!s || !d || s.x == null || d.x == null) continue; const ph = (t * 0.12 + l.__pf) % 1; const x = s.x + (d.x - s.x) * ph, y = s.y + (d.y - s.y) * ph; ctx.beginPath(); ctx.arc(x, y, Re, 0, 2 * Math.PI); ctx.fillStyle = '#8a90c8'; ctx.globalAlpha = 0.22; ctx.fill(); }
-        // owner flow: brighter (2 packets per filament, violet with a hot core)
-        const ows = this._knowFlowOw || [], Ro = 3.0 / scale, NP = 2;
-        for (let i = 0; i < ows.length; i++) { const l = ows[i], s = l.source, d = l.target; if (!s || !d || s.x == null || d.x == null) continue; for (let k = 0; k < NP; k++) { const ph = (t * 0.3 + k / NP + l.__pf) % 1; const x = s.x + (d.x - s.x) * ph, y = s.y + (d.y - s.y) * ph; ctx.beginPath(); ctx.arc(x, y, Ro, 0, 2 * Math.PI); ctx.fillStyle = '#bb9af7'; ctx.globalAlpha = 0.5; ctx.fill(); ctx.beginPath(); ctx.arc(x, y, Ro * 0.5, 0, 2 * Math.PI); ctx.fillStyle = '#efe7ff'; ctx.globalAlpha = 0.9; ctx.fill(); } }
+        // evidence flow: sparse, dim (1 slow packet per filament, rides the curve)
+        const evs = this._knowFlowEv || [], Re = 1.4 / scale;
+        for (let i = 0; i < evs.length; i++) { const l = evs[i], s = l.source, d = l.target; if (!s || !d || s.x == null || d.x == null) continue; const c = ctrl(s, d, 'evidence'); const ph = (t * 0.12 + l.__pf) % 1; const p = bez(s, c, d, ph); ctx.beginPath(); ctx.arc(p.x, p.y, Re, 0, 2 * Math.PI); ctx.fillStyle = '#9aa0d8'; ctx.globalAlpha = 0.22; ctx.fill(); }
+        // owner flow (category->agent): brighter green, 2 packets with a hot core
+        const ows = this._knowFlowOw || [], Ro = 2.6 / scale, NP = 2;
+        for (let i = 0; i < ows.length; i++) { const l = ows[i], s = l.source, d = l.target; if (!s || !d || s.x == null || d.x == null) continue; const c = ctrl(s, d, 'catagent'); for (let k = 0; k < NP; k++) { const ph = (t * 0.28 + k / NP + l.__pf) % 1; const p = bez(s, c, d, ph); ctx.beginPath(); ctx.arc(p.x, p.y, Ro, 0, 2 * Math.PI); ctx.fillStyle = '#9ece6a'; ctx.globalAlpha = 0.5; ctx.fill(); ctx.beginPath(); ctx.arc(p.x, p.y, Ro * 0.5, 0, 2 * Math.PI); ctx.fillStyle = '#e8ffd0'; ctx.globalAlpha = 0.9; ctx.fill(); } }
         ctx.globalAlpha = 1; ctx.restore();
       })
       .enableNodeDrag(false);
-    this.applyKnowledgeForces(G);
     const r = this._knowGraphEl.getBoundingClientRect();
     G.width(r.width).height(r.height);
     this._knowGraph = G;
@@ -3848,39 +3859,12 @@ class Component extends DCLogic {
       let sp; try { sp = G.graph2ScreenCoords(n.x, n.y); } catch (e) { continue; }
       const dx = sp.x - cx, dy = sp.y - cy; const d = Math.sqrt(dx * dx + dy * dy);
       const boost = this._coarsePointer ? 1.4 : 1;
-      const thr = (n.type === 'agent' ? 20 : n.type === 'scope' ? 15 : 11) * boost;
+      const thr = (n.type === 'agent' ? 20 : n.type === 'category' ? 13 : 11) * boost;
       if (d > thr) continue;
       const score = d / thr;
       if (score < bestScore) { bestScore = score; best = n; }
     }
     return best;
-  }
-
-  // (re)apply + STASH the layout forces (the one-way d3Force(name,null) lesson):
-  // onEngineStop strips them for the idle float loop; the poll-resettle re-attaches.
-  applyKnowledgeForces(G, bands) {
-    try {
-      if (!this._knowForces) this._knowForces = { charge: G.d3Force('charge'), link: G.d3Force('link'), center: G.d3Force('center') };
-      const s = this._knowForces;
-      if (!G.d3Force('charge') && s.charge) G.d3Force('charge', s.charge);
-      if (!G.d3Force('link') && s.link) G.d3Force('link', s.link);
-      if (bands) {
-        // BANDED (layered neural) mode: the hand-rolled banding + agent pins own the
-        // horizontal placement, so drop the centering force (it would fight the columns).
-        // Evidence dots exert NO charge (excluded) so the 175-dot input layer never
-        // perturbs the fact column; owner links stay weak (gentle y-alignment to the
-        // owning agent) while category links cluster facts by scope vertically.
-        try { G.d3Force('center', null); } catch (e) {}
-        G.d3Force('charge').strength((n) => n.type === 'evidence' ? 0 : -88).distanceMax(260);
-        G.d3Force('link')
-          .distance((l) => l.kind === 'category' ? 58 : l.kind === 'owner' ? 44 : l.kind === 'supersede' ? 50 : 26)
-          .strength((l) => l.kind === 'evidence' ? 0 : l.kind === 'owner' ? 0.06 : l.kind === 'category' ? 0.25 : l.kind === 'supersede' ? 0.08 : 0.1);
-      } else {
-        if (!G.d3Force('center') && s.center) G.d3Force('center', s.center);
-        G.d3Force('charge').strength(-150).distanceMax(320);
-        G.d3Force('link').distance((l) => l.kind === 'category' ? 68 : l.kind === 'owner' ? 46 : 40).strength(0.32);
-      }
-    } catch (e) {}
   }
 
   fetchKnowledge(isPoll) {
@@ -3902,10 +3886,10 @@ class Component extends DCLogic {
       });
   }
 
-  // Build the graph node/link arrays. Agents + facts become nodes; any edge
-  // endpoint that is neither (the repo / "general" scope hubs the server points
-  // category edges at) is synthesized into a 'scope' hub node so facts cluster by
-  // scope as well as by owner.
+  // Build the graph node/link arrays for the 4 columns. Agents + facts become nodes;
+  // the server's `cat:<family>` category-edge targets become 'category' hub nodes; the
+  // owner edges are dropped in favour of a client-DERIVED category->agent layer; and an
+  // evidence input layer is synthesized from each fact's witness count.
   _knowBuild(raw) {
     const agents = Array.isArray(raw.agents) ? raw.agents : [];
     const facts = Array.isArray(raw.facts) ? raw.facts : [];
@@ -3913,42 +3897,57 @@ class Component extends DCLogic {
     const nodes = [], seen = {};
     agents.forEach(a => { if (a && !seen[a.name]) { seen[a.name] = 1; nodes.push({ id: a.name, type: 'agent', label: a.name, enrolled: !!a.enrolled, facts: a.facts || 0, observations: a.observations || 0 }); } });
     facts.forEach(f => { if (f && !seen[f.id]) { seen[f.id] = 1; nodes.push({ id: f.id, type: 'fact', label: f.id, content: f.content || '', repo: f.repo || '', key: f.key || '', owner: f.owner || '', witnesses: f.witnesses || 0, firstSeen: f.firstSeen || 0, lastSeen: f.lastSeen || 0, superseded: !!f.superseded }); } });
+    const ownerByFact = {}; facts.forEach(f => { if (f) ownerByFact[f.id] = f.owner || ''; });
     const links = [];
+    // fact->category (violet) + supersede (red). The server's owner edges (fact->agent)
+    // are NOT drawn directly — they'd skip the category column — but are re-expressed as
+    // the DERIVED category->agent layer below.
+    const catAgent = {}; // "catId|agent" -> owned-fact count (drives the derived edge alpha)
     edges.forEach(e => {
       if (!e || e.source == null || e.target == null) return;
-      [e.source, e.target].forEach(id => { if (!seen[id]) { seen[id] = 1; nodes.push({ id: id, type: 'scope', label: id }); } });
+      if (e.kind === 'owner') return;                       // replaced by the derived category->agent layer
+      if (e.kind === 'category') {
+        if (!seen[e.target]) { seen[e.target] = 1; nodes.push({ id: e.target, type: 'category', label: this._knowCatLabel(e.target) }); }
+        links.push({ source: e.source, target: e.target, kind: 'category' });
+        const ag = ownerByFact[e.source];
+        if (ag && seen[ag]) { const k = e.target + '|' + ag; catAgent[k] = (catAgent[k] || 0) + 1; }
+        return;
+      }
+      // supersede (fact->fact) + any other kind: endpoints are already fact nodes
+      [e.source, e.target].forEach(id => { if (!seen[id]) { seen[id] = 1; nodes.push({ id: id, type: 'category', label: this._knowCatLabel(id) }); } });
       links.push({ source: e.source, target: e.target, kind: e.kind || '' });
     });
-    // EVIDENCE input layer (client-synthesized): for each fact with witnesses>=1,
-    // min(witnesses,5) dim observation dots in the LEFT band, each linked fact-ward.
-    // Deterministic seeded jitter (no Math.random) so the 12s poll never reshuffles.
+    // DERIVED category->agent layer (green): one edge per (category, owning agent) so the
+    // 3rd->4th column reads as ownership fans; the fact count rides on the link for alpha.
+    Object.keys(catAgent).forEach(k => { const i = k.indexOf('|'); const cat = k.slice(0, i), ag = k.slice(i + 1); if (seen[cat] && seen[ag]) links.push({ source: cat, target: ag, kind: 'catagent', count: catAgent[k] }); });
+    // EVIDENCE input layer (client-synthesized): min(witnesses,5) dim observation dots per
+    // fact, each linked fact-ward. Deterministic seeded offsets (no Math.random) so a poll
+    // never reshuffles the input column.
     facts.forEach(f => {
       if (!f) return;
       const k = Math.min(Math.max(0, f.witnesses || 0), 5);
       for (let i = 0; i < k; i++) {
         const id = 'ev:' + f.id + ':' + i;
         if (seen[id]) continue; seen[id] = 1;
-        nodes.push({ id: id, type: 'evidence', factId: f.id, __eox: (this._knowRand(id + 'x') - 0.5) * 26, __eoy: (this._knowRand(id + 'y') - 0.5) * 24 });
+        nodes.push({ id: id, type: 'evidence', factId: f.id, __eox: (this._knowRand(id + 'x') - 0.5) * 22, __eoy: (this._knowRand(id + 'y') - 0.5) * 20 });
         links.push({ source: id, target: f.id, kind: 'evidence' }); // evidence->fact reads left->right
       }
     });
-    // fact/scope lookup for the tick-time evidence pin-follow (references the SAME
-    // node objects that go into graphData, so we read their live positions).
-    const factById = {}; nodes.forEach(n => { if (n.type === 'fact' || n.type === 'scope') factById[n.id] = n; });
-    this._knowFactById = factById;
     return { nodes: nodes, links: links, agentCount: agents.length, factCount: facts.length };
   }
 
   renderKnowledge(isPoll) {
     if (!this._knowGraph) return;
-    const prevFactById = this._knowFactById; // _knowBuild reassigns this to position-less nodes
     const built = this._knowBuild(this._knowRaw || { agents: [], facts: [], edges: [] });
     const nodes = built.nodes, links = built.links;
-    // change signature over ids + superseded flags (state that changes rendering)
+    // change signature over ids + superseded flags (state that changes the layout/render)
     let h = 0;
     for (let i = 0; i < nodes.length; i++) { const str = (nodes[i].id || '') + ':' + (nodes[i].superseded ? '1' : '0'); for (let j = 0; j < str.length; j++) h = (h * 31 + str.charCodeAt(j)) | 0; }
     const sig = nodes.length + '/' + links.length + '/' + h;
-    if (isPoll && this._knowSig === sig) { this._knowFactById = prevFactById; return; } // unchanged — leave the layout + idle loop alone
+    // sig-skip: leave the COMMITTED graph (its pinned node objects) untouched. No instance
+    // map holds node-object references (adjacency/selection are id strings), so returning
+    // here can never strand a map on the position-less rebuild.
+    if (isPoll && this._knowSig === sig) return;
     this._knowSig = sig;
     const ca = this._learningRoot.querySelector('#lr-kAgents'); if (ca) ca.textContent = built.agentCount;
     const cf = this._learningRoot.querySelector('#lr-kFacts'); if (cf) cf.textContent = built.factCount;
@@ -3963,51 +3962,23 @@ class Component extends DCLogic {
       emptyEl.innerHTML = 'knowledge graph is empty — facts appear as enrolled agents hit qualifying outcomes <b>(' + built.agentCount + ' agent' + (built.agentCount === 1 ? '' : 's') + ' enrolled)</b>';
       emptyEl.style.display = 'block';
     } else if (emptyEl) { emptyEl.style.display = 'none'; }
-    // preserve positions across poll refreshes; seed brand-new nodes near a neighbor
-    let pollHasNew = false;
-    if (isPoll) {
-      const prev = {}; try { (this._knowGraph.graphData().nodes || []).forEach(pn => { prev[pn.id] = pn; }); } catch (e) {}
-      const fresh = [];
-      nodes.forEach(n => { const p = prev[n.id]; if (p) { n.x = p.x; n.y = p.y; n.vx = p.vx; n.vy = p.vy; n.fx = p.x; n.fy = p.y; n.__hx = p.__hx; n.__hy = p.__hy; n.__ph = p.__ph; } else { pollHasNew = true; fresh.push(n); } });
-      if (fresh.length) {
-        const freshIds = {}; fresh.forEach(n => freshIds[n.id] = n);
-        links.forEach(l => { const seed = (nn, other) => { if (nn && nn.x == null) { const a = prev[other]; if (a && a.x != null) { nn.x = a.x + (Math.random() - 0.5) * 26; nn.y = a.y + (Math.random() - 0.5) * 26; } } }; seed(freshIds[l.source], l.target); seed(freshIds[l.target], l.source); });
-      }
-    }
     this._knowEmpty = empty;
-    this._knowBandsActive = !empty;
     if (empty) {
-      // EMPTY (bands would look broken with no facts): keep the ring-of-wells design —
-      // pin the enrolled agents on a ring of dim wells behind the centered note.
+      // EMPTY (columns would look broken with no facts): keep the ring-of-wells design —
+      // pin the enrolled agents on a ring of dim wells behind the centered note (static).
       const R = 92, m = nodes.length || 1;
-      nodes.forEach((n, i) => { const ang = (i / m) * 2 * Math.PI - Math.PI / 2; n.x = n.fx = R * Math.cos(ang); n.y = n.fy = R * Math.sin(ang); n.__hx = n.x; n.__hy = n.y; if (n.__ph == null) n.__ph = this._knowRand(n.id + ':ph') * Math.PI * 2; });
-      this._knowPinned = true;
+      nodes.forEach((n, i) => { const ang = (i / m) * 2 * Math.PI - Math.PI / 2; n.x = n.fx = R * Math.cos(ang); n.y = n.fy = R * Math.sin(ang); n.vx = 0; n.vy = 0; });
     } else {
-      // BANDED layered layout: agents pinned in the RIGHT column, facts/scopes free in
-      // the MIDDLE (forces + banding cluster them vertically), evidence in the LEFT.
-      const bands = this._knowComputeBands();
-      const agentNodes = nodes.filter(n => n.type === 'agent').sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-      const na = agentNodes.length;
-      agentNodes.forEach((a, i) => { a.fx = bands.right; a.fy = na <= 1 ? 0 : (-bands.GH / 2 + i * (bands.GH / (na - 1))); a.x = a.fx; a.y = a.fy; a.__hx = a.fx; a.__hy = a.fy; if (a.__ph == null) a.__ph = 0; });
-      // facts/scopes: seed any node lacking a position at the middle band (seeded y so
-      // full reloads are stable); on a fresh build (or a poll that added nodes) unpin so
-      // the forces + banding lay them out into a settled column.
-      nodes.forEach(n => {
-        if (n.type !== 'fact' && n.type !== 'scope') return;
-        if (n.x == null) { n.x = bands.mid + (this._knowRand(n.id + 'x') - 0.5) * 46; n.y = (this._knowRand(n.id + 'y') - 0.5) * bands.GH; }
-        if (!isPoll || pollHasNew) { n.fx = null; n.fy = null; n.__hx = null; n.__hy = null; }
-      });
-      // evidence: initial placement beside its fact (the tick keeps them pinned-following)
-      const fmap = this._knowFactById || {};
-      nodes.forEach(n => { if (n.type === 'evidence') { const f = fmap[n.factId]; const fy = f ? (f.y != null ? f.y : 0) : 0; n.x = bands.left + (n.__eox || 0); n.y = fy + (n.__eoy || 0); } });
+      this._knowLayout(nodes, links); // STATIC 4-column pinned layout — positions computed + committed
     }
-    if (!isPoll) { this._knowNeedFit = true; this._knowFitDone = false; if (!empty) this._knowPinned = false; this.closeKnowledgeDetail(); }
-    // fresh build OR a poll that introduced brand-new nodes: (re)attach the banded forces
-    // for a finite resettle into the three columns.
-    if (!empty && (!isPoll || pollHasNew)) { this._knowPinned = false; this.applyKnowledgeForces(this._knowGraph, true); try { this._knowGraph.cooldownTicks(280); } catch (e) {} }
+    if (!isPoll) this.closeKnowledgeDetail();
+    // commit the data; cooldownTicks(0) stops the engine immediately (nodes are already
+    // pinned), then onEngineStop / the backstop timeout fits the columns to the container.
+    this._knowNeedFit = true; this._knowFitDone = false;
+    try { this._knowGraph.cooldownTicks(0); } catch (e) {}
     this._knowGraph.graphData({ nodes: nodes, links: links });
-    if (!empty && (!isPoll || pollHasNew)) { try { this._knowGraph.d3ReheatSimulation(); } catch (e) {} }
-    if (!isPoll) setTimeout(() => { if (!this._knowFitDone) { try { this._knowGraph.zoomToFit(600, empty ? 60 : 44); } catch (e) {} } }, empty ? 200 : 1600);
+    const pad = empty ? 60 : 42;
+    setTimeout(() => { if (!this._knowFitDone) { try { this._knowGraph.zoomToFit(isPoll ? 0 : 600, pad); this._knowFitDone = true; this._knowNeedFit = false; } catch (e) {} } }, isPoll ? 40 : 220);
   }
 
   ensureKnowledgeDetailEl() {
@@ -4028,7 +3999,7 @@ class Component extends DCLogic {
     if (this._knowAdj) this._knowSelected = { id: node.id, neighbors: this._knowAdj.neighbors[node.id] || new Set(), links: this._knowAdj.nodeLinks[node.id] || new Set() };
     else this._knowSelected = { id: node.id, neighbors: new Set(), links: new Set() };
     if (node.type === 'agent') this.renderKnowledgeAgentDetail(node);
-    else if (node.type === 'scope') this.renderKnowledgeScopeDetail(node);
+    else if (node.type === 'category') this.renderKnowledgeCategoryDetail(node);
     else this.renderKnowledgeFactDetail(node);
   }
 
@@ -4091,21 +4062,20 @@ class Component extends DCLogic {
     if (link) link.addEventListener('click', () => this._learningGotoAgent(node.id));
   }
 
-  renderKnowledgeScopeDetail(node) {
+  renderKnowledgeCategoryDetail(node) {
     const el = this.ensureKnowledgeDetailEl();
     const esc = (s) => this._galaxyEsc(s);
-    const isGeneral = node.id === 'general';
-    const col = isGeneral ? '#e0af68' : '#7dcfff';
+    const col = '#bb9af7';
     let n = 0; try { const set = this._knowAdj && this._knowAdj.neighbors[node.id]; n = set ? set.size : 0; } catch (e) {}
     el.innerHTML = [
       '<div class="lr-dhead"><div class="lr-drow">',
       '<span class="lr-ddot" style="background:' + col + ';box-shadow:0 0 10px ' + col + '"></span>',
-      '<div style="flex:1;min-width:0"><div class="lr-dtitle">' + esc(node.label || node.id) + '</div><div class="lr-dsub">' + (isGeneral ? 'general scope' : 'repository scope') + '</div></div>',
+      '<div style="flex:1;min-width:0"><div class="lr-dtitle">' + esc(this._knowCatLabel(node.id)) + '</div><div class="lr-dsub">category hub</div></div>',
       '<button class="lr-dclose" title="close">✕</button>',
       '</div><div class="lr-dbadges">',
-      '<span class="lr-dbadge" style="color:' + col + ';background:color-mix(in srgb,' + col + ' 12%, transparent);border:1px solid color-mix(in srgb,' + col + ' 30%, transparent)">' + (isGeneral ? 'general' : 'repo') + '</span>',
+      '<span class="lr-dbadge" style="color:' + col + ';background:color-mix(in srgb,' + col + ' 12%, transparent);border:1px solid color-mix(in srgb,' + col + ' 30%, transparent)">category</span>',
       '</div></div>',
-      '<div class="lr-dbody"><div class="lr-dgrid" style="grid-template-columns:1fr"><div class="lr-dcell"><div class="lr-dk">facts in scope</div><div class="lr-dv hi">' + n + '</div></div></div></div>'
+      '<div class="lr-dbody"><div class="lr-dgrid" style="grid-template-columns:1fr"><div class="lr-dcell"><div class="lr-dk">connected nodes</div><div class="lr-dv hi">' + n + '</div></div></div></div>'
     ].join('');
     el.querySelector('.lr-dclose').addEventListener('click', () => this.closeKnowledgeDetail());
   }
