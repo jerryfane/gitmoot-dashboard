@@ -1282,19 +1282,27 @@ class Component extends DCLogic {
     // not reheat until this settle completes & onEngineStop re-pins (else continuous mouse
     // movement over the canvas keeps reheating and the graph never settles).
     if (!isPoll) { this._galaxyNeedFit = true; this._galaxyFitDone = false; this._galaxyPinned = false; this.closeGalaxyDetail(); }
-    // PERF: a poll that introduces brand-new node ids needs the layout forces (which
-    // onEngineStop stripped for the idle 0-longtask state) to place them. Re-apply the
-    // same charge/link config, un-pin (pause the bob so the resettle isn't fought), and
-    // use a FINITE cooldown so the sim settles and onEngineStop fires again — which re-homes
-    // ALL nodes (new included), strips the forces, and returns to the perpetual bob loop.
-    // Existing nodes stay put (pinned via fx/fy); only the new unpinned nodes settle.
-    if (isPoll && pollHasNewNodes) {
+    // PERF: any render that needs a real LAYOUT PASS must restore the forces
+    // (onEngineStop strips them for the idle 0-longtask state) and swap the
+    // perpetual cooldownTicks(Infinity) back to a FINITE cooldown, so the sim
+    // settles and onEngineStop fires again — re-homing all nodes, re-stripping
+    // the forces, and returning to the bob loop. Two cases need it:
+    //  - a poll that introduces brand-new node ids (existing nodes stay pinned
+    //    via fx/fy; only the new unpinned ones settle), and
+    //  - EVERY non-poll render (repo-filter change / re-enter refresh): those
+    //    rebuild ALL nodes position-less, so laying out with stripped forces
+    //    let d3's phyllotaxis default park the whole graph in one giant spiral
+    //    disc — the "galaxy is one big circle" bug. applyGalaxyForces
+    //    re-attaches the stashed force instances (d3Force(name, null) is
+    //    one-way without the stash).
+    const needsLayout = !isPoll || pollHasNewNodes;
+    if (needsLayout) {
       this._galaxyPinned = false;
       this.applyGalaxyForces(this._galaxyGraph);
       try { this._galaxyGraph.cooldownTicks(180); } catch (e) {}
     }
     this._galaxyGraph.graphData({ nodes: nodes, links: links });
-    if (isPoll && pollHasNewNodes) { try { this._galaxyGraph.d3ReheatSimulation(); } catch (e) {} }
+    if (needsLayout) { try { this._galaxyGraph.d3ReheatSimulation(); } catch (e) {} }
     if (!isPoll) setTimeout(() => { if (!this._galaxyFitDone) { try { this._galaxyGraph.zoomToFit(700, 60); } catch (e) {} } }, 1600);
   }
 
