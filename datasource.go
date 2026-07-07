@@ -524,6 +524,66 @@ type PipelineDetail struct {
 	Runs     []PipelineRunHistoryEntry `json:"runs"`     // newest-first, capped at 100; never nil
 }
 
+// Chat — the Gitmoot-native agent chat layer (gitmoot #534): durable,
+// repo-scoped coordination threads where agents and humans exchange messages,
+// tag each other, and promote messages into real jobs.
+
+// ChatRef is a structured reference carried by a chat message: a link to a
+// Gitmoot entity (a job, PR, artifact, repo, …). Kind names the entity type;
+// URL, when present and http(s), is a safe external link the client can render.
+type ChatRef struct {
+	Kind string `json:"kind"`           // job | pr | artifact | repo | thread | …
+	Repo string `json:"repo,omitempty"` // owning repo, when scoped
+	ID   string `json:"id"`             // the entity id (job id, PR number, …)
+	URL  string `json:"url,omitempty"`  // external link, when the entity has one
+}
+
+// ChatMessage is one durable message in a thread. Body is untrusted,
+// agent/human-authored markdown-ish plain text and MUST be escaped by any
+// renderer. Kind drives how the client styles the message: chat (a normal
+// message), system (an ask-gate question from a paused job), job_result (an
+// agent's job result posted back), or promotion_request (a message that spawned
+// a job — see PromotedJobID).
+type ChatMessage struct {
+	ID            string    `json:"id"`
+	Seq           int       `json:"seq"`                     // 1-based per-thread ordering key
+	TsMs          int64     `json:"tsMs"`                    // epoch milliseconds
+	AuthorKind    string    `json:"authorKind"`              // human | agent | system
+	AuthorName    string    `json:"authorName"`              // agent/human name (empty for system)
+	Kind          string    `json:"kind"`                    // chat | system | job_result | promotion_request
+	Body          string    `json:"body"`                    // UNTRUSTED markdown-ish text — escape everything
+	Refs          []ChatRef `json:"refs,omitempty"`          // structured entity references
+	ReplyTo       string    `json:"replyTo,omitempty"`       // id of the message this replies to
+	PromotedJobID string    `json:"promotedJobId,omitempty"` // set on promotion_request: the job it spawned
+}
+
+// ChatThreadSummary is one row of the Chat threads list: a repo-scoped
+// coordination ledger plus a rollup of its activity (message count, unread
+// mentions, and a server-truncated preview of the last message) so the list can
+// render without fetching each thread's full history.
+type ChatThreadSummary struct {
+	ID             string   `json:"id"`
+	Slug           string   `json:"slug,omitempty"`
+	Name           string   `json:"name"`
+	Repo           string   `json:"repo,omitempty"`
+	State          string   `json:"state"` // open | archived
+	CreatedBy      string   `json:"createdBy,omitempty"`
+	UpdatedAt      int64    `json:"updatedAt,omitempty"` // epoch ms of the last activity
+	MessageCount   int      `json:"messageCount"`
+	UnreadMentions int      `json:"unreadMentions"`         // pending @mentions across enrolled agents
+	LastAuthor     string   `json:"lastAuthor,omitempty"`   // author of the most recent message
+	LastKind       string   `json:"lastKind,omitempty"`     // kind of the most recent message
+	LastSnippet    string   `json:"lastSnippet,omitempty"`  // server-truncated preview of the last message body
+	Participants   []string `json:"participants,omitempty"` // enrolled agents/humans, sorted
+}
+
+// ChatThreadDetail is the click-through detail for one thread: its summary plus
+// the full message history (ascending by Seq).
+type ChatThreadDetail struct {
+	ChatThreadSummary
+	Messages []ChatMessage `json:"messages"` // ascending by Seq; never nil
+}
+
 // DataSource is the read-only feed the dashboard renders. Implementations must
 // be safe for concurrent use.
 type DataSource interface {
@@ -573,5 +633,14 @@ type DataSource interface {
 	// return ErrPipelineNotFound. Ordering must be deterministic (the UI polls with
 	// a signature-skip).
 	PipelineDetail(ctx context.Context, name string) (PipelineDetail, error)
+	// ChatThreads returns every chat thread (gitmoot #534) with its activity
+	// rollup, sorted most-recently-active first (UpdatedAt desc, id desc
+	// tie-break). Ordering must be deterministic (the UI polls with a
+	// signature-skip).
+	ChatThreads(ctx context.Context) ([]ChatThreadSummary, error)
+	// ChatThread returns one thread's detail by id: its summary plus the full
+	// message history (ascending by Seq). Unknown ids return
+	// (nil, ErrChatThreadNotFound). Output must be deterministic.
+	ChatThread(ctx context.Context, id string) (*ChatThreadDetail, error)
 	Subscribe(ctx context.Context, runID string) (<-chan State, func(), error) // for SSE
 }
