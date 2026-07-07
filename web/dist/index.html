@@ -5442,8 +5442,15 @@ class Component extends DCLogic {
         this._updateChatAttn(this._chatData);
         this.renderChatThreads();
         // a pending deep-link (/chat/<id>): open it now the data has landed.
-        if (this._pendingChatThread && this._chatByID[this._pendingChatThread]) {
-          const id = this._pendingChatThread; this._pendingChatThread = null; this.openChatThread(id);
+        if (this._pendingChatThread) {
+          if (this._chatByID[this._pendingChatThread]) {
+            const id = this._pendingChatThread; this._pendingChatThread = null; this.openChatThread(id);
+          } else if (!isPoll) {
+            // Cold deep-link to an unknown / deleted thread id: drop it once the
+            // initial list has resolved rather than arming it indefinitely (which
+            // would later auto-open a recreated thread that reuses the same id).
+            this._pendingChatThread = null;
+          }
         }
       })
       .catch(err => {
@@ -5540,6 +5547,7 @@ class Component extends DCLogic {
     this._chatSelected = null;
     this._chatDetailSig = null;
     this._chatDetailFetchId = null;
+    this._chatDetailAnchored = false;
     this.stopChatThreadPoll();
     try { if (this._chatDetailEl) this._chatDetailEl.remove(); } catch (e) {}
     this._chatDetailEl = null;
@@ -5551,6 +5559,7 @@ class Component extends DCLogic {
     if (!summary) { this._pendingChatThread = id; return; } // opens after fetchChatThreads
     this._chatSelected = id;
     this._chatDetailSig = null; // reset the per-thread signature so a switch always renders
+    this._chatDetailAnchored = false; // a fresh open pins to the newest message
     this.renderChatThreadDetail(summary, null, 'loading');
     this.renderChatThreads(); // highlight the selected card
     this.fetchChatThread(id, false);
@@ -5577,6 +5586,17 @@ class Component extends DCLogic {
   renderChatThreadDetail(summary, detail, status) {
     const el = this.ensureChatDetailEl();
     const esc = (s) => this._galaxyEsc(s);
+    // Preserve reading position across the 12s live-detail poll's wholesale
+    // innerHTML replace. Capture the OLD body's scroll before we rebuild: if the
+    // reader was pinned to the bottom (following the conversation) we keep them
+    // there as new messages land; otherwise we restore their exact scrollTop so
+    // an incoming message never yanks them to the top.
+    const oldBody = el.querySelector('.cd-body');
+    const hadBody = !!oldBody;
+    const prevTop = oldBody ? oldBody.scrollTop : 0;
+    const wasAtBottom = oldBody
+      ? (oldBody.scrollHeight - oldBody.scrollTop - oldBody.clientHeight) <= 24
+      : false;
     const name = (detail && detail.name) || (summary && summary.name) || (summary && summary.id) || '';
     const repo = (detail && detail.repo) || (summary && summary.repo) || '';
     const state = (detail && detail.state) || (summary && summary.state) || 'open';
@@ -5588,8 +5608,10 @@ class Component extends DCLogic {
     let bodyHtml;
     const msgs = (detail && Array.isArray(detail.messages)) ? detail.messages.slice() : null;
     if (msgs && msgs.length) {
-      // chronological by (tsMs, authorName, id) — a stable, deterministic order.
-      msgs.sort((a, b) => (a.tsMs || 0) - (b.tsMs || 0) || String(a.authorName || '').localeCompare(String(b.authorName || '')) || String(a.id || '').localeCompare(String(b.id || '')));
+      // Order by the server's authoritative per-thread seq (the DataSource emits
+      // messages ascending by Seq); tsMs then id are tie-breaks only, so
+      // same-millisecond or tsMs-unset messages keep their true send order.
+      msgs.sort((a, b) => (a.seq || 0) - (b.seq || 0) || (a.tsMs || 0) - (b.tsMs || 0) || String(a.id || '').localeCompare(String(b.id || '')));
       bodyHtml = msgs.map(m => this._chatMessageHtml(m, esc)).join('');
     } else if (status === 'loading') {
       bodyHtml = '<div class="cd-empty">loading…</div>';
@@ -5615,6 +5637,35 @@ class Component extends DCLogic {
       '<div class="cd-body">' + bodyHtml + '</div>'
     ];
     el.innerHTML = parts2.join('');
+    // Restore / anchor scroll. On first render of a thread (not yet anchored)
+    // pin to the newest message at the bottom; on live-poll re-renders keep the
+    // reader where they were, following the tail only if they were already there.
+    const newBody = el.querySelector('.cd-body');
+    if (newBody) {
+      const hasMsgs = !!(msgs && msgs.length);
+      if (hasMsgs && (!this._chatDetailAnchored || wasAtBottom || !hadBody)) {
+        this._chatDetailAnchored = true;
+        this._pinChatDetailBottom(newBody, this._chatSelected); // pin to the newest message
+      } else {
+        newBody.scrollTop = prevTop; // preserve the reader's position
+      }
+    }
+  }
+
+  // Pin the detail body to its newest message. Set it now, then re-pin once
+  // webfonts / late layout settle (the bubbles reflow taller after the first
+  // paint, which would otherwise strand a freshly-opened thread near the top).
+  // Guarded so a thread switch or a superseding render cancels the re-pin.
+  _pinChatDetailBottom(body, id) {
+    if (!body) return;
+    body.scrollTop = body.scrollHeight;
+    const again = () => {
+      if (this._chatSelected !== id) return;
+      const cur = this._chatDetailEl && this._chatDetailEl.querySelector('.cd-body');
+      if (cur === body) body.scrollTop = body.scrollHeight;
+    };
+    try { requestAnimationFrame(again); } catch (e) {}
+    try { if (document.fonts && document.fonts.ready) document.fonts.ready.then(again); } catch (e) {}
   }
 
   // Per-author-kind name color: human neutral, agent purple accent, system dim.
