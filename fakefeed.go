@@ -21,6 +21,8 @@ var (
 	ErrAgentNotFound = errors.New("agent not found")
 	// ErrPipelineRunNotFound indicates the requested pipeline run does not exist.
 	ErrPipelineRunNotFound = errors.New("pipeline run not found")
+	// ErrPipelineNotFound indicates the requested pipeline does not exist.
+	ErrPipelineNotFound = errors.New("pipeline not found")
 )
 
 const (
@@ -1399,7 +1401,7 @@ func fakePipelineRuns() map[string]PipelineRun {
 			StartedAt:  ago(2 * h),
 			Stages: []PipelineStage{
 				{ID: "fetch", State: "succeeded", Cmd: "gitmoot listings fetch --source noted", JobID: "job-lr1-fetch", Summary: "fetched 128 listings", StartedAt: ago(2 * h), FinishedAt: ago(2*h - 3*m)},
-				{ID: "score", State: "blocked", Deps: []string{"fetch"}, Cmd: "gitmoot listings score --model r2", JobID: "job-lr1-score", Needs: []string{"set R2 token: gitmoot config set r2.token"}, Summary: "blocked: scoring needs the R2 token & <credentials> before it can run", StartedAt: ago(2*h - 3*m)},
+				{ID: "score", State: "blocked", Deps: []string{"fetch"}, Cmd: "gitmoot listings score --model r2", JobID: "job-lr1-score", Retry: 2, Needs: []string{"set R2 token: gitmoot config set r2.token"}, Summary: "blocked: scoring needs the R2 token & <credentials> before it can run", StartedAt: ago(2*h - 3*m)},
 				{ID: "dedupe", State: "succeeded", Deps: []string{"fetch"}, Cmd: "gitmoot listings dedupe", JobID: "job-lr1-dedupe", Summary: "removed 9 duplicates", StartedAt: ago(2*h - 3*m), FinishedAt: ago(2*h - 6*m)},
 				{ID: "publish", State: "skipped", Deps: []string{"score", "dedupe"}, Cmd: "gitmoot listings publish", Summary: "skipped: upstream stage score is blocked"},
 			},
@@ -1420,7 +1422,7 @@ func fakePipelineRuns() map[string]PipelineRun {
 			FinishedAt: ago(26*h - 34*m),
 			Stages: []PipelineStage{
 				{ID: "setup", State: "succeeded", Cmd: "make bench-setup", JobID: "job-bs1-setup", Summary: "warmed caches, seeded 10k rows", StartedAt: ago(26 * h), FinishedAt: ago(26*h - 4*m)},
-				{ID: "bench", State: "failed", Deps: []string{"setup"}, Cmd: `./scripts/bench.sh --filter "p<95> && q>1"`, JobID: "job-bs1-bench", Attempt: 2, Summary: "benchmark timeout after 2 retries (filter p<95> && q>1)", StartedAt: ago(26*h - 4*m), FinishedAt: ago(26*h - 34*m)},
+				{ID: "bench", State: "failed", Deps: []string{"setup"}, Cmd: `./scripts/bench.sh --filter "p<95> && q>1"`, JobID: "job-bs1-bench", Attempt: 2, Retry: 2, Summary: "benchmark timeout after 2 retries (filter p<95> && q>1)", StartedAt: ago(26*h - 4*m), FinishedAt: ago(26*h - 34*m)},
 				{ID: "report", State: "skipped", Deps: []string{"bench"}, Cmd: "./scripts/report.sh", Summary: "skipped: upstream stage bench failed"},
 			},
 		},
@@ -1540,4 +1542,164 @@ func (f *FakeDataSource) PipelineRun(ctx context.Context, id string) (PipelineRu
 		return PipelineRun{}, ErrPipelineRunNotFound
 	}
 	return run, nil
+}
+
+// fakePipelineHistoryEntry projects a full PipelineRun detail into a run-history
+// entry (gitmoot #708): the run summary plus its per-stage marks in the run's
+// (spec) stage order. Duration is the finished-started span in ms when both are
+// set, else 0 (a still-running or parked run reports 0).
+func fakePipelineHistoryEntry(run PipelineRun) PipelineRunHistoryEntry {
+	var duration int64
+	if run.StartedAt > 0 && run.FinishedAt > run.StartedAt {
+		duration = run.FinishedAt - run.StartedAt
+	}
+	marks := make([]PipelineStageMark, 0, len(run.Stages))
+	for _, st := range run.Stages {
+		marks = append(marks, PipelineStageMark{ID: st.ID, State: st.State})
+	}
+	return PipelineRunHistoryEntry{
+		ID:         run.ID,
+		Trigger:    run.Trigger,
+		State:      run.State,
+		HaltStage:  run.HaltStage,
+		StartedAt:  run.StartedAt,
+		FinishedAt: run.FinishedAt,
+		Duration:   duration,
+		Stages:     marks,
+	}
+}
+
+// fakePipelineDetail builds the fixed click-through detail (gitmoot #708) for one
+// pipeline: its currently declared stage DAG (every stage pending, carrying the
+// spec's deps/cmd/retry) plus the run history newest-first. Every timestamp is
+// anchored on fakeChartsNow (never time.Now()) so the section is byte-stable
+// across polls; each history list is sorted newest-first (StartedAt desc, then
+// ID desc — a unique tie-break) and every run's marks are emitted in spec order.
+// The three declared pipelines exercise the history matrix:
+//   - nightly-deploy: an ~8-run, 8-day history that is mostly succeeded with one
+//     failed run mid-history and the in-flight run (…-0002) present — enough for
+//     a meaningful stage×run matrix and success-rate math.
+//   - listing-refresh: a ~6-run history whose score stage is FLAKY (blocked in
+//     several runs, failed in one, succeeded in others — the "which stage keeps
+//     failing" demo); the newest run is the parked-blocked …-0001.
+//   - bench-suite: a single failed run.
+//
+// Unknown names return (PipelineDetail{}, false).
+func fakePipelineDetail(name string) (PipelineDetail, bool) {
+	const (
+		m = time.Minute
+		d = 24 * time.Hour
+	)
+	ago := func(x time.Duration) int64 { return fakeChartsNow.Add(-x).UnixMilli() }
+	runs := fakePipelineRuns()
+
+	// entry derives a history entry from an existing full run detail (keeps the
+	// history rows byte-consistent with the /api/pipeline/run/{id} endpoint).
+	entry := func(id string) PipelineRunHistoryEntry { return fakePipelineHistoryEntry(runs[id]) }
+
+	// sm is a per-stage mark; mk builds a synthetic history entry with a computed
+	// duration (finished-started, 0 when unfinished/parked).
+	sm := func(id, state string) PipelineStageMark { return PipelineStageMark{ID: id, State: state} }
+	mk := func(id, trigger, state, halt string, started, finished int64, marks ...PipelineStageMark) PipelineRunHistoryEntry {
+		var duration int64
+		if started > 0 && finished > started {
+			duration = finished - started
+		}
+		return PipelineRunHistoryEntry{
+			ID:         id,
+			Trigger:    trigger,
+			State:      state,
+			HaltStage:  halt,
+			StartedAt:  started,
+			FinishedAt: finished,
+			Duration:   duration,
+			Stages:     marks,
+		}
+	}
+
+	// finalize sorts a run history newest-first (StartedAt desc, ID desc) and caps
+	// it at 100 so the view is fully deterministic.
+	finalize := func(pname string, declared []PipelineStage, history []PipelineRunHistoryEntry) PipelineDetail {
+		sort.SliceStable(history, func(i, j int) bool {
+			if history[i].StartedAt != history[j].StartedAt {
+				return history[i].StartedAt > history[j].StartedAt // newest first
+			}
+			return history[i].ID > history[j].ID // ID desc tie-break (unique)
+		})
+		if len(history) > 100 {
+			history = history[:100]
+		}
+		return PipelineDetail{Name: pname, Declared: declared, Runs: history}
+	}
+
+	switch name {
+	case "nightly-deploy":
+		declared := []PipelineStage{
+			{ID: "source", State: "pending", Cmd: "git fetch --all && git checkout main"},
+			{ID: "build", State: "pending", Deps: []string{"source"}, Cmd: "make build"},
+			{ID: "deploy", State: "pending", Deps: []string{"build"}, Cmd: "./scripts/deploy.sh --env prod"},
+		}
+		ok := []PipelineStageMark{sm("source", "succeeded"), sm("build", "succeeded"), sm("deploy", "succeeded")}
+		history := []PipelineRunHistoryEntry{
+			entry("prun-nightly-deploy-0001"), // succeeded, 6h ago (newest)
+			entry("prun-nightly-deploy-0002"), // running (in-flight), 30h ago
+			entry("prun-nightly-deploy-0000"), // failed, 3d ago (mid-history)
+			mk("prun-nightly-deploy-0100", "schedule", "succeeded", "", ago(2*d), ago(2*d-12*m), ok...),
+			mk("prun-nightly-deploy-0101", "schedule", "succeeded", "", ago(4*d), ago(4*d-11*m), ok...),
+			mk("prun-nightly-deploy-0102", "schedule", "succeeded", "", ago(5*d), ago(5*d-14*m), ok...),
+			mk("prun-nightly-deploy-0103", "schedule", "succeeded", "", ago(6*d), ago(6*d-12*m), ok...),
+			mk("prun-nightly-deploy-0104", "schedule", "succeeded", "", ago(8*d), ago(8*d-13*m), ok...),
+		}
+		return finalize("nightly-deploy", declared, history), true
+
+	case "listing-refresh":
+		declared := []PipelineStage{
+			{ID: "fetch", State: "pending", Cmd: "gitmoot listings fetch --source noted"},
+			{ID: "score", State: "pending", Deps: []string{"fetch"}, Cmd: "gitmoot listings score --model r2", Retry: 2},
+			{ID: "dedupe", State: "pending", Deps: []string{"fetch"}, Cmd: "gitmoot listings dedupe"},
+			{ID: "publish", State: "pending", Deps: []string{"score", "dedupe"}, Cmd: "gitmoot listings publish"},
+		}
+		// okRun returns a fresh all-succeeded diamond in spec order.
+		okRun := func() []PipelineStageMark {
+			return []PipelineStageMark{sm("fetch", "succeeded"), sm("score", "succeeded"), sm("dedupe", "succeeded"), sm("publish", "succeeded")}
+		}
+		// Deliberately declared OUT of chronological order so finalize()'s
+		// newest-first sort is load-bearing (a regression that drops the sort
+		// fails TestHandlePipelineDetail's descending assertion).
+		history := []PipelineRunHistoryEntry{
+			mk("prun-listing-refresh-0103", "schedule", "succeeded", "", ago(3*d), ago(3*d-9*m), okRun()...),
+			mk("prun-listing-refresh-0105", "manual", "succeeded", "", ago(5*d), ago(5*d-7*m), okRun()...),
+			entry("prun-listing-refresh-0001"), // blocked on score, 2h ago (newest)
+			mk("prun-listing-refresh-0102", "manual", "failed", "score", ago(2*d), ago(2*d-5*m),
+				sm("fetch", "succeeded"), sm("score", "failed"), sm("dedupe", "succeeded"), sm("publish", "skipped")),
+			mk("prun-listing-refresh-0104", "schedule", "blocked", "score", ago(4*d), 0,
+				sm("fetch", "succeeded"), sm("score", "blocked"), sm("dedupe", "succeeded"), sm("publish", "skipped")),
+			mk("prun-listing-refresh-0101", "schedule", "succeeded", "", ago(1*d), ago(1*d-8*m), okRun()...),
+		}
+		return finalize("listing-refresh", declared, history), true
+
+	case "bench-suite":
+		declared := []PipelineStage{
+			{ID: "setup", State: "pending", Cmd: "make bench-setup"},
+			{ID: "bench", State: "pending", Deps: []string{"setup"}, Cmd: `./scripts/bench.sh --filter "p<95> && q>1"`, Retry: 2},
+			{ID: "report", State: "pending", Deps: []string{"bench"}, Cmd: "./scripts/report.sh"},
+		}
+		history := []PipelineRunHistoryEntry{
+			entry("prun-bench-suite-0001"), // the single failed run
+		}
+		return finalize("bench-suite", declared, history), true
+	}
+
+	return PipelineDetail{}, false
+}
+
+// PipelineDetail implements DataSource. It returns the fixed detail for a
+// pipeline by name from the fakePipelineDetail fixture; unknown names return
+// ErrPipelineNotFound. Output is deterministic and byte-stable across calls.
+func (f *FakeDataSource) PipelineDetail(ctx context.Context, name string) (PipelineDetail, error) {
+	detail, ok := fakePipelineDetail(name)
+	if !ok {
+		return PipelineDetail{}, ErrPipelineNotFound
+	}
+	return detail, nil
 }

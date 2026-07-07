@@ -1102,6 +1102,142 @@ func TestHandlePipelineRunNotFound(t *testing.T) {
 	}
 }
 
+func TestHandlePipelineDetail(t *testing.T) {
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+
+	// The flaky-diamond fixture exercises the declared DAG + a multi-run history
+	// whose score stage keeps changing state.
+	var detail PipelineDetail
+	if err := json.Unmarshal(getRaw(t, srv.URL+"/api/pipelines/listing-refresh"), &detail); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if detail.Name != "listing-refresh" {
+		t.Fatalf("detail.Name = %q, want listing-refresh", detail.Name)
+	}
+
+	// Declared: current spec DAG, in spec (topological) order — deliberately NOT
+	// alphabetical — every stage pending, carrying deps/cmd; the flaky score stage
+	// carries a retry budget.
+	if detail.Declared == nil {
+		t.Fatalf("Declared must be non-nil")
+	}
+	wantDeclared := []string{"fetch", "score", "dedupe", "publish"}
+	if len(detail.Declared) != len(wantDeclared) {
+		t.Fatalf("len(Declared) = %d, want %d: %+v", len(detail.Declared), len(wantDeclared), detail.Declared)
+	}
+	declaredIDs := map[string]bool{}
+	byDeclID := map[string]PipelineStage{}
+	retrySeen := false
+	for i, st := range detail.Declared {
+		if st.ID != wantDeclared[i] {
+			t.Fatalf("Declared not in spec order: got %q at %d, want %q\n%+v", st.ID, i, wantDeclared[i], detail.Declared)
+		}
+		if st.State != "pending" {
+			t.Fatalf("declared stage %s state = %q, want pending", st.ID, st.State)
+		}
+		if st.Cmd == "" {
+			t.Fatalf("declared stage %s missing cmd", st.ID)
+		}
+		if st.Retry > 0 {
+			retrySeen = true
+		}
+		declaredIDs[st.ID] = true
+		byDeclID[st.ID] = st
+	}
+	// The diamond's dependency edges are carried on the downstream stages.
+	if score := byDeclID["score"]; len(score.Deps) != 1 || score.Deps[0] != "fetch" {
+		t.Fatalf("declared score.Deps = %v, want [fetch]", score.Deps)
+	}
+	if publish := byDeclID["publish"]; len(publish.Deps) != 2 {
+		t.Fatalf("declared publish.Deps = %v, want 2 (the diamond join)", publish.Deps)
+	}
+	if !retrySeen {
+		t.Fatalf("expected at least one declared stage to carry a retry budget: %+v", detail.Declared)
+	}
+
+	// Runs: newest-first, capped at 100, never nil; each run's Stages non-nil with
+	// mark ids within the declared set and states within the allow-lists.
+	if detail.Runs == nil {
+		t.Fatalf("Runs must be non-nil")
+	}
+	if len(detail.Runs) > 100 {
+		t.Fatalf("Runs not capped at 100: %d", len(detail.Runs))
+	}
+	if len(detail.Runs) < 2 {
+		t.Fatalf("expected a multi-run history for listing-refresh, got %d", len(detail.Runs))
+	}
+	// Newest run is the parked-blocked …-0001.
+	if detail.Runs[0].ID != "prun-listing-refresh-0001" {
+		t.Fatalf("newest run = %q, want prun-listing-refresh-0001", detail.Runs[0].ID)
+	}
+	// Strictly newest-first throughout (StartedAt desc, ID desc tie-break). The
+	// fixture's history literal is deliberately declared out of chronological
+	// order, so this fails if finalize() ever stops sorting.
+	for i := 1; i < len(detail.Runs); i++ {
+		prev, cur := detail.Runs[i-1], detail.Runs[i]
+		if cur.StartedAt > prev.StartedAt || (cur.StartedAt == prev.StartedAt && cur.ID > prev.ID) {
+			t.Fatalf("Runs not newest-first at %d: %s(%d) before %s(%d)", i, prev.ID, prev.StartedAt, cur.ID, cur.StartedAt)
+		}
+	}
+	scoreStates := map[string]bool{}
+	for i, run := range detail.Runs {
+		if run.ID == "" || run.State == "" {
+			t.Fatalf("run[%d] missing id/state: %+v", i, run)
+		}
+		if !realPipelineStates[run.State] {
+			t.Fatalf("run[%d] state = %q not a real run state", i, run.State)
+		}
+		if i > 0 && detail.Runs[i-1].StartedAt < run.StartedAt {
+			t.Fatalf("Runs not newest-first (StartedAt desc): %+v", detail.Runs)
+		}
+		if run.Stages == nil {
+			t.Fatalf("run[%d] (%s) Stages must be non-nil", i, run.ID)
+		}
+		for _, mk := range run.Stages {
+			if !declaredIDs[mk.ID] {
+				t.Fatalf("run[%d] mark id %q not within the declared set %v", i, mk.ID, wantDeclared)
+			}
+			if !realPipelineStageStates[mk.State] {
+				t.Fatalf("run[%d] mark %s state = %q not a real stage state", i, mk.ID, mk.State)
+			}
+			if mk.ID == "score" {
+				scoreStates[mk.State] = true
+			}
+		}
+	}
+	// Flaky-stage variety: the score stage reaches >=2 distinct states across the
+	// history (the "which stage keeps failing" demo).
+	if len(scoreStates) < 2 {
+		t.Fatalf("expected the score stage to be flaky (>=2 distinct states), got %v", scoreStates)
+	}
+}
+
+func TestHandlePipelineDetailDeterministic(t *testing.T) {
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+
+	url := srv.URL + "/api/pipelines/listing-refresh"
+	if a, b := getRaw(t, url), getRaw(t, url); !bytes.Equal(a, b) {
+		t.Fatalf("pipeline detail not byte-stable across calls\nfirst:  %s\nsecond: %s", a, b)
+	}
+}
+
+func TestHandlePipelineDetailNotFound(t *testing.T) {
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/api/pipelines/does-not-exist")
+	if err != nil {
+		t.Fatalf("GET /api/pipelines/does-not-exist: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", resp.StatusCode)
+	}
+}
+
 func TestStateResponseIsIndented(t *testing.T) {
 	srv := httptest.NewServer(Serve(NewFakeDataSource()))
 	defer srv.Close()

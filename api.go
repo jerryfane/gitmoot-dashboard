@@ -23,7 +23,7 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 // statusForError maps a DataSource error to an HTTP status code: not-found
 // sentinels become 404, everything else 500.
 func statusForError(err error) int {
-	if errors.Is(err, ErrRunNotFound) || errors.Is(err, ErrJobNotFound) || errors.Is(err, ErrAgentNotFound) || errors.Is(err, ErrPipelineRunNotFound) {
+	if errors.Is(err, ErrRunNotFound) || errors.Is(err, ErrJobNotFound) || errors.Is(err, ErrAgentNotFound) || errors.Is(err, ErrPipelineRunNotFound) || errors.Is(err, ErrPipelineNotFound) {
 		return http.StatusNotFound
 	}
 	return http.StatusInternalServerError
@@ -205,6 +205,35 @@ func (s *server) handlePipelines(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, http.StatusOK, pipelines)
+}
+
+// handlePipelineDetail serves GET /api/pipelines/{name} -> PipelineDetail, one
+// pipeline's declared stage DAG and its run history (newest-first, capped at
+// 100). Unknown names map to 404 (mirrors handleAgent). Declared, Runs and each
+// run's Stages are coerced non-nil so the client always sees JSON arrays.
+func (s *server) handlePipelineDetail(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	if name == "" {
+		http.Error(w, "missing pipeline name", http.StatusBadRequest)
+		return
+	}
+	detail, err := s.ds.PipelineDetail(r.Context(), name)
+	if err != nil {
+		http.Error(w, err.Error(), statusForError(err))
+		return
+	}
+	if detail.Declared == nil {
+		detail.Declared = []PipelineStage{}
+	}
+	if detail.Runs == nil {
+		detail.Runs = []PipelineRunHistoryEntry{}
+	}
+	for i := range detail.Runs {
+		if detail.Runs[i].Stages == nil {
+			detail.Runs[i].Stages = []PipelineStageMark{}
+		}
+	}
+	writeJSON(w, http.StatusOK, detail)
 }
 
 // handlePipelineRun serves GET /api/pipeline/run/{id} -> PipelineRun, the full
