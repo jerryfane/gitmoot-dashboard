@@ -488,10 +488,40 @@ type PipelineStage struct {
 	Cmd        string   `json:"cmd,omitempty"`
 	JobID      string   `json:"jobId,omitempty"`
 	Attempt    int      `json:"attempt,omitempty"`
+	Retry      int      `json:"retry,omitempty"` // the stage's retry budget from the spec
 	Needs      []string `json:"needs,omitempty"`
 	Summary    string   `json:"summary,omitempty"`
 	StartedAt  int64    `json:"startedAt,omitempty"`  // epoch milliseconds
 	FinishedAt int64    `json:"finishedAt,omitempty"` // epoch milliseconds
+}
+
+// PipelineStageMark is the minimal per-run stage outcome used by the history
+// matrix: which stage, and how it ended (or stands).
+type PipelineStageMark struct {
+	ID    string `json:"id"`
+	State string `json:"state"` // pending | queued | running | succeeded | blocked | failed | skipped | cancelled
+}
+
+// PipelineRunHistoryEntry is one row of a pipeline's run history: the run
+// summary plus its per-stage marks (in that run's stage order).
+type PipelineRunHistoryEntry struct {
+	ID         string              `json:"id"`
+	Trigger    string              `json:"trigger,omitempty"` // manual | schedule
+	State      string              `json:"state"`             // running | succeeded | blocked | failed | cancelled
+	HaltStage  string              `json:"haltStage,omitempty"`
+	StartedAt  int64               `json:"startedAt,omitempty"`  // epoch milliseconds
+	FinishedAt int64               `json:"finishedAt,omitempty"` // epoch milliseconds
+	Duration   int64               `json:"duration,omitempty"`   // milliseconds (finished-started, 0 while running)
+	Stages     []PipelineStageMark `json:"stages"`               // never nil
+}
+
+// PipelineDetail is the click-through detail for one pipeline: its currently
+// declared stage DAG (from the stored spec, every stage pending) plus the run
+// history, newest-first, capped at 100 runs.
+type PipelineDetail struct {
+	Name     string                    `json:"name"`
+	Declared []PipelineStage           `json:"declared"` // current spec DAG, state "pending"; never nil
+	Runs     []PipelineRunHistoryEntry `json:"runs"`     // newest-first, capped at 100; never nil
 }
 
 // DataSource is the read-only feed the dashboard renders. Implementations must
@@ -538,5 +568,10 @@ type DataSource interface {
 	// PipelineRun returns the full detail for a single run by run id, stages in
 	// spec (topological) order. Unknown ids return ErrPipelineRunNotFound.
 	PipelineRun(ctx context.Context, id string) (PipelineRun, error)
+	// PipelineDetail returns one pipeline's declared stage DAG and its run history
+	// (newest-first, capped at 100 runs, each with per-stage marks). Unknown names
+	// return ErrPipelineNotFound. Ordering must be deterministic (the UI polls with
+	// a signature-skip).
+	PipelineDetail(ctx context.Context, name string) (PipelineDetail, error)
 	Subscribe(ctx context.Context, runID string) (<-chan State, func(), error) // for SSE
 }
