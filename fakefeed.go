@@ -1883,3 +1883,113 @@ func (f *FakeDataSource) ChatThread(ctx context.Context, id string) (*ChatThread
 	cp.Messages = append([]ChatMessage(nil), det.Messages...)
 	return &cp, nil
 }
+
+// fakeVerdictRun is the SkillOpt eval run id the fake binary-verdicts fixture is
+// keyed on (matches the pending candidate skill-reviewer-v3's evaluation).
+const fakeVerdictRun = "eval-reviewer-0007"
+
+// fakeJobChecks builds the fixed job-detail failed-check fixture (gitmoot #711),
+// keyed by job id. job-5 (the integrate/review/open-PR job) failed two
+// deterministic result checks under a block policy; every other job passed
+// (empty Failed) under the default warn policy. Explanations carry angle
+// brackets/ampersands so the client's escaping of untrusted text is exercised.
+func fakeJobChecks() map[string]JobChecks {
+	return map[string]JobChecks{
+		"job-5": {
+			JobID: "job-5", Mode: "block",
+			Failed: []ResultCheck{
+				{CheckID: "pr-opened", Question: "Did the job open a pull request and record its URL?",
+					Explanation: "No PR URL was recorded on the result — the branch was pushed but `gh pr create` returned <auth invalid> (sandbox network blocked)."},
+				{CheckID: "tests-run", Question: "Does the result show tests were actually run (a command + outcome)?",
+					Explanation: "The summary claims \"all green\" but includes no command output; `go test ./...` was never invoked & no results block is present."},
+			},
+		},
+		"job-6": {JobID: "job-6", Mode: "warn", Failed: []ResultCheck{}},
+	}
+}
+
+// JobChecks implements DataSource. It returns the fixed fakeJobChecks fixture for
+// a job id; an unknown job is not an error — it returns the default warn Mode
+// with an empty Failed list. Output is deterministic and byte-stable.
+func (f *FakeDataSource) JobChecks(ctx context.Context, jobID string) (JobChecks, error) {
+	if jc, ok := fakeJobChecks()[jobID]; ok {
+		jc.Failed = append([]ResultCheck(nil), jc.Failed...)
+		return jc, nil
+	}
+	return JobChecks{JobID: jobID, Mode: "warn", Failed: []ResultCheck{}}, nil
+}
+
+// fakeBinaryVerdicts builds the fixed per-run binary-check breakdown (gitmoot
+// #714): five decomposed questions across two dimensions, three passing and two
+// failing, ordered by (dimension, questionId) — the same order the live store
+// reads. Passed/Failed are derived from Verdict == "yes".
+func fakeBinaryVerdicts() BinaryVerdicts {
+	verdicts := []BinaryVerdict{
+		{QuestionID: "q-cites-sources", Dimension: "correctness", Verdict: "yes",
+			Explanation: "Every claim in the review cites a file:line.", Weight: 1},
+		{QuestionID: "q-no-false-pass", Dimension: "correctness", Verdict: "no",
+			Explanation: "Approved a change whose test <TestExport> is skipped, so the pass is unearned.", Weight: 2},
+		{QuestionID: "q-actionable", Dimension: "usefulness", Verdict: "yes",
+			Explanation: "Findings name a concrete fix & location.", Weight: 1},
+		{QuestionID: "q-no-nits-as-blockers", Dimension: "usefulness", Verdict: "yes",
+			Explanation: "Nits are labelled, not raised as blockers.", Weight: 1},
+		{QuestionID: "q-scoped", Dimension: "usefulness", Verdict: "no",
+			Explanation: "Two findings are outside the diff & should have been dropped.", Weight: 1},
+	}
+	out := BinaryVerdicts{RunID: fakeVerdictRun, Verdicts: verdicts}
+	for i := range verdicts {
+		out.Verdicts[i].Pass = verdicts[i].Verdict == "yes"
+		if out.Verdicts[i].Pass {
+			out.Passed++
+		} else {
+			out.Failed++
+		}
+	}
+	return out
+}
+
+// BinaryVerdicts implements DataSource. It returns the fixed fakeBinaryVerdicts
+// fixture for fakeVerdictRun; any other run id yields zero counts and an empty
+// (never nil) list. Output is deterministic and byte-stable.
+func (f *FakeDataSource) BinaryVerdicts(ctx context.Context, runID string) (BinaryVerdicts, error) {
+	if runID == fakeVerdictRun {
+		return fakeBinaryVerdicts(), nil
+	}
+	return BinaryVerdicts{RunID: runID, Verdicts: []BinaryVerdict{}}, nil
+}
+
+// fakeAttention builds the fixed "Needs a human" fixture (gitmoot #528): two
+// blocked job gates, two pending synth approvals and one candidate awaiting
+// promotion. Every timestamp is anchored on fakeChartsNow (never time.Now()) so
+// the section is byte-stable across polls.
+func fakeAttention() Attention {
+	const h = time.Hour
+	at := func(x time.Duration) int64 { return fakeChartsNow.Add(-x).UnixMilli() }
+	att := Attention{
+		Gates: []AttentionGate{
+			{JobID: "job-5", Need: "human:confirm-pr-target", Title: "integrate + review + open PR",
+				Agent: "integrator", Repo: "jerryfane/noted", State: "blocked", PR: 42, CreatedAt: at(2 * h)},
+			{JobID: "job-nightly-score-19", Need: "secret:r2-token", Title: "nightly-deploy · score stage",
+				Agent: "claude-a", Repo: "jerryfane/noted", State: "blocked", CreatedAt: at(90 * time.Minute)},
+		},
+		SynthItems: []AttentionSynthItem{
+			{ID: "synth-reviewer-0031", TemplateID: "tmpl-reviewer", Repo: "jerryfane/gitmoot",
+				Question: "Should a review flag an unearned pass when the asserting test is skipped?",
+				Gap: 0.29, WeakAgent: "reviewer@v2", StrongAgent: "reviewer@v3", JudgeAgent: "cross-family-judge", CreatedAt: at(4 * h)},
+			{ID: "synth-reviewer-0030", TemplateID: "tmpl-reviewer", Repo: "jerryfane/gitmoot",
+				Question: "Does the review keep findings scoped to the diff under test?",
+				Gap: 0.18, WeakAgent: "reviewer@v2", StrongAgent: "reviewer@v3", JudgeAgent: "cross-family-judge", CreatedAt: at(5 * h)},
+		},
+		Candidates: []AttentionCandidate{
+			{TemplateID: "tmpl-reviewer", Name: "reviewer", VersionID: "skill-reviewer-v3", Number: 3, Score: "0.81", CreatedAt: at(6 * h)},
+		},
+	}
+	att.Total = len(att.Gates) + len(att.SynthItems) + len(att.Candidates)
+	return att
+}
+
+// Attention implements DataSource. It returns the fixed fakeAttention fixture;
+// output is deterministic and byte-stable across calls.
+func (f *FakeDataSource) Attention(ctx context.Context) (Attention, error) {
+	return fakeAttention(), nil
+}

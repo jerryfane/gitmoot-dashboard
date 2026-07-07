@@ -584,6 +584,103 @@ type ChatThreadDetail struct {
 	Messages []ChatMessage `json:"messages"` // ascending by Seq; never nil
 }
 
+// Attention + binary checks — surfacing evaluator output and human gates where a
+// human (or the planned Slack/media bridge, gitmoot #519) manages work
+// (gitmoot #528).
+
+// ResultCheck is one deterministic result check (gitmoot #526/#711): the
+// question the evaluator asked and, when it failed, the explanation of why. Used
+// in the job-detail failed-check section.
+type ResultCheck struct {
+	CheckID     string `json:"checkId"`
+	Question    string `json:"question"`
+	Explanation string `json:"explanation,omitempty"`
+}
+
+// JobChecks is the job-detail failed-check section (gitmoot #711): the
+// deterministic result checks a job's result failed, plus the home-wide
+// [workflow] result_checks policy mode in force. Mode "off" means checks were
+// not run; an empty Failed under "warn"/"block" means the job passed every
+// check.
+type JobChecks struct {
+	JobID  string        `json:"jobId"`
+	Mode   string        `json:"mode"`   // off | warn | block
+	Failed []ResultCheck `json:"failed"` // failed checks, insertion order; never nil
+}
+
+// BinaryVerdict is one per-question verdict from a SkillOpt binary evaluation
+// (gitmoot #714 skillopt_binary_verdicts): a yes/no answer to a decomposed
+// question with the evaluator's explanation. Pass mirrors Verdict == "yes".
+type BinaryVerdict struct {
+	QuestionID  string  `json:"questionId"`
+	Dimension   string  `json:"dimension,omitempty"`
+	Verdict     string  `json:"verdict"` // yes | no
+	Pass        bool    `json:"pass"`
+	Explanation string  `json:"explanation,omitempty"`
+	Weight      float64 `json:"weight,omitempty"`
+}
+
+// BinaryVerdicts is the per-run binary-check breakdown (gitmoot #714): the
+// verdicts ordered by (dimension, questionId) plus pass/fail headline counts.
+// An unknown run yields zero counts and an empty (never nil) list.
+type BinaryVerdicts struct {
+	RunID    string          `json:"runId"`
+	Passed   int             `json:"passed"`
+	Failed   int             `json:"failed"`
+	Verdicts []BinaryVerdict `json:"verdicts"` // ordered (dimension, questionId); never nil
+}
+
+// AttentionGate is a blocked job waiting on a human-satisfiable gate (gitmoot
+// #693 job_gates): one open (unsatisfied) need on a job.
+type AttentionGate struct {
+	JobID     string    `json:"jobId"`
+	Need      string    `json:"need"`
+	Title     string    `json:"title,omitempty"`
+	Agent     string    `json:"agent,omitempty"`
+	Repo      string    `json:"repo,omitempty"`
+	State     NodeState `json:"state,omitempty"`
+	PR        int       `json:"pr,omitempty"`
+	CreatedAt int64     `json:"createdAt,omitempty"` // epoch ms
+}
+
+// AttentionSynthItem is a synthesized SkillOpt review item awaiting the human
+// approval gate (gitmoot skillopt_synth_items, status pending_human_approval).
+type AttentionSynthItem struct {
+	ID          string  `json:"id"`
+	TemplateID  string  `json:"templateId,omitempty"`
+	Repo        string  `json:"repo,omitempty"`
+	Question    string  `json:"question,omitempty"`
+	Gap         float64 `json:"gap,omitempty"`
+	WeakAgent   string  `json:"weakAgent,omitempty"`
+	StrongAgent string  `json:"strongAgent,omitempty"`
+	JudgeAgent  string  `json:"judgeAgent,omitempty"`
+	CreatedAt   int64   `json:"createdAt,omitempty"` // epoch ms
+}
+
+// AttentionCandidate is an agent-template candidate version awaiting human
+// promotion (a template version in the "pending" state). Score passes through
+// the review's stored form (a decimal, or empty when unscored).
+type AttentionCandidate struct {
+	TemplateID string `json:"templateId"`
+	Name       string `json:"name,omitempty"`
+	VersionID  string `json:"versionId"`
+	Number     int    `json:"number"`
+	Score      string `json:"score,omitempty"`
+	CreatedAt  int64  `json:"createdAt,omitempty"` // epoch ms
+}
+
+// Attention is the "Needs a human" view (gitmoot #528): the three kinds of item
+// that require an explicit human decision — blocked job gates, pending synth
+// approvals and template candidates awaiting promotion — plus a headline total.
+// Every list is non-nil and deterministically ordered (the UI polls with a
+// signature-skip).
+type Attention struct {
+	Gates      []AttentionGate      `json:"gates"`      // open job gates, oldest-first
+	SynthItems []AttentionSynthItem `json:"synthItems"` // pending synth approvals, newest-first
+	Candidates []AttentionCandidate `json:"candidates"` // versions awaiting promotion, (templateId, number)
+	Total      int                  `json:"total"`      // gates + synthItems + candidates
+}
+
 // DataSource is the read-only feed the dashboard renders. Implementations must
 // be safe for concurrent use.
 type DataSource interface {
@@ -642,5 +739,17 @@ type DataSource interface {
 	// message history (ascending by Seq). Unknown ids return
 	// (nil, ErrChatThreadNotFound). Output must be deterministic.
 	ChatThread(ctx context.Context, id string) (*ChatThreadDetail, error)
+	// Attention returns the "Needs a human" view (gitmoot #528): blocked job
+	// gates, pending synth approvals and template candidates awaiting promotion.
+	// Ordering must be deterministic (the UI polls with a signature-skip).
+	Attention(ctx context.Context) (Attention, error)
+	// JobChecks returns the job-detail failed-check section for one job (gitmoot
+	// #711): the deterministic result checks its result failed plus the home-wide
+	// policy mode. An unknown job yields an empty Failed with the resolved Mode.
+	JobChecks(ctx context.Context, jobID string) (JobChecks, error)
+	// BinaryVerdicts returns the per-run SkillOpt binary-check breakdown (gitmoot
+	// #714) for a skillopt eval run id: verdicts ordered by (dimension,
+	// questionId) plus pass/fail counts. An unknown run yields zero counts.
+	BinaryVerdicts(ctx context.Context, runID string) (BinaryVerdicts, error)
 	Subscribe(ctx context.Context, runID string) (<-chan State, func(), error) // for SSE
 }
