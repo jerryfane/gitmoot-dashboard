@@ -1749,10 +1749,16 @@ func fakeChatThreadDetails() map[string]*ChatThreadDetail {
 					Body:          "/implement @codex-b implement the adapter manifest (fixed schema, text + refs). Promote this to a real job.",
 					PromotedJobID: "job-adapter-01", Refs: []ChatRef{{Kind: "job", Repo: "jerryfane/gitmoot", ID: "job-adapter-01"}}},
 				{ID: "msg-rr-4", Seq: 4, TsMs: at(3*h - 74*m), AuthorKind: "agent", AuthorName: "codex-b", Kind: "job_result", ReplyTo: "msg-rr-3",
-					Body: "decision: implemented\nsummary: added the adapter manifest (manifest.go + schema test). Fixed schema: {kind, body, refs[]}. No runtime negotiation.\nchanged: internal/runtime/manifest.go, internal/runtime/manifest_test.go\nverify: go test ./internal/runtime/ -> ok (0.42s)",
+					Body: "> job-adapter-01 · **implemented**\n\n**Decision:** implemented\n**Summary:** added the adapter manifest (`manifest.go` + a schema test). Fixed schema `{kind, body, refs[]}` — no runtime negotiation.\n\n**Changed:**\n- internal/runtime/manifest.go\n- internal/runtime/manifest_test.go\n\n**Verify:**\n```\ngo test ./internal/runtime/ -> ok (0.42s)\n```",
 					Refs: []ChatRef{{Kind: "job", Repo: "jerryfane/gitmoot", ID: "job-adapter-01"}, {Kind: "pr", Repo: "jerryfane/gitmoot", ID: "742", URL: "https://github.com/jerryfane/gitmoot/pull/742"}}},
 				{ID: "msg-rr-5", Seq: 5, TsMs: at(40 * m), AuthorKind: "agent", AuthorName: "codex-b", Kind: "chat",
 					Body: "Opened PR #742 with the manifest. @jerry ready for review — CI (build & vet & test) is green."},
+				// XSS/inertness fixture: an untrusted body carrying a literal <script>,
+				// an <img onerror> and a javascript: URL. The SAFE markdown renderer
+				// must show these as inert text (escaped, links NOT clickable) while
+				// still formatting the **bold** / `code` / > quote around them.
+				{ID: "msg-rr-6", Seq: 6, TsMs: at(30 * m), AuthorKind: "human", AuthorName: "jerry", Kind: "chat",
+					Body: "Sanity-checking the renderer with a hostile body:\n\n**bold <script>alert(1)</script>** and inline `<img src=x onerror=alert(1)>`.\n\n> quoted <b>not-bold</b> & a bare link javascript:alert(document.cookie) stays plain text.\n\n```\n<script>alert('fenced too')</script>\n```"},
 			},
 		},
 		{
@@ -1770,7 +1776,7 @@ func fakeChatThreadDetails() map[string]*ChatThreadDetail {
 				{ID: "msg-ar-3", Seq: 3, TsMs: at(2 * h), AuthorKind: "human", AuthorName: "jerry", Kind: "chat", ReplyTo: "msg-ar-2",
 					Body: "yes — codex ephemeral workers need [sandbox_workspace_write] network_access=true to push branches & open PRs (default sandbox blocks network -> gh \"auth invalid\")."},
 				{ID: "msg-ar-4", Seq: 4, TsMs: at(2*h - 12*m), AuthorKind: "agent", AuthorName: "reviewer", Kind: "job_result", ReplyTo: "msg-ar-3",
-					Body: "decision: approved\nsummary: resumed after the ask-gate answer. Approved with a note that network_access=true is required for the ephemeral worker path. No blocking findings.\nverify: re-ran the manifest schema test -> ok",
+					Body: "**Decision:** approved\n**Summary:** resumed after the ask-gate answer. Approved with a note that `network_access=true` is required for the ephemeral worker path. No blocking findings.\n**Verify:** re-ran the manifest schema test -> ok",
 					Refs: []ChatRef{{Kind: "job", Repo: "jerryfane/gitmoot", ID: "job-adapter-review-07"}, {Kind: "pr", Repo: "jerryfane/gitmoot", ID: "742", URL: "https://github.com/jerryfane/gitmoot/pull/742"}}},
 			},
 		},
