@@ -4313,7 +4313,7 @@ class Component extends DCLogic {
     const days = Math.floor(h / 24), rh = h % 24;
     return rh ? (days + 'd ' + rh + 'h') : (days + 'd');
   }
-  _fmtCountdown(ms, now) {
+  _plFmtCountdown(ms, now) {
     if (!ms || ms <= 0) return '—';
     const d = ms - (now || Date.now());
     if (d <= 0) return 'due now';
@@ -4324,7 +4324,7 @@ class Component extends DCLogic {
     const now = Date.now();
     this._pipelinesRoot.querySelectorAll('.pl-due').forEach(el => {
       const due = +el.getAttribute('data-due');
-      el.textContent = this._fmtCountdown(due, now);
+      el.textContent = this._plFmtCountdown(due, now);
     });
   }
 
@@ -4512,7 +4512,7 @@ class Component extends DCLogic {
     const lastChip = p.lastStatus
       ? '<span class="pl-statechip" style="color:' + lastCol + ';background:color-mix(in srgb,' + lastCol + ' 12%, transparent);border:1px solid color-mix(in srgb,' + lastCol + ' 30%, transparent)">' + esc(p.lastStatus) + '</span>'
       : '<span class="pl-nohist">—</span>';
-    const due = p.nextDueAt ? '<span class="pl-due" data-due="' + p.nextDueAt + '">' + esc(this._fmtCountdown(p.nextDueAt)) + '</span>' : '<span class="pl-nohist">—</span>';
+    const due = p.nextDueAt ? '<span class="pl-due" data-due="' + p.nextDueAt + '">' + esc(this._plFmtCountdown(p.nextDueAt)) + '</span>' : '<span class="pl-nohist">—</span>';
     const recent = (Array.isArray(p.recent) ? p.recent.slice() : []).reverse(); // oldest -> newest (left -> right)
     const strip = recent.length
       ? '<div class="pl-strip">' + recent.map(r => { const c = this._galaxyStateColor(r.state); return '<span class="pl-pip" style="background:' + c + '" title="' + esc(r.state) + (r.startedAt ? ' · ' + esc(this._relFromMs(r.startedAt)) : '') + '"></span>'; }).join('') + '</div>'
@@ -4560,7 +4560,7 @@ class Component extends DCLogic {
           enChip +
           '<span>' + sched + '</span>' +
           '<span>' + nStages + ' stage' + (nStages === 1 ? '' : 's') + '</span>' +
-          (summary.nextDueAt ? '<span class="pl-due pl-dh-due" data-due="' + summary.nextDueAt + '">' + esc(this._fmtCountdown(summary.nextDueAt)) + '</span>' : '') +
+          (summary.nextDueAt ? '<span class="pl-due pl-dh-due" data-due="' + summary.nextDueAt + '">' + esc(this._plFmtCountdown(summary.nextDueAt)) + '</span>' : '') +
         '</div>';
     }
     const hist = this._pipelinesRoot.querySelector('#pl-history');
