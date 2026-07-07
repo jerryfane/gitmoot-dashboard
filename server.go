@@ -11,8 +11,9 @@ import (
 // static UI (with SPA fallback to index.html) plus the JSON API (handleRuns/
 // handleJobs/handleAgents/handleAgent/handleCharts/handleHealth/
 // handleLearningSkills/handleLearningKnowledge/handlePipelines/
-// handlePipelineDetail/handlePipelineRun/handleState/handleJob/handleGraph in
-// api.go) and the SSE stream (handleEvents in sse.go).
+// handlePipelineDetail/handlePipelineRun/handleChatThreads/handleChatThread/
+// handleState/handleJob/handleGraph in api.go) and the SSE stream (handleEvents
+// in sse.go).
 func Serve(ds DataSource) http.Handler {
 	s := &server{ds: ds}
 	mux := http.NewServeMux()
@@ -28,6 +29,8 @@ func Serve(ds DataSource) http.Handler {
 	mux.HandleFunc("GET /api/pipelines", s.handlePipelines)
 	mux.HandleFunc("GET /api/pipelines/{name}", s.handlePipelineDetail)
 	mux.HandleFunc("GET /api/pipeline/run/{id}", s.handlePipelineRun)
+	mux.HandleFunc("GET /api/chat/threads", s.handleChatThreads)
+	mux.HandleFunc("GET /api/chat/thread", s.handleChatThread)
 	mux.HandleFunc("GET /api/state", s.handleState)
 	mux.HandleFunc("GET /api/job/{id}", s.handleJob)
 	mux.HandleFunc("GET /api/graph", s.handleGraph)
@@ -46,8 +49,9 @@ type server struct {
 
 // The JSON API handlers (handleRuns/handleJobs/handleAgents/handleAgent/
 // handleCharts/handleHealth/handleLearningSkills/handleLearningKnowledge/
-// handlePipelines/handlePipelineDetail/handlePipelineRun/handleState/handleJob/
-// handleGraph) live in api.go and the SSE handler (handleEvents) lives in sse.go.
+// handlePipelines/handlePipelineDetail/handlePipelineRun/handleChatThreads/
+// handleChatThread/handleState/handleJob/handleGraph) live in api.go and the
+// SSE handler (handleEvents) lives in sse.go.
 
 // staticHandler serves the embedded web/dist assets. Requests that do not map
 // to an existing file fall back to index.html so the client-side router can

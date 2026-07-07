@@ -65,6 +65,12 @@
       <span style="flex:1">Learning</span>
       <span style="{{ learningNavDotStyle }}"></span>
     </div>
+    <div onClick="{{ showChat }}" title="Agent chat threads, mentions + job promotions" style="{{ chatNavStyle }}">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M4 5h13a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H9l-4 3v-3H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/></svg>
+      <span style="flex:1">Chat</span>
+      <span style="{{ chatNavAttnStyle }}"></span>
+      <span style="{{ chatNavDotStyle }}"></span>
+    </div>
     <div onClick="{{ showAgents }}" title="Registered agents + ephemeral workers" style="{{ agentsNavStyle }}">
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="7" y="7" width="10" height="10" rx="2"/><path d="M10 2.5v3M14 2.5v3M10 18.5v3M14 18.5v3M2.5 10h3M2.5 14h3M18.5 10h3M18.5 14h3"/></svg>
       <span style="flex:1">Agents</span>
@@ -242,6 +248,11 @@
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M12 3l8 4.5-8 4.5-8-4.5L12 3z"/><path d="M4 12l8 4.5 8-4.5"/><path d="M4 16.5l8 4.5 8-4.5"/></svg>
       <span style="{{ tabLabelStyle }}">Learn</span>
     </div>
+    <div onClick="{{ showChat }}" title="Chat" style="{{ tabChatStyle }}">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M4 5h13a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H9l-4 3v-3H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/></svg>
+      <span style="{{ tabLabelStyle }}">Chat</span>
+      <span style="{{ chatTabAttnStyle }}"></span>
+    </div>
     <div onClick="{{ showAgents }}" title="Agents" style="{{ tabAgentsStyle }}">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="7" y="7" width="10" height="10" rx="2"/><path d="M10 2.5v3M14 2.5v3M10 18.5v3M14 18.5v3M2.5 10h3M2.5 14h3M18.5 10h3M18.5 14h3"/></svg>
       <span style="{{ tabLabelStyle }}">Agents</span>
@@ -276,6 +287,7 @@ class Component extends DCLogic {
       if (r.view === 'agents' && r.agent) this._pendingAgentDetail = r.agent;
       if (r.view === 'learning') this._learningTab = r.tab || 'skills';
       if (r.view === 'pipelines') this._pendingPipelineDetail = r.name || null;
+      if (r.view === 'chat') this._pendingChatThread = r.name || null;
       // Normalize unknown paths to '/' (graph). Also tidy a non-canonical known
       // path (e.g. a trailing slash). Never rewrite a graph URL, so a
       // '/?run=<id>' deep-link survives to connectLive().
@@ -314,6 +326,13 @@ class Component extends DCLogic {
       try { name = decodeURIComponent(raw); } catch (e) { name = raw; }
       return name ? { view: 'pipelines', name: name } : { view: 'pipelines' };
     }
+    if (p === '/chat') return { view: 'chat' };
+    if (p.indexOf('/chat/') === 0) {
+      const raw = p.slice(6); // '/chat/'.length
+      let name = raw;
+      try { name = decodeURIComponent(raw); } catch (e) { name = raw; }
+      return name ? { view: 'chat', name: name } : { view: 'chat' };
+    }
     if (p === '/agents') return { view: 'agents' };
     if (p.indexOf('/agents/') === 0) {
       const raw = p.slice(8); // '/agents/'.length
@@ -345,6 +364,7 @@ class Component extends DCLogic {
       case 'galaxy': return '/galaxy';
       case 'jobs':   return opts.agent ? '/jobs?agent=' + encodeURIComponent(opts.agent) : '/jobs';
       case 'pipelines': return opts.name ? '/pipelines/' + encodeURIComponent(opts.name) : '/pipelines';
+      case 'chat': return opts.name ? '/chat/' + encodeURIComponent(opts.name) : '/chat';
       case 'agents': return opts.agent ? '/agents/' + encodeURIComponent(opts.agent) : '/agents';
       case 'charts': return '/charts';
       case 'health': return '/health';
@@ -367,6 +387,7 @@ class Component extends DCLogic {
       case 'galaxy': return 'gitmoot · galaxy';
       case 'jobs':   return opts.agent ? 'gitmoot · jobs · ' + opts.agent : 'gitmoot · jobs';
       case 'pipelines': return opts.name ? 'gitmoot · pipelines · ' + opts.name : 'gitmoot · pipelines';
+      case 'chat': return opts.name ? 'gitmoot · chat · ' + opts.name : 'gitmoot · chat';
       case 'agents': return opts.agent ? 'gitmoot · agents · ' + opts.agent : 'gitmoot · agents';
       case 'charts': return 'gitmoot · charts';
       case 'health': return 'gitmoot · health';
@@ -407,6 +428,15 @@ class Component extends DCLogic {
           // not mounted yet: applyView opens the detail after it mounts.
           this._pendingPipelineDetail = r.name || null;
         }
+      } else if (r.view === 'chat') {
+        if (this._chatRoot) {
+          // chat already mounted (possibly hidden): open/close thread in place.
+          if (r.name) { if (this._chatSelected !== r.name) this.openChatThread(r.name); }
+          else if (this._chatSelected) this.closeChatThread();
+        } else {
+          // not mounted yet: applyView opens the thread after it mounts.
+          this._pendingChatThread = r.name || null;
+        }
       } else if (r.view === 'learning') {
         const tab = r.tab || 'skills';
         if (this._learningRoot) {
@@ -446,6 +476,10 @@ class Component extends DCLogic {
     runsOpen: true, runsQuery: '', facets: { status: [], kind: [], agent: [], repo: [] },
     openFacet: null, oneShotsExpanded: false, oneShotLimit: 6,
     selectedRunId: null, hoverRun: null, listLoading: true, listError: false,
+    // Chat: true when any open thread has unread @mentions (drives the nav
+    // attention dot). Seeded by a light fetch in componentDidMount and kept live
+    // by the Chat view's poll.
+    chatAttn: false,
     // Mobile responsiveness: seeded from matchMedia so the very first render is
     // correct; kept live by a matchMedia('(max-width:768px)') listener wired in
     // componentDidMount. Every mobile branch in the UI is gated behind this flag
@@ -504,6 +538,7 @@ class Component extends DCLogic {
         const after = () => {
           this._redockOverlays();
           if (this.state.view === 'jobs') this.renderJobsTable();
+          if (this.state.view === 'chat') this.renderChatThreads();
           if (this.state.view === 'charts' && this._chartsLoaded) this.renderCharts(false);
           // Galaxy: re-fit the force-graph to the post-dock container. The re-dock
           // above changes #galaxy-root's left (216px<->0), so measure it here (after
@@ -540,6 +575,9 @@ class Component extends DCLogic {
     // poll the run list so newly-created / state-changed runs surface live
     // (the selected run's graph already streams via SSE); background refresh.
     this._runsPoll = setInterval(() => this.loadRuns(), 15000);
+    // Seed the Chat nav attention dot from a one-off /api/chat/threads fetch so it
+    // reflects unread mentions before the user first opens the Chat view.
+    this.loadChatAttn();
   }
   componentWillUnmount() {
     clearInterval(this._t);
@@ -555,6 +593,8 @@ class Component extends DCLogic {
     this.stopPipelinesPoll();
     this.stopPipelineRunPoll();
     this.stopPipelineDetailPoll();
+    this.stopChatPoll();
+    this.stopChatThreadPoll();
     try { if (this._es) this._es.close(); } catch (e) {}
     window.removeEventListener('resize', this.onResize);
     try { window.removeEventListener('popstate', this._onPopState); } catch (e) {}
@@ -567,6 +607,7 @@ class Component extends DCLogic {
     try { document.removeEventListener('keydown', this._healthKeydown); } catch (e) {}
     try { document.removeEventListener('keydown', this._learningKeydown); } catch (e) {}
     try { document.removeEventListener('keydown', this._pipelinesKeydown); } catch (e) {}
+    try { document.removeEventListener('keydown', this._chatKeydown); } catch (e) {}
     try { window.removeEventListener('resize', this._knowResize); } catch (e) {}
     try { if (this._galaxyRoot) this._galaxyRoot.remove(); } catch (e) {}
     try { if (this._jobsRoot) this._jobsRoot.remove(); } catch (e) {}
@@ -575,6 +616,7 @@ class Component extends DCLogic {
     try { if (this._healthRoot) this._healthRoot.remove(); } catch (e) {}
     try { if (this._learningRoot) this._learningRoot.remove(); } catch (e) {}
     try { if (this._pipelinesRoot) this._pipelinesRoot.remove(); } catch (e) {}
+    try { if (this._chatRoot) this._chatRoot.remove(); } catch (e) {}
   }
 
   // ============================================================
@@ -605,6 +647,14 @@ class Component extends DCLogic {
       root.style.display = 'flex';
       this.startJobsPoll();
       this.fetchJobs();
+      // Deep-link intent (a job chip clicked from the Chat view): open that job's
+      // detail once the view is mounted. openJobsDetail fetches /api/job/<id>
+      // independently, so it works even before /api/jobs resolves.
+      if (this._pendingJobDetail) {
+        const jid = this._pendingJobDetail;
+        this._pendingJobDetail = null;
+        this.openJobsDetail(jid);
+      }
     } else {
       this.stopJobsPoll();
       if (this._jobsRoot) this._jobsRoot.style.display = 'none';
@@ -680,6 +730,26 @@ class Component extends DCLogic {
       this.stopPipelineRunPoll();
       this.stopPipelineDetailPoll();
       if (this._pipelinesRoot) this._pipelinesRoot.style.display = 'none';
+    }
+    // Chat overlay (repo-scoped agent threads list + a slide-in message history).
+    if (v === 'chat') {
+      const root = this.ensureChatDom();
+      root.style.display = 'flex';
+      this.startChatPoll();
+      this.fetchChatThreads(false);
+      // Deep-link intent (/chat/<thread-id>): open the thread once the list loads
+      // (fetchChatThreads completes any pending open). If already cached, open now
+      // and restart the thread poll for an already-open detail.
+      if (this._pendingChatThread && this._chatByID && this._chatByID[this._pendingChatThread]) {
+        const id = this._pendingChatThread; this._pendingChatThread = null; this.openChatThread(id);
+      } else if (this._chatSelected) {
+        this.fetchChatThread(this._chatSelected, false);
+        this.startChatThreadPoll();
+      }
+    } else {
+      this.stopChatPoll();
+      this.stopChatThreadPoll();
+      if (this._chatRoot) this._chatRoot.style.display = 'none';
     }
   }
 
@@ -1564,6 +1634,7 @@ class Component extends DCLogic {
   showHealth = () => { this.setState({ view: 'health' }); this._navRoute('health'); };
   showLearning = () => { this.setState({ view: 'learning' }); this._navRoute('learning', { tab: this._learningTab || 'skills' }); };
   showPipelines = () => { this.setState({ view: 'pipelines' }); this._navRoute('pipelines', { name: this._plDetailName || undefined }); };
+  showChat = () => { this.setState({ view: 'chat' }); this._navRoute('chat', { name: this._chatSelected || undefined }); };
 
   startJobsPoll() {
     if (this._jobsPoll) return;
@@ -5178,6 +5249,489 @@ class Component extends DCLogic {
     return { id: e.id, pipeline: detail.name, trigger: e.trigger, state: e.state, haltStage: e.haltStage, startedAt: e.startedAt, finishedAt: e.finishedAt, stages: stages };
   }
 
+  // ============================================================
+  // Chat view (gitmoot #534): repo-scoped agent coordination
+  // threads. A card list (open/all/archived filter + client-side
+  // search) plus a slide-in message history (like the Jobs
+  // detail). Same body-appended overlay + signature-skip poll
+  // pattern as Jobs/Pipelines. Bodies are UNTRUSTED — every render
+  // path escapes through _galaxyEsc + white-space:pre-wrap.
+  // ============================================================
+  startChatPoll() {
+    if (this._chatPoll) return;
+    this._chatPoll = setInterval(() => {
+      if (this.state.view !== 'chat') return;
+      this.fetchChatThreads(true);
+      // relative last-activity labels are derived from Date.now(), so the
+      // signature-skip would freeze them; refresh them every tick regardless.
+      this.refreshChatTimes();
+    }, 12000);
+  }
+  stopChatPoll() { try { clearInterval(this._chatPoll); } catch (e) {} this._chatPoll = null; }
+  // Second poll: while a thread is open, refresh JUST that thread so new
+  // messages / a resumed job_result surface live. Self-guarded.
+  startChatThreadPoll() {
+    if (this._chatThreadPoll) return;
+    this._chatThreadPoll = setInterval(() => {
+      if (this.state.view !== 'chat' || !this._chatSelected) return;
+      this.fetchChatThread(this._chatSelected, true);
+    }, 12000);
+  }
+  stopChatThreadPoll() { try { clearInterval(this._chatThreadPoll); } catch (e) {} this._chatThreadPoll = null; }
+
+  // Seed / update the nav attention dot: true when any OPEN thread has unread
+  // @mentions. Only re-renders the shell when the flag actually flips.
+  loadChatAttn() {
+    fetch('/api/chat/threads', { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)))
+      .then(json => { if (Array.isArray(json)) this._updateChatAttn(json); })
+      .catch(() => {}); // fail-open: the dot just stays off
+  }
+  _updateChatAttn(threads) {
+    const attn = (Array.isArray(threads) ? threads : []).some(t => t && t.state === 'open' && (t.unreadMentions || 0) > 0);
+    if (attn !== this.state.chatAttn) this.setState({ chatAttn: attn });
+  }
+
+  _chatFilterLabel() {
+    const f = this._chatFilter || 'open';
+    return f === 'archived' ? 'archived' : (f === 'all' ? 'all' : 'open');
+  }
+
+  ensureChatDom() {
+    if (this._chatRoot) return this._chatRoot;
+    if (!this._chatFilter) this._chatFilter = 'open';
+    const st = document.createElement('style');
+    st.textContent = [
+      "#chat-root{font-family:Inter,system-ui,sans-serif;color:#c8cce6}",
+      "#chat-root .ch-head{display:flex;align-items:baseline;gap:14px;padding:18px 24px 12px;flex:none}",
+      "#chat-root .ch-title{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:20px;color:#eef0ff;letter-spacing:-0.02em}",
+      "#chat-root .ch-title .ch-tdot{color:#7dcfff;margin-left:1px}",
+      "#chat-root .ch-count{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#7f86ad}",
+      "#chat-root .ch-count b{color:#c8cce6;font-weight:500}",
+      "#chat-root .ch-filters{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:0 24px 13px;flex:none;border-bottom:1px solid rgba(160,168,220,0.08)}",
+      "#chat-root .ch-search{position:relative;display:flex;align-items:center;flex:1;min-width:220px;max-width:420px}",
+      "#chat-root .ch-search svg{position:absolute;left:11px;color:#5a6088;pointer-events:none}",
+      "#chat-root .ch-search input{width:100%;box-sizing:border-box;padding:8px 12px 8px 32px;background:#0f1120;border:1px solid rgba(160,168,220,0.12);border-radius:9px;color:#eef0ff;font-size:12.5px;font-family:Inter,sans-serif;outline:none}",
+      "#chat-root .ch-search input:focus{border-color:rgba(125,207,255,0.4)}",
+      "#chat-root .ch-seg{display:inline-flex;background:#0f1120;border:1px solid rgba(160,168,220,0.12);border-radius:9px;padding:2px;gap:2px}",
+      "#chat-root .ch-seg button{appearance:none;background:none;border:none;color:#7f86ad;font-family:'JetBrains Mono',monospace;font-size:11px;text-transform:lowercase;letter-spacing:0.04em;padding:5px 12px;border-radius:7px;cursor:pointer}",
+      "#chat-root .ch-seg button.on{background:rgba(125,207,255,0.14);color:#c8f0ff}",
+      "#chat-root .ch-listwrap{flex:1;overflow:auto;min-height:0;padding:14px 24px 28px}",
+      "#chat-root .ch-cards{display:flex;flex-direction:column;gap:10px;max-width:920px}",
+      "#chat-root .ch-card{background-color:#0d0f1c;border:1px solid rgba(160,168,220,0.1);border-radius:12px;padding:13px 15px;display:flex;flex-direction:column;gap:8px;cursor:pointer;transition:border-color .14s ease,transform .14s ease}",
+      "#chat-root .ch-card:hover{border-color:rgba(125,207,255,0.3);transform:translateY(-1px)}",
+      "#chat-root .ch-card.sel{border-color:rgba(125,207,255,0.45);background:rgba(125,207,255,0.06)}",
+      "#chat-root .ch-card.arch{border-style:dashed;opacity:0.82}",
+      "#chat-root .ch-c-top{display:flex;align-items:center;gap:9px}",
+      "#chat-root .ch-c-name{flex:1;min-width:0;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:15px;color:#eef0ff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
+      "#chat-root .ch-c-time{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#5a6088;flex:none;white-space:nowrap}",
+      "#chat-root .ch-c-mid{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}",
+      "#chat-root .ch-repo{font-family:'JetBrains Mono',monospace;font-size:10px;color:#7dcfff;background:rgba(125,207,255,0.08);border:1px solid rgba(125,207,255,0.2);padding:1px 7px;border-radius:6px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
+      "#chat-root .ch-parts{font-family:'JetBrains Mono',monospace;font-size:10px;color:#7f86ad;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}",
+      "#chat-root .ch-statechip{font-family:'JetBrains Mono',monospace;font-size:9.5px;font-weight:600;padding:2px 8px;border-radius:6px;flex:none;text-transform:lowercase}",
+      "#chat-root .ch-statechip.open{color:#9ece6a;background:rgba(158,206,106,0.1);border:1px solid rgba(158,206,106,0.26)}",
+      "#chat-root .ch-statechip.archived{color:#5a6088;background:rgba(90,96,136,0.12);border:1px solid rgba(90,96,136,0.3)}",
+      "#chat-root .ch-unread{font-family:'JetBrains Mono',monospace;font-size:9.5px;font-weight:700;color:#0a0b16;background:#e0af68;border-radius:9px;padding:1px 7px;flex:none}",
+      "#chat-root .ch-c-snip{font-size:12px;color:#a8aecf;line-height:1.45;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}",
+      "#chat-root .ch-c-snip b{color:#c7c9e5;font-weight:600}",
+      "#chat-root .ch-c-tag{font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;padding:1px 6px;border-radius:5px;margin-right:6px}",
+      "#chat-root .ch-empty{padding:60px 20px;text-align:center;color:#5a6088;font-size:13px;line-height:1.7}",
+      "#chat-root .ch-empty code{font-family:'JetBrains Mono',monospace;font-size:12px;color:#c7c9e5;background:#0a0b16;border:1px solid rgba(160,168,220,0.14);border-radius:6px;padding:2px 7px}",
+      // ---- detail panel (slide-in, like #jobs-detail) ----
+      "#chat-root #chat-detail{position:absolute;right:0;top:0;bottom:0;width:440px;z-index:30;background:rgba(15,17,32,0.96);border-left:1px solid rgba(160,168,220,0.14);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:-30px 0 60px rgba(0,0,0,0.5);display:flex;flex-direction:column;animation:panelin .28s cubic-bezier(.2,.8,.2,1)}",
+      "#chat-root #chat-detail .cd-head{padding:16px 20px 13px;border-bottom:1px solid rgba(160,168,220,0.08);flex:none}",
+      "#chat-root #chat-detail .cd-hrow{display:flex;align-items:flex-start;gap:10px}",
+      "#chat-root #chat-detail .cd-title{flex:1;min-width:0;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:17px;color:#eef0ff;line-height:1.25;word-break:break-word}",
+      "#chat-root #chat-detail .cd-close{width:26px;height:26px;flex:none;background:rgba(160,168,220,0.08);border:1px solid rgba(160,168,220,0.12);border-radius:7px;color:#868db5;font-size:14px;cursor:pointer;line-height:1}",
+      "#chat-root #chat-detail .cd-sub{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px}",
+      "#chat-root #chat-detail .cd-meta{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#7f86ad}",
+      "#chat-root #chat-detail .cd-parts{margin-top:9px;display:flex;align-items:center;gap:5px;flex-wrap:wrap}",
+      "#chat-root #chat-detail .cd-part{font-family:'JetBrains Mono',monospace;font-size:9.5px;color:#c7c9e5;background:rgba(160,168,220,0.07);border:1px solid rgba(160,168,220,0.12);padding:2px 7px;border-radius:6px}",
+      "#chat-root #chat-detail .cd-body{flex:1;overflow-y:auto;padding:16px 18px 26px;display:flex;flex-direction:column;gap:14px}",
+      "#chat-root #chat-detail .cd-msg{display:flex;flex-direction:column;gap:5px}",
+      "#chat-root #chat-detail .cd-msg-head{display:flex;align-items:baseline;gap:8px}",
+      "#chat-root #chat-detail .cd-author{font-size:12.5px;font-weight:600}",
+      "#chat-root #chat-detail .cd-kindbadge{font-family:'JetBrains Mono',monospace;font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;padding:1px 6px;border-radius:5px}",
+      "#chat-root #chat-detail .cd-time{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:9.5px;color:#5a6088;flex:none}",
+      "#chat-root #chat-detail .cd-reply{font-family:'JetBrains Mono',monospace;font-size:9.5px;color:#5a6088}",
+      "#chat-root #chat-detail .cd-bubble{background:#0a0b16;border:1px solid rgba(160,168,220,0.1);border-radius:10px;padding:10px 12px;font-size:12.5px;line-height:1.55;color:#c7c9e5;white-space:pre-wrap;word-break:break-word}",
+      "#chat-root #chat-detail .cd-msg.system .cd-bubble{background:rgba(224,175,104,0.07);border:1px solid rgba(224,175,104,0.3);color:#e6d3b0;font-style:italic}",
+      "#chat-root #chat-detail .cd-msg.system .cd-author{color:#868db5;font-style:italic}",
+      "#chat-root #chat-detail .cd-askgate{display:flex;align-items:center;gap:7px;font-family:'JetBrains Mono',monospace;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#e0af68;margin-bottom:6px}",
+      "#chat-root #chat-detail .cd-msg.result .cd-bubble{background:rgba(122,162,247,0.06);border:1px solid rgba(122,162,247,0.28);font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#c7d3f0}",
+      "#chat-root #chat-detail .cd-refs{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:2px}",
+      "#chat-root #chat-detail .cd-ref{display:inline-flex;align-items:center;gap:5px;font-family:'JetBrains Mono',monospace;font-size:10px;color:#a8aecf;background:rgba(160,168,220,0.06);border:1px solid rgba(160,168,220,0.14);padding:2px 8px;border-radius:6px;text-decoration:none}",
+      "#chat-root #chat-detail a.cd-ref,#chat-root #chat-detail .cd-ref[data-job]{cursor:pointer}",
+      "#chat-root #chat-detail a.cd-ref:hover,#chat-root #chat-detail .cd-ref[data-job]:hover{border-color:rgba(125,207,255,0.4);color:#c8f0ff}",
+      "#chat-root #chat-detail .cd-ref.job{color:#7aa2f7;border-color:rgba(122,162,247,0.3)}",
+      "#chat-root #chat-detail .cd-ref.pr{color:#9ece6a;border-color:rgba(158,206,106,0.3)}",
+      "#chat-root #chat-detail .cd-promo{display:inline-flex;align-items:center;gap:5px;font-family:'JetBrains Mono',monospace;font-size:10px;color:#bb9af7;background:rgba(187,154,247,0.08);border:1px solid rgba(187,154,247,0.3);padding:2px 8px;border-radius:6px;cursor:pointer}",
+      "#chat-root #chat-detail .cd-promo:hover{border-color:rgba(187,154,247,0.55)}",
+      "#chat-root #chat-detail .cd-empty{padding:40px 10px;text-align:center;color:#5a6088;font-size:12.5px}",
+      // ---- mobile: full-width sheet + stacked filter bar ----
+      "@media (max-width:768px){#chat-root .ch-head{padding-left:16px;padding-right:16px}#chat-root .ch-filters{flex-wrap:nowrap;flex-direction:column;align-items:stretch;gap:8px;padding-left:16px;padding-right:16px}#chat-root .ch-search{max-width:none;min-width:0;width:100%}#chat-root .ch-listwrap{padding-left:14px;padding-right:14px}#chat-root #chat-detail{width:100%;left:0;border-left:none}}",
+      "@media (pointer:coarse){#chat-root #chat-detail .cd-close{width:44px;height:44px;font-size:17px}}"
+    ].join('\n');
+    document.head.appendChild(st);
+
+    const root = document.createElement('div');
+    root.id = 'chat-root';
+    root.style.cssText = 'position:fixed;left:216px;top:0;right:0;bottom:0;z-index:40;background:#07080f;display:none;flex-direction:column;overflow:hidden;font-family:Inter,system-ui,sans-serif;color:#c8cce6';
+    root.innerHTML = [
+      '<div class="ch-head">',
+      '  <div class="ch-title">Chat<span class="ch-tdot">.</span></div>',
+      '  <div class="ch-count" id="ch-count"></div>',
+      '</div>',
+      '<div class="ch-filters">',
+      '  <div class="ch-search">',
+      "    <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'><circle cx='11' cy='11' r='7'></circle><path d='M21 21l-4.3-4.3'></path></svg>",
+      '    <input id="ch-q" placeholder="Search threads by name or repo…" />',
+      '  </div>',
+      '  <div class="ch-seg" id="ch-seg">',
+      '    <button data-filter="open">open</button>',
+      '    <button data-filter="all">all</button>',
+      '    <button data-filter="archived">archived</button>',
+      '  </div>',
+      '</div>',
+      '<div class="ch-listwrap"><div id="ch-list"><div class="ch-empty">loading…</div></div></div>'
+    ].join('\n');
+    document.body.appendChild(root);
+    this._dockOverlay(root); // mobile: left:0 + bottom clears the tab bar
+    this._chatRoot = root;
+
+    const q = root.querySelector('#ch-q');
+    q.value = this._chatQuery || '';
+    q.addEventListener('input', () => { this._chatQuery = q.value; this.renderChatThreads(); });
+    root.querySelector('#ch-seg').addEventListener('click', (e) => {
+      const b = e.target.closest && e.target.closest('button[data-filter]');
+      if (!b) return;
+      this._chatFilter = b.getAttribute('data-filter') || 'open';
+      this.renderChatThreads();
+    });
+
+    // One delegated click listener: close button > job/promo chip > thread card.
+    root.addEventListener('click', (e) => {
+      const close = (e.target.closest && e.target.closest('.cd-close')) || null;
+      if (close) { this.closeChatThread(); this._navRoute('chat'); return; }
+      const jobEl = (e.target.closest && e.target.closest('[data-job]')) || null;
+      if (jobEl) { e.stopPropagation(); const jid = jobEl.getAttribute('data-job'); if (jid) this._chatOpenJob(jid); return; }
+      const card = (e.target.closest && e.target.closest('.ch-card[data-id]')) || null;
+      if (card) { const id = card.getAttribute('data-id'); this.openChatThread(id); this._navRoute('chat', { name: id }); return; }
+    });
+    // Escape backs out of an open thread.
+    this._chatKeydown = (e) => {
+      if (e.key !== 'Escape' || this.state.view !== 'chat') return;
+      if (this._chatSelected) { this.closeChatThread(); this._navRoute('chat'); }
+    };
+    document.addEventListener('keydown', this._chatKeydown);
+    return root;
+  }
+
+  // ---- THREAD LIST -----------------------------------------------------------
+  fetchChatThreads(isPoll) {
+    fetch('/api/chat/threads', { cache: 'no-store' })
+      .then(r => r.ok ? r.text() : Promise.reject(new Error('HTTP ' + r.status)))
+      .then(txt => {
+        if (isPoll && this._chatSig === txt) return; // unchanged — skip the re-render
+        this._chatSig = txt;
+        let json = null; try { json = JSON.parse(txt); } catch (e) { json = null; }
+        this._chatData = Array.isArray(json) ? json : [];
+        this._chatByID = {};
+        this._chatData.forEach(t => { if (t && t.id) this._chatByID[t.id] = t; });
+        this._chatLoaded = true;
+        this._updateChatAttn(this._chatData);
+        this.renderChatThreads();
+        // a pending deep-link (/chat/<id>): open it now the data has landed.
+        if (this._pendingChatThread) {
+          if (this._chatByID[this._pendingChatThread]) {
+            const id = this._pendingChatThread; this._pendingChatThread = null; this.openChatThread(id);
+          } else if (!isPoll) {
+            // Cold deep-link to an unknown / deleted thread id: drop it once the
+            // initial list has resolved rather than arming it indefinitely (which
+            // would later auto-open a recreated thread that reuses the same id).
+            this._pendingChatThread = null;
+          }
+        }
+      })
+      .catch(err => {
+        if (isPoll) return; // keep the current list on a transient poll failure
+        this._chatLoaded = true;
+        const list = this._chatRoot && this._chatRoot.querySelector('#ch-list');
+        if (list) list.innerHTML = '<div class="ch-empty" style="color:#f7768e">could not load /api/chat/threads (' + this._galaxyEsc(err && err.message) + ')</div>';
+      });
+  }
+
+  renderChatThreads() {
+    if (!this._chatRoot) return;
+    const esc = (s) => this._galaxyEsc(s);
+    const data = Array.isArray(this._chatData) ? this._chatData : [];
+    const filter = this._chatFilter || 'open';
+    const q = (this._chatQuery || '').trim().toLowerCase();
+    // sync the segmented control's active button
+    this._chatRoot.querySelectorAll('#ch-seg button').forEach(b => b.classList.toggle('on', b.getAttribute('data-filter') === filter));
+    const filtered = data.filter(t => {
+      if (filter === 'open' && t.state !== 'open') return false;
+      if (filter === 'archived' && t.state !== 'archived') return false;
+      if (q) {
+        const hay = ((t.name || '') + ' ' + (t.repo || '')).toLowerCase();
+        if (hay.indexOf(q) < 0) return false;
+      }
+      return true;
+    });
+    const count = this._chatRoot.querySelector('#ch-count');
+    if (count) count.innerHTML = data.length ? ('showing <b>' + filtered.length + '</b> of <b>' + data.length + '</b> · ' + esc(this._chatFilterLabel())) : '';
+    const list = this._chatRoot.querySelector('#ch-list');
+    if (!list) return;
+    if (!filtered.length) {
+      let msg;
+      if (!this._chatLoaded) msg = 'loading…';
+      else if (!data.length) msg = 'No chat threads yet.<br>Create one with <code>gitmoot chat create &lt;name&gt; --repo owner/repo</code>';
+      else if (q) msg = 'No threads match “' + esc(q) + '”';
+      else if (filter === 'archived') msg = 'No archived threads';
+      else if (filter === 'open') msg = 'No open threads — try the <b>all</b> filter';
+      else msg = 'No threads';
+      list.innerHTML = '<div class="ch-empty">' + msg + '</div>';
+      return;
+    }
+    const wrap = this._chatRoot.querySelector('.ch-listwrap');
+    const prev = wrap ? wrap.scrollTop : 0;
+    list.innerHTML = '<div class="ch-cards">' + filtered.map(t => this._chatThreadCardHtml(t, esc)).join('') + '</div>';
+    if (wrap) wrap.scrollTop = prev;
+  }
+
+  _chatKindTag(kind, esc) {
+    if (kind === 'promotion_request') return '<span class="ch-c-tag" style="color:#bb9af7;background:rgba(187,154,247,0.1)">promote</span>';
+    if (kind === 'job_result') return '<span class="ch-c-tag" style="color:#7aa2f7;background:rgba(122,162,247,0.1)">result</span>';
+    if (kind === 'system') return '<span class="ch-c-tag" style="color:#e0af68;background:rgba(224,175,104,0.1)">ask</span>';
+    return '';
+  }
+
+  _chatThreadCardHtml(t, esc) {
+    const isSel = this._chatSelected === t.id;
+    const arch = t.state === 'archived';
+    const stateChip = '<span class="ch-statechip ' + (arch ? 'archived' : 'open') + '">' + esc(t.state || 'open') + '</span>';
+    const unread = (t.unreadMentions || 0) > 0 ? '<span class="ch-unread" title="unread @mentions">' + (t.unreadMentions > 99 ? '99+' : t.unreadMentions) + ' @</span>' : '';
+    const time = t.updatedAt ? '<span class="ch-c-time" data-ts="' + t.updatedAt + '">' + esc(this._relFromMs(t.updatedAt)) + '</span>' : '';
+    const repo = t.repo ? '<span class="ch-repo">' + esc(t.repo) + '</span>' : '';
+    const parts = Array.isArray(t.participants) ? t.participants : [];
+    const partsTxt = parts.length ? '<span class="ch-parts" title="' + esc(parts.join(', ')) + '">' + esc(parts.slice(0, 3).join(' · ')) + (parts.length > 3 ? ' +' + (parts.length - 3) : '') + '</span>' : '';
+    const who = t.lastAuthor ? ('<b>' + esc(t.lastAuthor) + ':</b> ') : '';
+    const snip = t.lastSnippet ? (this._chatKindTag(t.lastKind, esc) + who + esc(t.lastSnippet)) : '<span style="color:#5a6088">no messages yet</span>';
+    return '<div class="ch-card' + (isSel ? ' sel' : '') + (arch ? ' arch' : '') + '" data-id="' + esc(t.id) + '" title="open ' + esc(t.name || t.id) + '">' +
+      '<div class="ch-c-top"><span class="ch-c-name">' + esc(t.name || t.id) + '</span>' + unread + stateChip + time + '</div>' +
+      '<div class="ch-c-mid">' + repo + partsTxt + '</div>' +
+      '<div class="ch-c-snip">' + snip + '</div>' +
+    '</div>';
+  }
+
+  // Refresh just the relative-time labels (cards + messages) without a re-render,
+  // so they stay live between the 12s signature-skipped fetches.
+  refreshChatTimes() {
+    if (!this._chatRoot) return;
+    this._chatRoot.querySelectorAll('[data-ts]').forEach(el => {
+      const ts = +el.getAttribute('data-ts');
+      if (ts > 0) el.textContent = this._relFromMs(ts);
+    });
+  }
+
+  // ---- THREAD DETAIL ---------------------------------------------------------
+  ensureChatDetailEl() {
+    if (this._chatDetailEl && this._chatDetailEl.parentNode) return this._chatDetailEl;
+    const el = document.createElement('div');
+    el.id = 'chat-detail';
+    this._chatRoot.appendChild(el);
+    this._chatDetailEl = el;
+    return el;
+  }
+  closeChatThread() {
+    this._chatSelected = null;
+    this._chatDetailSig = null;
+    this._chatDetailFetchId = null;
+    this._chatDetailAnchored = false;
+    this.stopChatThreadPoll();
+    try { if (this._chatDetailEl) this._chatDetailEl.remove(); } catch (e) {}
+    this._chatDetailEl = null;
+    this.renderChatThreads(); // clear the selected-card highlight
+  }
+  openChatThread(id) {
+    if (!id) { this.closeChatThread(); return; }
+    const summary = this._chatByID && this._chatByID[id];
+    if (!summary) { this._pendingChatThread = id; return; } // opens after fetchChatThreads
+    this._chatSelected = id;
+    this._chatDetailSig = null; // reset the per-thread signature so a switch always renders
+    this._chatDetailAnchored = false; // a fresh open pins to the newest message
+    this.renderChatThreadDetail(summary, null, 'loading');
+    this.renderChatThreads(); // highlight the selected card
+    this.fetchChatThread(id, false);
+    this.startChatThreadPoll();
+  }
+  fetchChatThread(id, isPoll) {
+    const fid = (this._chatDetailFetchId = id);
+    fetch('/api/chat/thread?id=' + encodeURIComponent(id), { cache: 'no-store' })
+      .then(r => r.ok ? r.text() : Promise.reject(new Error('HTTP ' + r.status)))
+      .then(txt => {
+        if (this._chatDetailFetchId !== fid || this._chatSelected !== id) return; // superseded
+        if (isPoll && this._chatDetailSig === txt) return; // unchanged — skip
+        this._chatDetailSig = txt;
+        let json = null; try { json = JSON.parse(txt); } catch (e) { json = null; }
+        this.renderChatThreadDetail(json || (this._chatByID && this._chatByID[id]) || { id: id }, json, 'ok');
+      })
+      .catch(() => {
+        if (isPoll || this._chatDetailFetchId !== fid || this._chatSelected !== id) return;
+        const summary = (this._chatByID && this._chatByID[id]) || { id: id };
+        this.renderChatThreadDetail(summary, null, 'error');
+      });
+  }
+
+  renderChatThreadDetail(summary, detail, status) {
+    const el = this.ensureChatDetailEl();
+    const esc = (s) => this._galaxyEsc(s);
+    // Preserve reading position across the 12s live-detail poll's wholesale
+    // innerHTML replace. Capture the OLD body's scroll before we rebuild: if the
+    // reader was pinned to the bottom (following the conversation) we keep them
+    // there as new messages land; otherwise we restore their exact scrollTop so
+    // an incoming message never yanks them to the top.
+    const oldBody = el.querySelector('.cd-body');
+    const hadBody = !!oldBody;
+    const prevTop = oldBody ? oldBody.scrollTop : 0;
+    const wasAtBottom = oldBody
+      ? (oldBody.scrollHeight - oldBody.scrollTop - oldBody.clientHeight) <= 24
+      : false;
+    const name = (detail && detail.name) || (summary && summary.name) || (summary && summary.id) || '';
+    const repo = (detail && detail.repo) || (summary && summary.repo) || '';
+    const state = (detail && detail.state) || (summary && summary.state) || 'open';
+    const arch = state === 'archived';
+    const count = (detail && Array.isArray(detail.messages)) ? detail.messages.length : ((summary && summary.messageCount) || 0);
+    const parts = (detail && Array.isArray(detail.participants)) ? detail.participants : ((summary && Array.isArray(summary.participants)) ? summary.participants : []);
+    const partHtml = parts.length ? ('<div class="cd-parts">' + parts.map(p => '<span class="cd-part">' + esc(p) + '</span>').join('') + '</div>') : '';
+
+    let bodyHtml;
+    const msgs = (detail && Array.isArray(detail.messages)) ? detail.messages.slice() : null;
+    if (msgs && msgs.length) {
+      // Order by the server's authoritative per-thread seq (the DataSource emits
+      // messages ascending by Seq); tsMs then id are tie-breaks only, so
+      // same-millisecond or tsMs-unset messages keep their true send order.
+      msgs.sort((a, b) => (a.seq || 0) - (b.seq || 0) || (a.tsMs || 0) - (b.tsMs || 0) || String(a.id || '').localeCompare(String(b.id || '')));
+      bodyHtml = msgs.map(m => this._chatMessageHtml(m, esc)).join('');
+    } else if (status === 'loading') {
+      bodyHtml = '<div class="cd-empty">loading…</div>';
+    } else if (status === 'error') {
+      bodyHtml = '<div class="cd-empty" style="color:#f7768e">could not load this thread</div>';
+    } else {
+      bodyHtml = '<div class="cd-empty">No messages in this thread yet.</div>';
+    }
+
+    const parts2 = [
+      '<div class="cd-head">',
+      '  <div class="cd-hrow">',
+      '    <div class="cd-title">' + esc(name) + '</div>',
+      '    <button class="cd-close" title="close">✕</button>',
+      '  </div>',
+      '  <div class="cd-sub">',
+      '    <span class="ch-statechip ' + (arch ? 'archived' : 'open') + '">' + esc(state) + '</span>',
+      (repo ? '    <span class="ch-repo">' + esc(repo) + '</span>' : ''),
+      '    <span class="cd-meta">' + count + ' message' + (count === 1 ? '' : 's') + '</span>',
+      '  </div>',
+      partHtml,
+      '</div>',
+      '<div class="cd-body">' + bodyHtml + '</div>'
+    ];
+    el.innerHTML = parts2.join('');
+    // Restore / anchor scroll. On first render of a thread (not yet anchored)
+    // pin to the newest message at the bottom; on live-poll re-renders keep the
+    // reader where they were, following the tail only if they were already there.
+    const newBody = el.querySelector('.cd-body');
+    if (newBody) {
+      const hasMsgs = !!(msgs && msgs.length);
+      if (hasMsgs && (!this._chatDetailAnchored || wasAtBottom || !hadBody)) {
+        this._chatDetailAnchored = true;
+        this._pinChatDetailBottom(newBody, this._chatSelected); // pin to the newest message
+      } else {
+        newBody.scrollTop = prevTop; // preserve the reader's position
+      }
+    }
+  }
+
+  // Pin the detail body to its newest message. Set it now, then re-pin once
+  // webfonts / late layout settle (the bubbles reflow taller after the first
+  // paint, which would otherwise strand a freshly-opened thread near the top).
+  // Guarded so a thread switch or a superseding render cancels the re-pin.
+  _pinChatDetailBottom(body, id) {
+    if (!body) return;
+    body.scrollTop = body.scrollHeight;
+    const again = () => {
+      if (this._chatSelected !== id) return;
+      const cur = this._chatDetailEl && this._chatDetailEl.querySelector('.cd-body');
+      if (cur === body) body.scrollTop = body.scrollHeight;
+    };
+    try { requestAnimationFrame(again); } catch (e) {}
+    try { if (document.fonts && document.fonts.ready) document.fonts.ready.then(again); } catch (e) {}
+  }
+
+  // Per-author-kind name color: human neutral, agent purple accent, system dim.
+  _chatAuthorColor(kind) {
+    if (kind === 'agent') return '#bb9af7';
+    if (kind === 'system') return '#868db5';
+    return '#eef0ff';
+  }
+  _chatKindBadge(kind, esc) {
+    if (kind === 'system') return '<span class="cd-kindbadge" style="color:#e0af68;background:rgba(224,175,104,0.12)">ask-gate</span>';
+    if (kind === 'job_result') return '<span class="cd-kindbadge" style="color:#7aa2f7;background:rgba(122,162,247,0.12)">result</span>';
+    if (kind === 'promotion_request') return '<span class="cd-kindbadge" style="color:#bb9af7;background:rgba(187,154,247,0.12)">promotion</span>';
+    return '';
+  }
+
+  _chatMessageHtml(m, esc) {
+    const kind = m.kind || 'chat';
+    const ak = m.authorKind || 'agent';
+    const author = ak === 'system' ? 'system' : (m.authorName || 'unknown');
+    const authorCol = this._chatAuthorColor(ak);
+    const time = m.tsMs ? '<span class="cd-time" data-ts="' + m.tsMs + '">' + esc(this._relFromMs(m.tsMs)) + '</span>' : '';
+    const reply = m.replyTo ? '<span class="cd-reply">↳ reply</span>' : '';
+    const badge = this._chatKindBadge(kind, esc);
+    // The ask-gate 'system' card gets a distinct heading line.
+    const askHead = kind === 'system' ? '<div class="cd-askgate">⚠ ask-gate — awaiting an answer</div>' : '';
+    // promotion_request: a clickable chip to the spawned job.
+    let promo = '';
+    if (kind === 'promotion_request' && m.promotedJobId) {
+      promo = '<div class="cd-refs"><span class="cd-promo" data-job="' + esc(m.promotedJobId) + '" title="open job ' + esc(m.promotedJobId) + '">→ promoted job ' + esc(m.promotedJobId) + '</span></div>';
+    }
+    // structured refs.
+    const refs = Array.isArray(m.refs) ? m.refs : [];
+    const refsHtml = refs.length ? ('<div class="cd-refs">' + refs.map(r => this._chatRefChipHtml(r, esc)).join('') + '</div>') : '';
+    return '<div class="cd-msg ' + (kind === 'system' ? 'system' : (kind === 'job_result' ? 'result' : '')) + '">' +
+      '<div class="cd-msg-head">' +
+        '<span class="cd-author" style="color:' + authorCol + '">' + esc(author) + '</span>' +
+        badge + reply + time +
+      '</div>' +
+      '<div class="cd-bubble">' + askHead + esc(m.body || '') + '</div>' +
+      promo + refsHtml +
+    '</div>';
+  }
+
+  _chatRefChipHtml(r, esc) {
+    if (!r || !r.kind) return '';
+    const label = esc(r.kind) + (r.id ? ' ' + esc(r.id) : '');
+    const cls = r.kind === 'job' ? ' job' : (r.kind === 'pr' ? ' pr' : '');
+    // A job ref deep-links into the Jobs view; a safe http(s) url opens externally;
+    // everything else is a static chip.
+    if (r.kind === 'job' && r.id) {
+      return '<span class="cd-ref job" data-job="' + esc(r.id) + '" title="open ' + label + '">◆ ' + label + '</span>';
+    }
+    const url = this._galaxySafeUrl(r.url);
+    if (url) {
+      return '<a class="cd-ref' + cls + '" href="' + esc(url) + '" target="_blank" rel="noopener" title="' + esc(url) + '">' + label + ' ↗</a>';
+    }
+    return '<span class="cd-ref' + cls + '">' + label + '</span>';
+  }
+
+  // Deep-link a job chip into the Jobs view and open that job's detail.
+  _chatOpenJob(id) {
+    if (!id) return;
+    this._pendingJobDetail = id;
+    this.showJobs();
+  }
+
   _overlayLeft() { return this.state.isMobile ? '0' : '216px'; }
   _overlayBottom() { return this.state.isMobile ? 'calc(60px + env(safe-area-inset-bottom))' : '0'; }
   _dockOverlay(el) {
@@ -5186,7 +5740,7 @@ class Component extends DCLogic {
     el.style.bottom = this._overlayBottom();
   }
   _redockOverlays() {
-    [this._galaxyRoot, this._jobsRoot, this._agentsRoot, this._chartsRoot, this._healthRoot, this._learningRoot, this._pipelinesRoot]
+    [this._galaxyRoot, this._jobsRoot, this._agentsRoot, this._chartsRoot, this._healthRoot, this._learningRoot, this._pipelinesRoot, this._chatRoot]
       .forEach(r => this._dockOverlay(r));
   }
 
@@ -5790,6 +6344,7 @@ class Component extends DCLogic {
     const isHealth = view === 'health';
     const isLearning = view === 'learning';
     const isPipelines = view === 'pipelines';
+    const isChat = view === 'chat';
     // shared nav-item base; active items pick up the green highlight
     const navBase = { display: 'flex', alignItems: 'center', gap: '11px', padding: '9px 11px', borderRadius: '9px', fontSize: '13.5px', fontWeight: 500, cursor: 'pointer', marginTop: '2px' };
     const navActive = (on) => ({ ...navBase, background: on ? 'rgba(158,206,106,0.11)' : 'transparent', color: on ? '#eef0ff' : '#a8aecf', border: '1px solid ' + (on ? 'rgba(158,206,106,0.2)' : 'transparent') });
@@ -5801,11 +6356,16 @@ class Component extends DCLogic {
     const galaxyNavStyle = { ...navActive(isGalaxy), position: 'relative' };
     const jobsNavStyle = { ...navActive(isJobs), position: 'relative' };
     const pipelinesNavStyle = { ...navActive(isPipelines), position: 'relative' };
+    const chatNavStyle = { ...navActive(isChat), position: 'relative' };
     const agentsNavStyle = { ...navActive(isAgents), position: 'relative' };
     const chartsNavStyle = { ...navActive(isCharts), position: 'relative' };
     const healthNavStyle = { ...navActive(isHealth), position: 'relative' };
     const learningNavStyle = { ...navActive(isLearning), position: 'relative' };
     const navDot = (on) => ({ width: '5px', height: '5px', borderRadius: '50%', background: on ? '#9ece6a' : 'transparent', boxShadow: on ? '0 0 8px rgba(158,206,106,0.7)' : 'none' });
+    // Chat unread-attention dot: an amber pip pinned top-right of the Chat nav item
+    // when any open thread has unread @mentions (transparent = invisible otherwise).
+    const chatAttn = !!this.state.chatAttn;
+    const chatNavAttnStyle = { position: 'absolute', top: '7px', right: '9px', width: '6px', height: '6px', borderRadius: '50%', background: chatAttn ? '#e0af68' : 'transparent', boxShadow: chatAttn ? '0 0 8px rgba(224,175,104,0.9)' : 'none' };
 
     // ---- responsive shell styling (all gated on isMobile; desktop untouched) ----
     const isMobile = this.state.isMobile;
@@ -5840,17 +6400,20 @@ class Component extends DCLogic {
       showGraph: this.showGraph, showGalaxy: this.showGalaxy,
       showJobs: this.showJobs, showAgents: this.showAgents,
       showCharts: this.showCharts, showHealth: this.showHealth, showLearning: this.showLearning,
-      showPipelines: this.showPipelines,
-      graphNavStyle, galaxyNavStyle, jobsNavStyle, pipelinesNavStyle, agentsNavStyle, chartsNavStyle, healthNavStyle, learningNavStyle,
+      showPipelines: this.showPipelines, showChat: this.showChat,
+      graphNavStyle, galaxyNavStyle, jobsNavStyle, pipelinesNavStyle, chatNavStyle, agentsNavStyle, chartsNavStyle, healthNavStyle, learningNavStyle,
       graphNavDotStyle: navDot(isGraph), galaxyNavDotStyle: navDot(isGalaxy),
       jobsNavDotStyle: navDot(isJobs), agentsNavDotStyle: navDot(isAgents),
       chartsNavDotStyle: navDot(isCharts), healthNavDotStyle: navDot(isHealth),
       learningNavDotStyle: navDot(isLearning), pipelinesNavDotStyle: navDot(isPipelines),
+      chatNavDotStyle: navDot(isChat), chatNavAttnStyle,
+      chatTabAttnStyle: { position: 'absolute', top: '7px', right: 'calc(50% - 18px)', width: '6px', height: '6px', borderRadius: '50%', background: chatAttn ? '#e0af68' : 'transparent', boxShadow: chatAttn ? '0 0 8px rgba(224,175,104,0.9)' : 'none' },
       railStyle, tabBarStyle, tabLabelStyle,
       tabGraphStyle: tabStyle(isGraph), tabGalaxyStyle: tabStyle(isGalaxy),
       tabJobsStyle: tabStyle(isJobs), tabAgentsStyle: tabStyle(isAgents),
       tabChartsStyle: tabStyle(isCharts), tabHealthStyle: tabStyle(isHealth),
       tabLearningStyle: tabStyle(isLearning), tabPipelinesStyle: tabStyle(isPipelines),
+      tabChatStyle: { ...tabStyle(isChat), position: 'relative' },
       crumbRepoStyle, crumbSepStyle, liveTextStyle, detailAsideStyle, zoomCtrlStyle, footerStyle,
       crumbRepo: activeRun.repo, crumbTitle: activeRun.title,
       crumbDotStyle: { width: '8px', height: '8px', borderRadius: '50%', flex: 'none', background: crumbCol.c, boxShadow: activeRun.state === 'running' ? '0 0 8px ' + crumbCol.g : 'none', animation: activeRun.state === 'running' ? 'dotpulse 1.4s ease-in-out infinite' : 'none' },

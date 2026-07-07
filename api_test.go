@@ -1254,3 +1254,185 @@ func TestStateResponseIsIndented(t *testing.T) {
 		t.Fatalf("expected indented JSON, got: %q", string(buf[:n]))
 	}
 }
+
+// realChatMessageKinds is the set of message kinds the live chat store can emit;
+// the fake feed must not invent shapes the client will not otherwise see.
+var realChatMessageKinds = map[string]bool{
+	"chat":              true,
+	"system":            true,
+	"job_result":        true,
+	"promotion_request": true,
+}
+
+var realChatAuthorKinds = map[string]bool{
+	"human":  true,
+	"agent":  true,
+	"system": true,
+}
+
+func TestHandleChatThreads(t *testing.T) {
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+
+	var threads []ChatThreadSummary
+	if err := json.Unmarshal(getRaw(t, srv.URL+"/api/chat/threads"), &threads); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(threads) < 3 {
+		t.Fatalf("len(threads) = %d, want >= 3", len(threads))
+	}
+
+	// Sorted most-recently-active first (UpdatedAt desc).
+	for i := 1; i < len(threads); i++ {
+		if threads[i-1].UpdatedAt < threads[i].UpdatedAt {
+			t.Fatalf("threads not UpdatedAt-desc sorted: %+v", threads)
+		}
+	}
+
+	var haveOpen, haveArchived, haveUnread bool
+	for _, th := range threads {
+		if th.ID == "" || th.Name == "" {
+			t.Fatalf("thread missing id/name: %+v", th)
+		}
+		if th.State != "open" && th.State != "archived" {
+			t.Fatalf("thread %q has unexpected state %q", th.ID, th.State)
+		}
+		if th.State == "open" {
+			haveOpen = true
+		}
+		if th.State == "archived" {
+			haveArchived = true
+		}
+		if th.UnreadMentions > 0 {
+			haveUnread = true
+		}
+		if th.MessageCount <= 0 {
+			t.Fatalf("thread %q has non-positive messageCount %d", th.ID, th.MessageCount)
+		}
+		if th.LastKind != "" && !realChatMessageKinds[th.LastKind] {
+			t.Fatalf("thread %q has unexpected lastKind %q", th.ID, th.LastKind)
+		}
+		if th.Participants == nil {
+			t.Fatalf("thread %q participants is nil (want [])", th.ID)
+		}
+	}
+	if !haveOpen || !haveArchived || !haveUnread {
+		t.Fatalf("fixture must cover open+archived+unread; got open=%v archived=%v unread=%v", haveOpen, haveArchived, haveUnread)
+	}
+}
+
+func TestHandleChatThreadsDeterministic(t *testing.T) {
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+
+	url := srv.URL + "/api/chat/threads"
+	if a, b := getRaw(t, url), getRaw(t, url); !bytes.Equal(a, b) {
+		t.Fatalf("chat threads not byte-stable across calls\nfirst:  %s\nsecond: %s", a, b)
+	}
+}
+
+func TestHandleChatThread(t *testing.T) {
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+
+	// The release-room fixture exercises a promotion_request + job_result + refs.
+	var detail ChatThreadDetail
+	if err := json.Unmarshal(getRaw(t, srv.URL+"/api/chat/thread?id=chat-release-room"), &detail); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if detail.ID != "chat-release-room" {
+		t.Fatalf("detail.ID = %q, want chat-release-room", detail.ID)
+	}
+	if len(detail.Messages) == 0 {
+		t.Fatalf("thread has no messages")
+	}
+	// Messages ascending by Seq; kinds/author-kinds within the real store's set.
+	var sawPromotion, sawJobResult bool
+	for i, msg := range detail.Messages {
+		if i > 0 && detail.Messages[i-1].Seq > msg.Seq {
+			t.Fatalf("messages not Seq-ascending: %+v", detail.Messages)
+		}
+		if !realChatMessageKinds[msg.Kind] {
+			t.Fatalf("message %q has unexpected kind %q", msg.ID, msg.Kind)
+		}
+		if !realChatAuthorKinds[msg.AuthorKind] {
+			t.Fatalf("message %q has unexpected authorKind %q", msg.ID, msg.AuthorKind)
+		}
+		if msg.Kind == "promotion_request" {
+			sawPromotion = true
+			if msg.PromotedJobID == "" {
+				t.Fatalf("promotion_request %q missing promotedJobId", msg.ID)
+			}
+		}
+		if msg.Kind == "job_result" {
+			sawJobResult = true
+		}
+	}
+	if !sawPromotion || !sawJobResult {
+		t.Fatalf("release-room must carry a promotion_request + job_result; got promotion=%v jobResult=%v", sawPromotion, sawJobResult)
+	}
+}
+
+func TestHandleChatThreadSystemAskGate(t *testing.T) {
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+
+	// The adapter-review fixture exercises an ask-gate `system` message + a
+	// human reply_to answer.
+	var detail ChatThreadDetail
+	if err := json.Unmarshal(getRaw(t, srv.URL+"/api/chat/thread?id=chat-adapter-review"), &detail); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	var sawSystem, sawReply bool
+	for _, msg := range detail.Messages {
+		if msg.Kind == "system" && msg.AuthorKind == "system" {
+			sawSystem = true
+		}
+		if msg.ReplyTo != "" {
+			sawReply = true
+		}
+	}
+	if !sawSystem || !sawReply {
+		t.Fatalf("adapter-review must carry a system ask-gate + a reply; got system=%v reply=%v", sawSystem, sawReply)
+	}
+}
+
+func TestHandleChatThreadDeterministic(t *testing.T) {
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+
+	url := srv.URL + "/api/chat/thread?id=chat-release-room"
+	if a, b := getRaw(t, url), getRaw(t, url); !bytes.Equal(a, b) {
+		t.Fatalf("chat thread not byte-stable across calls\nfirst:  %s\nsecond: %s", a, b)
+	}
+}
+
+func TestHandleChatThreadNotFound(t *testing.T) {
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/api/chat/thread?id=does-not-exist")
+	if err != nil {
+		t.Fatalf("GET /api/chat/thread?id=does-not-exist: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", resp.StatusCode)
+	}
+}
+
+func TestHandleChatThreadMissingID(t *testing.T) {
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/api/chat/thread")
+	if err != nil {
+		t.Fatalf("GET /api/chat/thread: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", resp.StatusCode)
+	}
+}

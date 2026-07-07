@@ -16,3 +16,6 @@ web/.vite/
 .DS_Store
 .idea/
 .vscode/
+
+# Chat-view dev screenshots (not committed)
+/.chat-view-shots/
