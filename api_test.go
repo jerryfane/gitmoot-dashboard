@@ -884,6 +884,224 @@ func TestHandleLearningKnowledgeDeterministic(t *testing.T) {
 	}
 }
 
+// realPipelineStates is the set of run states the live pipeline store can emit;
+// the fake feed must never present a run state outside it.
+var realPipelineStates = map[string]bool{
+	"running":   true,
+	"succeeded": true,
+	"blocked":   true,
+	"failed":    true,
+	"cancelled": true,
+}
+
+// realPipelineStageStates is the set of per-stage states the live pipeline store
+// can emit; the fake feed must never present a stage state outside it.
+var realPipelineStageStates = map[string]bool{
+	"pending":   true,
+	"queued":    true,
+	"running":   true,
+	"succeeded": true,
+	"blocked":   true,
+	"failed":    true,
+	"skipped":   true,
+	"cancelled": true,
+}
+
+func TestHandlePipelines(t *testing.T) {
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+
+	var pipelines []PipelineSummary
+	if err := json.Unmarshal(getRaw(t, srv.URL+"/api/pipelines"), &pipelines); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(pipelines) < 3 {
+		t.Fatalf("len(pipelines) = %d, want >= 3", len(pipelines))
+	}
+
+	// Sorted by name asc.
+	for i := 1; i < len(pipelines); i++ {
+		if pipelines[i-1].Name > pipelines[i].Name {
+			t.Fatalf("pipelines not name-sorted: %+v", pipelines)
+		}
+	}
+
+	enabled, disabled := 0, 0
+	byName := map[string]PipelineSummary{}
+	for _, p := range pipelines {
+		if p.Name == "" {
+			t.Fatalf("pipeline missing name: %+v", p)
+		}
+		byName[p.Name] = p
+		if p.StageCount <= 0 {
+			t.Fatalf("pipeline %s StageCount = %d, want > 0", p.Name, p.StageCount)
+		}
+		// Recent must always be a JSON array, never nil.
+		if p.Recent == nil {
+			t.Fatalf("pipeline %s Recent must be non-nil", p.Name)
+		}
+		if p.Enabled {
+			enabled++
+		} else {
+			disabled++
+		}
+		// LastStatus, when set, is a real run state.
+		if p.LastStatus != "" && !realPipelineStates[p.LastStatus] {
+			t.Fatalf("pipeline %s LastStatus = %q not a real run state", p.Name, p.LastStatus)
+		}
+		// Recent: newest-first by StartedAt desc, every state within the allow-list.
+		for i, r := range p.Recent {
+			if r.ID == "" || r.State == "" {
+				t.Fatalf("pipeline %s recent[%d] missing id/state: %+v", p.Name, i, r)
+			}
+			if !realPipelineStates[r.State] {
+				t.Fatalf("pipeline %s recent[%d] state = %q not a real run state", p.Name, i, r.State)
+			}
+			if i > 0 && p.Recent[i-1].StartedAt < r.StartedAt {
+				t.Fatalf("pipeline %s Recent not newest-first (StartedAt desc): %+v", p.Name, p.Recent)
+			}
+		}
+	}
+
+	// The fixture spans both schedule states so the enabled chip is exercised in
+	// both directions.
+	if enabled == 0 || disabled == 0 {
+		t.Fatalf("want at least one enabled and one disabled pipeline; got enabled=%d disabled=%d", enabled, disabled)
+	}
+
+	// nightly-deploy: enabled scheduled pipeline with a next-due time whose recent
+	// strip carries an in-flight running run alongside a succeeded and a failed run.
+	nd, ok := byName["nightly-deploy"]
+	if !ok {
+		t.Fatalf("expected a nightly-deploy pipeline: %+v", pipelines)
+	}
+	if !nd.Enabled {
+		t.Fatalf("expected nightly-deploy enabled")
+	}
+	if nd.NextDueAt == 0 {
+		t.Fatalf("expected nightly-deploy to carry a NextDueAt")
+	}
+	if nd.Interval == "" {
+		t.Fatalf("expected nightly-deploy to carry a schedule Interval")
+	}
+	recentStates := map[string]bool{}
+	for _, r := range nd.Recent {
+		recentStates[r.State] = true
+	}
+	for _, want := range []string{"running", "succeeded", "failed"} {
+		if !recentStates[want] {
+			t.Fatalf("nightly-deploy recent missing a %q run: %+v", want, nd.Recent)
+		}
+	}
+
+	// listing-refresh: manual pipeline whose last run is parked-blocked.
+	if lr := byName["listing-refresh"]; lr.LastStatus != "blocked" {
+		t.Fatalf("expected listing-refresh LastStatus=blocked, got %q", lr.LastStatus)
+	}
+	// bench-suite: disabled pipeline whose last run failed.
+	if bs := byName["bench-suite"]; bs.Enabled || bs.LastStatus != "failed" {
+		t.Fatalf("expected bench-suite disabled + LastStatus=failed, got enabled=%v status=%q", bs.Enabled, bs.LastStatus)
+	}
+}
+
+func TestHandlePipelinesDeterministic(t *testing.T) {
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+
+	url := srv.URL + "/api/pipelines"
+	if a, b := getRaw(t, url), getRaw(t, url); !bytes.Equal(a, b) {
+		t.Fatalf("pipelines not byte-stable across calls\nfirst:  %s\nsecond: %s", a, b)
+	}
+}
+
+func TestHandlePipelineRun(t *testing.T) {
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+
+	// The parked-blocked diamond fixture exercises needs + a skipped branch.
+	var run PipelineRun
+	if err := json.Unmarshal(getRaw(t, srv.URL+"/api/pipeline/run/prun-listing-refresh-0001"), &run); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if run.ID != "prun-listing-refresh-0001" {
+		t.Fatalf("run.ID = %q, want prun-listing-refresh-0001", run.ID)
+	}
+	if run.State != "blocked" {
+		t.Fatalf("run.State = %q, want blocked", run.State)
+	}
+	if run.HaltStage != "score" {
+		t.Fatalf("run.HaltStage = %q, want score", run.HaltStage)
+	}
+	// Persisted blocked-needs aggregated at the run level.
+	if len(run.Needs) == 0 {
+		t.Fatalf("expected run-level Needs on a blocked run: %+v", run)
+	}
+
+	// Stages: non-nil, in spec (topological) order — deliberately NOT alphabetical
+	// (which would be dedupe, fetch, publish, score).
+	if run.Stages == nil {
+		t.Fatalf("Stages must be non-nil")
+	}
+	wantOrder := []string{"fetch", "score", "dedupe", "publish"}
+	if len(run.Stages) != len(wantOrder) {
+		t.Fatalf("len(Stages) = %d, want %d", len(run.Stages), len(wantOrder))
+	}
+	byID := map[string]PipelineStage{}
+	for i, st := range run.Stages {
+		if st.ID != wantOrder[i] {
+			t.Fatalf("Stages not in spec order: got %q at %d, want %q\n%+v", st.ID, i, wantOrder[i], run.Stages)
+		}
+		if !realPipelineStageStates[st.State] {
+			t.Fatalf("stage %s state = %q not a real stage state", st.ID, st.State)
+		}
+		byID[st.ID] = st
+	}
+
+	// The blocked stage carries its own persisted needs.
+	if score := byID["score"]; score.State != "blocked" || len(score.Needs) == 0 {
+		t.Fatalf("expected score stage blocked with needs: %+v", score)
+	}
+	// The downstream branch of the blocked stage is skipped.
+	if publish := byID["publish"]; publish.State != "skipped" {
+		t.Fatalf("expected publish stage skipped: %+v", publish)
+	}
+	// Deps present on downstream stages (the client derives the DAG edges from them).
+	if score := byID["score"]; len(score.Deps) != 1 || score.Deps[0] != "fetch" {
+		t.Fatalf("score.Deps = %v, want [fetch]", score.Deps)
+	}
+	if dedupe := byID["dedupe"]; len(dedupe.Deps) != 1 || dedupe.Deps[0] != "fetch" {
+		t.Fatalf("dedupe.Deps = %v, want [fetch]", dedupe.Deps)
+	}
+	if publish := byID["publish"]; len(publish.Deps) != 2 {
+		t.Fatalf("publish.Deps = %v, want 2 (the diamond join)", publish.Deps)
+	}
+}
+
+func TestHandlePipelineRunDeterministic(t *testing.T) {
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+
+	url := srv.URL + "/api/pipeline/run/prun-listing-refresh-0001"
+	if a, b := getRaw(t, url), getRaw(t, url); !bytes.Equal(a, b) {
+		t.Fatalf("pipeline run detail not byte-stable across calls\nfirst:  %s\nsecond: %s", a, b)
+	}
+}
+
+func TestHandlePipelineRunNotFound(t *testing.T) {
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/api/pipeline/run/does-not-exist")
+	if err != nil {
+		t.Fatalf("GET /api/pipeline/run/does-not-exist: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", resp.StatusCode)
+	}
+}
+
 func TestStateResponseIsIndented(t *testing.T) {
 	srv := httptest.NewServer(Serve(NewFakeDataSource()))
 	defer srv.Close()
