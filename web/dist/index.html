@@ -5364,6 +5364,7 @@ class Component extends DCLogic {
       "#chat-root #chat-detail .cd-bubble .cd-p{margin:0}",
       "#chat-root #chat-detail .cd-bubble .cd-p + .cd-p{margin-top:7px}",
       "#chat-root #chat-detail .cd-bubble strong{color:#eef0ff;font-weight:700}",
+      "#chat-root #chat-detail .cd-bubble .cd-trunc{margin-top:7px;font-size:10px;font-style:italic;color:#7a82a8}",
       "#chat-root #chat-detail .cd-bubble .cd-code{font-family:'JetBrains Mono',monospace;font-size:0.9em;background:rgba(160,168,220,0.13);border:1px solid rgba(160,168,220,0.16);border-radius:5px;padding:0.5px 5px;color:#c8f0ff;white-space:pre-wrap;word-break:break-word}",
       "#chat-root #chat-detail .cd-bubble .cd-pre{margin:8px 0;background:#06070d;border:1px solid rgba(160,168,220,0.16);border-radius:8px;padding:9px 11px;overflow-x:auto;white-space:normal}",
       "#chat-root #chat-detail .cd-bubble .cd-pre code{display:block;font-family:'JetBrains Mono',monospace;font-size:11px;line-height:1.5;color:#c7d3f0;white-space:pre}",
@@ -5704,7 +5705,15 @@ class Component extends DCLogic {
   _chatRenderMarkdown(raw) {
     const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : c === '"' ? '&quot;' : '&#39;');
     // Normalize newlines so line-level constructs match regardless of CRLF/CR.
-    const src = String(raw == null ? '' : raw).replace(/\r\n?/g, '\n');
+    let src = String(raw == null ? '' : raw).replace(/\r\n?/g, '\n');
+    // Defensive body-length cap. Markdown expansion — especially inline `code`
+    // spans (each char -> a ~30-char <code> element) — amplifies the output DOM
+    // string ~10x, so an uncapped hostile body is a memory/DOM-size vector even
+    // though it is XSS-inert. Bound the input; over-length bodies are truncated
+    // with a visible marker rather than rendered whole.
+    const MAX_BODY = 32768;
+    let truncated = false;
+    if (src.length > MAX_BODY) { src = src.slice(0, MAX_BODY); truncated = true; }
     // Inline transforms run on text that is ALREADY html-escaped, so captured
     // groups can only contain escaped chars and can never break out of a tag or
     // attribute. We split on inline-code spans and apply **bold** only to the
@@ -5762,6 +5771,7 @@ class Component extends DCLogic {
       }
       if (para.length) out.push('<div class="cd-p">' + para.join('<br>') + '</div>');
     }
+    if (truncated) out.push('<div class="cd-p cd-trunc">… (message truncated)</div>');
     return out.join('');
   }
 
