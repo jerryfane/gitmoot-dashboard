@@ -1171,6 +1171,15 @@ func TestHandlePipelineDetail(t *testing.T) {
 	if detail.Runs[0].ID != "prun-listing-refresh-0001" {
 		t.Fatalf("newest run = %q, want prun-listing-refresh-0001", detail.Runs[0].ID)
 	}
+	// Strictly newest-first throughout (StartedAt desc, ID desc tie-break). The
+	// fixture's history literal is deliberately declared out of chronological
+	// order, so this fails if finalize() ever stops sorting.
+	for i := 1; i < len(detail.Runs); i++ {
+		prev, cur := detail.Runs[i-1], detail.Runs[i]
+		if cur.StartedAt > prev.StartedAt || (cur.StartedAt == prev.StartedAt && cur.ID > prev.ID) {
+			t.Fatalf("Runs not newest-first at %d: %s(%d) before %s(%d)", i, prev.ID, prev.StartedAt, cur.ID, cur.StartedAt)
+		}
+	}
 	scoreStates := map[string]bool{}
 	for i, run := range detail.Runs {
 		if run.ID == "" || run.State == "" {

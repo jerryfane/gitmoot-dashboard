@@ -4570,7 +4570,7 @@ class Component extends DCLogic {
     const due = p.nextDueAt ? '<span class="pl-due" data-due="' + p.nextDueAt + '">' + esc(this._plFmtCountdown(p.nextDueAt)) + '</span>' : '<span class="pl-nohist">—</span>';
     const recent = (Array.isArray(p.recent) ? p.recent.slice() : []).reverse(); // oldest -> newest (left -> right)
     const strip = recent.length
-      ? '<div class="pl-strip">' + recent.map(r => { const c = this._galaxyStateColor(r.state); return '<span class="pl-pip" style="background:' + c + '" title="' + esc(r.state) + (r.startedAt ? ' · ' + esc(this._relFromMs(r.startedAt)) : '') + '"></span>'; }).join('') + '</div>'
+      ? '<div class="pl-strip">' + recent.slice().reverse().map(r => { const c = this._galaxyStateColor(r.state); return '<span class="pl-pip" style="background:' + c + '" title="' + esc(r.state) + (r.startedAt ? ' · ' + esc(this._relFromMs(r.startedAt)) : '') + '"></span>'; }).join('') + '</div>'
       : '<span class="pl-nohist">no runs</span>';
     // v1.6: success rate + avg duration computed client-side from recent[].
     const rate = this._plSuccessRate(p.recent);
@@ -4641,7 +4641,8 @@ class Component extends DCLogic {
       const recent = Array.isArray(summary.recent) ? summary.recent : [];
       if (!recent.length) { hist.innerHTML = '<span class="pl-nohist">no runs yet</span>'; }
       else {
-        hist.innerHTML = recent.map(r => {
+        // Oldest->newest so the strip reads the same direction as the matrix columns.
+        hist.innerHTML = recent.slice().reverse().map(r => {
           const col = this._galaxyStateColor(r.state);
           const shortId = String(r.id || '').split('-').pop();
           const rel = r.startedAt ? this._relFromMs(r.startedAt) : '';

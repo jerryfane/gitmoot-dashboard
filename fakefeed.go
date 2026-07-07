@@ -1663,15 +1663,18 @@ func fakePipelineDetail(name string) (PipelineDetail, bool) {
 		okRun := func() []PipelineStageMark {
 			return []PipelineStageMark{sm("fetch", "succeeded"), sm("score", "succeeded"), sm("dedupe", "succeeded"), sm("publish", "succeeded")}
 		}
+		// Deliberately declared OUT of chronological order so finalize()'s
+		// newest-first sort is load-bearing (a regression that drops the sort
+		// fails TestHandlePipelineDetail's descending assertion).
 		history := []PipelineRunHistoryEntry{
+			mk("prun-listing-refresh-0103", "schedule", "succeeded", "", ago(3*d), ago(3*d-9*m), okRun()...),
+			mk("prun-listing-refresh-0105", "manual", "succeeded", "", ago(5*d), ago(5*d-7*m), okRun()...),
 			entry("prun-listing-refresh-0001"), // blocked on score, 2h ago (newest)
-			mk("prun-listing-refresh-0101", "schedule", "succeeded", "", ago(1*d), ago(1*d-8*m), okRun()...),
 			mk("prun-listing-refresh-0102", "manual", "failed", "score", ago(2*d), ago(2*d-5*m),
 				sm("fetch", "succeeded"), sm("score", "failed"), sm("dedupe", "succeeded"), sm("publish", "skipped")),
-			mk("prun-listing-refresh-0103", "schedule", "succeeded", "", ago(3*d), ago(3*d-9*m), okRun()...),
 			mk("prun-listing-refresh-0104", "schedule", "blocked", "score", ago(4*d), 0,
 				sm("fetch", "succeeded"), sm("score", "blocked"), sm("dedupe", "succeeded"), sm("publish", "skipped")),
-			mk("prun-listing-refresh-0105", "manual", "succeeded", "", ago(5*d), ago(5*d-7*m), okRun()...),
+			mk("prun-listing-refresh-0101", "schedule", "succeeded", "", ago(1*d), ago(1*d-8*m), okRun()...),
 		}
 		return finalize("listing-refresh", declared, history), true
 
