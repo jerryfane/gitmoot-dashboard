@@ -4801,7 +4801,8 @@ class Component extends DCLogic {
       (startedAbs ? '<span class="pl-runsum-t">' + esc(startedAbs) + '</span>' : '') +
       (dur ? '<span class="pl-runsum-t">⏱ ' + esc(dur) + '</span>' : '') +
     '</div>';
-    const parkedTag = parked ? '<span class="pl-banner-parked">parked ' + esc(parked) + ' ago</span>' : '';
+    // _relFromMs/relTime already end with "ago" (or say "just now") — no suffix here.
+    const parkedTag = parked ? '<span class="pl-banner-parked">parked ' + esc(parked) + '</span>' : '';
     let banner = '';
     if (run.state === 'blocked') {
       const needs = Array.isArray(run.needs) ? run.needs : [];
@@ -5092,7 +5093,9 @@ class Component extends DCLogic {
     const up = this._pipelinesRoot.querySelector('#pl-upcoming');
     if (up) up.innerHTML = summary ? this._plUpcomingHtml(summary) : '';
     const mx = this._pipelinesRoot.querySelector('#pl-matrix');
-    if (mx) mx.innerHTML = runs.length ? this._plMatrixHtml(detail) : '';
+    // The matrix compares stages ACROSS runs — with fewer than 2 runs it is a
+    // one-column duplicate of the DAG's states, so it stays hidden until then.
+    if (mx) mx.innerHTML = runs.length >= 2 ? this._plMatrixHtml(detail) : '';
     const tb = this._pipelinesRoot.querySelector('#pl-htable');
     if (tb) tb.innerHTML = runs.length ? this._plHistoryTableHtml(detail) : '';
     const rc = this._pipelinesRoot.querySelector('#pl-runcount');
@@ -5151,7 +5154,7 @@ class Component extends DCLogic {
   _plMatrixHtml(detail) {
     const esc = (s) => this._galaxyEsc(s);
     const runs = (Array.isArray(detail.runs) ? detail.runs.slice(0, 15) : []).reverse(); // oldest -> newest
-    if (!runs.length) return '';
+    if (runs.length < 2) return ''; // cross-run comparison needs at least two runs
     const declared = Array.isArray(detail.declared) ? detail.declared : [];
     const order = [], seen = {};
     declared.forEach(s => { if (s && s.id && !seen[s.id]) { seen[s.id] = true; order.push(s.id); } });
