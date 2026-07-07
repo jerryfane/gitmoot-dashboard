@@ -451,6 +451,141 @@ func TestHandleJobNotFound(t *testing.T) {
 	}
 }
 
+func TestHandleAttention(t *testing.T) {
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+
+	var att Attention
+	if err := json.Unmarshal(getRaw(t, srv.URL+"/api/attention"), &att); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if att.Gates == nil || att.SynthItems == nil || att.Candidates == nil {
+		t.Fatalf("attention lists must be non-nil: %+v", att)
+	}
+	if len(att.Gates) == 0 || len(att.SynthItems) == 0 || len(att.Candidates) == 0 {
+		t.Fatalf("fake attention should have items in every bucket: %+v", att)
+	}
+	if want := len(att.Gates) + len(att.SynthItems) + len(att.Candidates); att.Total != want {
+		t.Fatalf("Total = %d, want %d", att.Total, want)
+	}
+	for _, g := range att.Gates {
+		if g.JobID == "" || g.Need == "" {
+			t.Fatalf("gate missing jobId/need: %+v", g)
+		}
+	}
+}
+
+func TestHandleAttentionDeterministic(t *testing.T) {
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+	a := getRaw(t, srv.URL+"/api/attention")
+	b := getRaw(t, srv.URL+"/api/attention")
+	if !bytes.Equal(a, b) {
+		t.Fatalf("attention not byte-stable across calls")
+	}
+}
+
+func TestHandleJobChecks(t *testing.T) {
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+
+	var jc JobChecks
+	if err := json.Unmarshal(getRaw(t, srv.URL+"/api/job/job-5/checks"), &jc); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if jc.JobID != "job-5" {
+		t.Fatalf("JobID = %q, want job-5", jc.JobID)
+	}
+	if jc.Mode != "block" {
+		t.Fatalf("Mode = %q, want block", jc.Mode)
+	}
+	if len(jc.Failed) == 0 {
+		t.Fatalf("job-5 should have failed checks")
+	}
+	for _, c := range jc.Failed {
+		if c.CheckID == "" || c.Question == "" {
+			t.Fatalf("failed check missing id/question: %+v", c)
+		}
+	}
+}
+
+func TestHandleJobChecksUnknownJobNotFound(t *testing.T) {
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+
+	// An unknown job is NOT a 404 — it returns the resolved policy Mode with an
+	// empty (non-nil) Failed list.
+	var jc JobChecks
+	if err := json.Unmarshal(getRaw(t, srv.URL+"/api/job/does-not-exist/checks"), &jc); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if jc.Mode == "" {
+		t.Fatalf("Mode must be resolved even for an unknown job: %+v", jc)
+	}
+	if jc.Failed == nil {
+		t.Fatalf("Failed must be non-nil")
+	}
+	if len(jc.Failed) != 0 {
+		t.Fatalf("unknown job should have no failed checks: %+v", jc.Failed)
+	}
+}
+
+func TestHandleBinaryVerdicts(t *testing.T) {
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+
+	var v BinaryVerdicts
+	if err := json.Unmarshal(getRaw(t, srv.URL+"/api/run/"+fakeVerdictRun+"/verdicts"), &v); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if v.RunID != fakeVerdictRun {
+		t.Fatalf("RunID = %q, want %q", v.RunID, fakeVerdictRun)
+	}
+	if len(v.Verdicts) == 0 {
+		t.Fatalf("expected verdicts for %q", fakeVerdictRun)
+	}
+	if v.Passed+v.Failed != len(v.Verdicts) {
+		t.Fatalf("passed(%d)+failed(%d) != len(%d)", v.Passed, v.Failed, len(v.Verdicts))
+	}
+	pass, fail := 0, 0
+	for _, q := range v.Verdicts {
+		if q.Pass != (q.Verdict == "yes") {
+			t.Fatalf("Pass/Verdict mismatch: %+v", q)
+		}
+		if q.Pass {
+			pass++
+		} else {
+			fail++
+		}
+	}
+	if pass != v.Passed || fail != v.Failed {
+		t.Fatalf("counts mismatch: got passed=%d failed=%d, recomputed passed=%d failed=%d", v.Passed, v.Failed, pass, fail)
+	}
+	// Ordering must be (dimension, questionId) ascending.
+	for i := 1; i < len(v.Verdicts); i++ {
+		prev, cur := v.Verdicts[i-1], v.Verdicts[i]
+		if prev.Dimension > cur.Dimension || (prev.Dimension == cur.Dimension && prev.QuestionID > cur.QuestionID) {
+			t.Fatalf("verdicts not ordered by (dimension, questionId) at %d: %+v then %+v", i, prev, cur)
+		}
+	}
+}
+
+func TestHandleBinaryVerdictsUnknownRun(t *testing.T) {
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+
+	var v BinaryVerdicts
+	if err := json.Unmarshal(getRaw(t, srv.URL+"/api/run/nope/verdicts"), &v); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if v.Verdicts == nil {
+		t.Fatalf("Verdicts must be non-nil")
+	}
+	if len(v.Verdicts) != 0 || v.Passed != 0 || v.Failed != 0 {
+		t.Fatalf("unknown run should be empty: %+v", v)
+	}
+}
+
 // getRaw fetches url and returns the 200 response body, failing the test on any
 // error or non-200 status.
 func getRaw(t *testing.T, url string) []byte {

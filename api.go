@@ -306,6 +306,67 @@ func (s *server) handleChatThread(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, detail)
 }
 
+// handleAttention serves GET /api/attention -> Attention, the "Needs a human"
+// view (gitmoot #528). Mirrors handleRuns; every list is coerced non-nil so the
+// client always sees JSON arrays.
+func (s *server) handleAttention(w http.ResponseWriter, r *http.Request) {
+	att, err := s.ds.Attention(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), statusForError(err))
+		return
+	}
+	if att.Gates == nil {
+		att.Gates = []AttentionGate{}
+	}
+	if att.SynthItems == nil {
+		att.SynthItems = []AttentionSynthItem{}
+	}
+	if att.Candidates == nil {
+		att.Candidates = []AttentionCandidate{}
+	}
+	writeJSON(w, http.StatusOK, att)
+}
+
+// handleJobChecks serves GET /api/job/{id}/checks -> JobChecks, the job-detail
+// failed-check section (gitmoot #711). An unknown job is not a 404 — it returns
+// the resolved policy Mode with an empty Failed list. Failed is coerced non-nil.
+func (s *server) handleJobChecks(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		http.Error(w, "missing job id", http.StatusBadRequest)
+		return
+	}
+	checks, err := s.ds.JobChecks(r.Context(), id)
+	if err != nil {
+		http.Error(w, err.Error(), statusForError(err))
+		return
+	}
+	if checks.Failed == nil {
+		checks.Failed = []ResultCheck{}
+	}
+	writeJSON(w, http.StatusOK, checks)
+}
+
+// handleBinaryVerdicts serves GET /api/run/{id}/verdicts -> BinaryVerdicts, the
+// per-run SkillOpt binary-check breakdown (gitmoot #714). An unknown run is not
+// a 404 — it returns zero counts with an empty Verdicts list (coerced non-nil).
+func (s *server) handleBinaryVerdicts(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		http.Error(w, "missing run id", http.StatusBadRequest)
+		return
+	}
+	v, err := s.ds.BinaryVerdicts(r.Context(), id)
+	if err != nil {
+		http.Error(w, err.Error(), statusForError(err))
+		return
+	}
+	if v.Verdicts == nil {
+		v.Verdicts = []BinaryVerdict{}
+	}
+	writeJSON(w, http.StatusOK, v)
+}
+
 // handleState serves GET /api/state?run=<id> -> State. An empty run resolves to
 // the active/most-recent run.
 func (s *server) handleState(w http.ResponseWriter, r *http.Request) {
