@@ -19,6 +19,8 @@ var (
 	ErrJobNotFound = errors.New("job not found")
 	// ErrAgentNotFound indicates the requested agent does not exist.
 	ErrAgentNotFound = errors.New("agent not found")
+	// ErrPipelineRunNotFound indicates the requested pipeline run does not exist.
+	ErrPipelineRunNotFound = errors.New("pipeline run not found")
 )
 
 const (
@@ -1300,4 +1302,242 @@ func fakeKnowledge() Knowledge {
 // output is deterministic and byte-stable across calls.
 func (f *FakeDataSource) Knowledge(ctx context.Context) (Knowledge, error) {
 	return fakeKnowledge(), nil
+}
+
+// fakePipelineRuns builds the fixed set of pipeline run details (gitmoot #681)
+// behind the Pipelines section, keyed by run id. Every timestamp is anchored on
+// fakeChartsNow (never time.Now()) so the section is byte-stable across polls.
+// The five runs together exercise every real-emittable shape: a healthy linear
+// run that fully succeeded (prun-nightly-deploy-0001); an in-flight run with a
+// done stage, a running stage and a pending stage (…-0002); a parked-blocked
+// diamond carrying persisted needs at both the stage and the run level, with a
+// downstream stage skipped (prun-listing-refresh-0001); a failed run with a
+// retried stage and a skipped report (prun-bench-suite-0001); and an older
+// failed run for run-history/sparkline variety (…-0000). Stages are emitted in
+// spec (topological) order — deliberately NOT alphabetical for the diamond — so
+// the client renders the DAG the same way the CLI funnel prints it. Some cmds
+// and summaries carry angle brackets and ampersands so the client's
+// HTML-escaping is exercised.
+func fakePipelineRuns() map[string]PipelineRun {
+	const (
+		h = time.Hour
+		m = time.Minute
+	)
+	// ago returns the epoch-ms d before fakeChartsNow (never time.Now()).
+	ago := func(d time.Duration) int64 { return fakeChartsNow.Add(-d).UnixMilli() }
+
+	return map[string]PipelineRun{
+		// Healthy linear scheduled run: source -> build -> deploy, all succeeded.
+		// The most recent nightly-deploy run (StartedAt 6h ago), so it is the
+		// pipeline's LastRun.
+		"prun-nightly-deploy-0001": {
+			ID:         "prun-nightly-deploy-0001",
+			Pipeline:   "nightly-deploy",
+			Repo:       "acme/webapp",
+			Trigger:    "schedule",
+			State:      "succeeded",
+			SpecHash:   "sha256:9c1f0ade",
+			StartedAt:  ago(6 * h),
+			FinishedAt: ago(6*h - 13*m),
+			Stages: []PipelineStage{
+				{ID: "source", State: "succeeded", Cmd: "git fetch --all && git checkout main", JobID: "job-nd1-source", Summary: "checked out main @ a1b2c3d", StartedAt: ago(6 * h), FinishedAt: ago(6*h - 3*m)},
+				{ID: "build", State: "succeeded", Deps: []string{"source"}, Cmd: "make build", JobID: "job-nd1-build", Summary: "built 42 packages, 0 warnings", StartedAt: ago(6*h - 3*m), FinishedAt: ago(6*h - 10*m)},
+				{ID: "deploy", State: "succeeded", Deps: []string{"build"}, Cmd: "./scripts/deploy.sh --env prod", JobID: "job-nd1-deploy", Summary: "deployed to prod, health green", StartedAt: ago(6*h - 10*m), FinishedAt: ago(6*h - 13*m)},
+			},
+		},
+		// In-flight run: source succeeded, build running, deploy pending (no job
+		// assigned yet). A static snapshot of a previous hung cycle (StartedAt 30h
+		// ago), so poll-stable byte-equality still holds.
+		"prun-nightly-deploy-0002": {
+			ID:        "prun-nightly-deploy-0002",
+			Pipeline:  "nightly-deploy",
+			Repo:      "acme/webapp",
+			Trigger:   "schedule",
+			State:     "running",
+			SpecHash:  "sha256:9c1f0ade",
+			StartedAt: ago(30 * h),
+			Stages: []PipelineStage{
+				{ID: "source", State: "succeeded", Cmd: "git fetch --all && git checkout main", JobID: "job-nd2-source", Summary: "checked out main @ b2c3d4e", StartedAt: ago(30 * h), FinishedAt: ago(30*h - 4*m)},
+				{ID: "build", State: "running", Deps: []string{"source"}, Cmd: "make build", JobID: "job-nd2-build", Summary: "compiling packages", StartedAt: ago(30*h - 4*m)},
+				{ID: "deploy", State: "pending", Deps: []string{"build"}, Cmd: "./scripts/deploy.sh --env prod"},
+			},
+		},
+		// Older failed run for run-history/sparkline variety (StartedAt 3 days ago):
+		// source + build succeeded, deploy failed.
+		"prun-nightly-deploy-0000": {
+			ID:         "prun-nightly-deploy-0000",
+			Pipeline:   "nightly-deploy",
+			Repo:       "acme/webapp",
+			Trigger:    "schedule",
+			State:      "failed",
+			SpecHash:   "sha256:9c1f0ade",
+			HaltStage:  "deploy",
+			HaltReason: "prod healthcheck failed after deploy",
+			StartedAt:  ago(3 * 24 * h),
+			FinishedAt: ago(3*24*h - 9*m),
+			Stages: []PipelineStage{
+				{ID: "source", State: "succeeded", Cmd: "git fetch --all && git checkout main", JobID: "job-nd0-source", Summary: "checked out main @ 0f1e2d3", StartedAt: ago(3 * 24 * h), FinishedAt: ago(3*24*h - 2*m)},
+				{ID: "build", State: "succeeded", Deps: []string{"source"}, Cmd: "make build", JobID: "job-nd0-build", Summary: "built 41 packages", StartedAt: ago(3*24*h - 2*m), FinishedAt: ago(3*24*h - 7*m)},
+				{ID: "deploy", State: "failed", Deps: []string{"build"}, Cmd: "./scripts/deploy.sh --env prod", JobID: "job-nd0-deploy", Summary: "deploy script exited 1: prod healthcheck failed", StartedAt: ago(3*24*h - 7*m), FinishedAt: ago(3*24*h - 9*m)},
+			},
+		},
+		// Parked-blocked diamond: fetch -> {score, dedupe} -> publish. score is
+		// BLOCKED with persisted needs (also aggregated at the run level), dedupe
+		// succeeded, and the downstream publish is SKIPPED. Stage order is spec
+		// order (fetch, score, dedupe, publish), NOT alphabetical, so the client
+		// lays out the DAG correctly.
+		"prun-listing-refresh-0001": {
+			ID:         "prun-listing-refresh-0001",
+			Pipeline:   "listing-refresh",
+			Repo:       "jerryfane/noted",
+			Trigger:    "manual",
+			State:      "blocked",
+			SpecHash:   "sha256:41ab77e0",
+			HaltStage:  "score",
+			HaltReason: "scoring model needs the R2 token",
+			Needs:      []string{"set R2 token: gitmoot config set r2.token"},
+			StartedAt:  ago(2 * h),
+			Stages: []PipelineStage{
+				{ID: "fetch", State: "succeeded", Cmd: "gitmoot listings fetch --source noted", JobID: "job-lr1-fetch", Summary: "fetched 128 listings", StartedAt: ago(2 * h), FinishedAt: ago(2*h - 3*m)},
+				{ID: "score", State: "blocked", Deps: []string{"fetch"}, Cmd: "gitmoot listings score --model r2", JobID: "job-lr1-score", Needs: []string{"set R2 token: gitmoot config set r2.token"}, Summary: "blocked: scoring needs the R2 token & <credentials> before it can run", StartedAt: ago(2*h - 3*m)},
+				{ID: "dedupe", State: "succeeded", Deps: []string{"fetch"}, Cmd: "gitmoot listings dedupe", JobID: "job-lr1-dedupe", Summary: "removed 9 duplicates", StartedAt: ago(2*h - 3*m), FinishedAt: ago(2*h - 6*m)},
+				{ID: "publish", State: "skipped", Deps: []string{"score", "dedupe"}, Cmd: "gitmoot listings publish", Summary: "skipped: upstream stage score is blocked"},
+			},
+		},
+		// Failed run with a retried stage: setup succeeded, bench FAILED on attempt
+		// 2, report SKIPPED. The bench cmd and summary carry angle brackets and
+		// ampersands to exercise the client's HTML-escaping.
+		"prun-bench-suite-0001": {
+			ID:         "prun-bench-suite-0001",
+			Pipeline:   "bench-suite",
+			Repo:       "acme/api",
+			Trigger:    "manual",
+			State:      "failed",
+			SpecHash:   "sha256:7d3c9b12",
+			HaltStage:  "bench",
+			HaltReason: "benchmark stage exceeded the 30m timeout on attempt 2",
+			StartedAt:  ago(26 * h),
+			FinishedAt: ago(26*h - 34*m),
+			Stages: []PipelineStage{
+				{ID: "setup", State: "succeeded", Cmd: "make bench-setup", JobID: "job-bs1-setup", Summary: "warmed caches, seeded 10k rows", StartedAt: ago(26 * h), FinishedAt: ago(26*h - 4*m)},
+				{ID: "bench", State: "failed", Deps: []string{"setup"}, Cmd: `./scripts/bench.sh --filter "p<95> && q>1"`, JobID: "job-bs1-bench", Attempt: 2, Summary: "benchmark timeout after 2 retries (filter p<95> && q>1)", StartedAt: ago(26*h - 4*m), FinishedAt: ago(26*h - 34*m)},
+				{ID: "report", State: "skipped", Deps: []string{"bench"}, Cmd: "./scripts/report.sh", Summary: "skipped: upstream stage bench failed"},
+			},
+		},
+	}
+}
+
+// fakePipelineRunSummary projects a full PipelineRun detail down to the
+// lightweight listing entry shown in a pipeline's Recent strip. Duration is the
+// finished-started span in ms when both are set, else 0 (a still-running or
+// parked run reports 0).
+func fakePipelineRunSummary(run PipelineRun) PipelineRunSummary {
+	var duration int64
+	if run.StartedAt > 0 && run.FinishedAt > run.StartedAt {
+		duration = run.FinishedAt - run.StartedAt
+	}
+	return PipelineRunSummary{
+		ID:         run.ID,
+		Trigger:    run.Trigger,
+		State:      run.State,
+		HaltStage:  run.HaltStage,
+		StartedAt:  run.StartedAt,
+		FinishedAt: run.FinishedAt,
+		Duration:   duration,
+	}
+}
+
+// fakePipelines builds the fixed Pipelines-list fixture (gitmoot #681): three
+// declared pipelines that together exercise the UI — a healthy enabled scheduled
+// pipeline with a next-due time and a linear last run (nightly-deploy); an
+// enabled manual pipeline whose last run is parked-blocked (listing-refresh);
+// and a disabled scheduled pipeline whose last run failed (bench-suite). Every
+// timestamp is anchored on fakeChartsNow (never time.Now()); the pipeline list
+// is sorted by name and each Recent strip is sorted newest-first (StartedAt
+// desc, then ID desc — matching the store's ORDER BY started_at DESC, id DESC)
+// and coerced non-nil, so the whole view is byte-stable across polls.
+func fakePipelines() []PipelineSummary {
+	// fut returns the epoch-ms d after fakeChartsNow (a future next-due time).
+	fut := func(d time.Duration) int64 { return fakeChartsNow.Add(d).UnixMilli() }
+	runs := fakePipelineRuns()
+
+	// runsFor projects the named runs into Recent entries, newest-first (StartedAt
+	// desc, ID desc), capped at 10 and never nil.
+	runsFor := func(ids ...string) []PipelineRunSummary {
+		out := make([]PipelineRunSummary, 0, len(ids))
+		for _, id := range ids {
+			out = append(out, fakePipelineRunSummary(runs[id]))
+		}
+		sort.SliceStable(out, func(i, j int) bool {
+			if out[i].StartedAt != out[j].StartedAt {
+				return out[i].StartedAt > out[j].StartedAt // newest first
+			}
+			return out[i].ID > out[j].ID // ID desc tie-break (unique)
+		})
+		if len(out) > 10 {
+			out = out[:10]
+		}
+		return out
+	}
+
+	pipelines := []PipelineSummary{
+		{
+			Name:       "nightly-deploy",
+			Repo:       "acme/webapp",
+			Enabled:    true,
+			Interval:   "24h",
+			Jitter:     "15m",
+			StageCount: 3,
+			LastRunID:  "prun-nightly-deploy-0001",
+			LastStatus: "succeeded",
+			LastRunAt:  runs["prun-nightly-deploy-0001"].StartedAt,
+			NextDueAt:  fut(7 * time.Hour),
+			Recent:     runsFor("prun-nightly-deploy-0002", "prun-nightly-deploy-0001", "prun-nightly-deploy-0000"),
+		},
+		{
+			Name:       "listing-refresh",
+			Repo:       "jerryfane/noted",
+			Enabled:    true,
+			StageCount: 4,
+			LastRunID:  "prun-listing-refresh-0001",
+			LastStatus: "blocked",
+			LastRunAt:  runs["prun-listing-refresh-0001"].StartedAt,
+			Recent:     runsFor("prun-listing-refresh-0001"),
+		},
+		{
+			Name:       "bench-suite",
+			Repo:       "acme/api",
+			Enabled:    false,
+			Interval:   "168h",
+			StageCount: 3,
+			LastRunID:  "prun-bench-suite-0001",
+			LastStatus: "failed",
+			LastRunAt:  runs["prun-bench-suite-0001"].StartedAt,
+			Recent:     runsFor("prun-bench-suite-0001"),
+		},
+	}
+
+	// Sorted by name (deterministic; the UI polls with a signature-skip). Names
+	// are unique, so the sort is fully determined.
+	sort.SliceStable(pipelines, func(i, j int) bool {
+		return pipelines[i].Name < pipelines[j].Name
+	})
+	return pipelines
+}
+
+// Pipelines implements DataSource. It returns the fixed fakePipelines fixture;
+// output is deterministic and byte-stable across calls.
+func (f *FakeDataSource) Pipelines(ctx context.Context) ([]PipelineSummary, error) {
+	return fakePipelines(), nil
+}
+
+// PipelineRun implements DataSource. It returns the fixed detail for a run by id
+// from the fakePipelineRuns fixture; unknown ids return ErrPipelineRunNotFound.
+// Output is deterministic and byte-stable across calls.
+func (f *FakeDataSource) PipelineRun(ctx context.Context, id string) (PipelineRun, error) {
+	run, ok := fakePipelineRuns()[id]
+	if !ok {
+		return PipelineRun{}, ErrPipelineRunNotFound
+	}
+	return run, nil
 }

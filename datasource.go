@@ -431,6 +431,69 @@ type Knowledge struct {
 	Edges  []KnowledgeEdge  `json:"edges"`
 }
 
+// Pipelines — the declared shell-stage pipelines (gitmoot #681).
+
+// PipelineSummary is one row of the Pipelines list: a declared pipeline
+// (gitmoot #681) plus its schedule state and recent run outcomes.
+type PipelineSummary struct {
+	Name       string               `json:"name"`
+	Repo       string               `json:"repo,omitempty"`
+	Enabled    bool                 `json:"enabled"`
+	Interval   string               `json:"interval,omitempty"` // Go duration, e.g. "24h"
+	Jitter     string               `json:"jitter,omitempty"`
+	StageCount int                  `json:"stageCount"`
+	LastRunID  string               `json:"lastRunId,omitempty"`
+	LastStatus string               `json:"lastStatus,omitempty"` // running | succeeded | blocked | failed | cancelled
+	LastRunAt  int64                `json:"lastRunAt,omitempty"`  // epoch milliseconds
+	NextDueAt  int64                `json:"nextDueAt,omitempty"`  // epoch milliseconds
+	Recent     []PipelineRunSummary `json:"recent"`               // newest-first, capped at 10, never nil
+}
+
+// PipelineRunSummary is a lightweight listing entry for one run of a pipeline.
+type PipelineRunSummary struct {
+	ID         string `json:"id"`
+	Trigger    string `json:"trigger,omitempty"` // manual | schedule
+	State      string `json:"state"`             // running | succeeded | blocked | failed | cancelled
+	HaltStage  string `json:"haltStage,omitempty"`
+	StartedAt  int64  `json:"startedAt,omitempty"`  // epoch milliseconds
+	FinishedAt int64  `json:"finishedAt,omitempty"` // epoch milliseconds
+	Duration   int64  `json:"duration,omitempty"`   // milliseconds (finished-started, 0 while running)
+}
+
+// PipelineRun is the full detail of one run: identity/halt state plus the
+// stage rows in spec (topological) order — the same order the CLI funnel prints.
+type PipelineRun struct {
+	ID         string          `json:"id"`
+	Pipeline   string          `json:"pipeline"`
+	Repo       string          `json:"repo,omitempty"`
+	Trigger    string          `json:"trigger,omitempty"` // manual | schedule
+	State      string          `json:"state"`             // running | succeeded | blocked | failed | cancelled
+	SpecHash   string          `json:"specHash,omitempty"`
+	HaltStage  string          `json:"haltStage,omitempty"`
+	HaltReason string          `json:"haltReason,omitempty"`
+	Needs      []string        `json:"needs,omitempty"`      // persisted blocked-needs, aggregated at run level
+	StartedAt  int64           `json:"startedAt,omitempty"`  // epoch milliseconds
+	FinishedAt int64           `json:"finishedAt,omitempty"` // epoch milliseconds
+	Stages     []PipelineStage `json:"stages"`               // spec order, never nil
+}
+
+// PipelineStage is one shell stage of a pipeline run. Deps are the DAG
+// dependency edges (the spec's needs list — edges derived client-side, like
+// Node.Deps); Needs are the persisted blocked-needs of a parked stage. The two
+// are deliberately distinct.
+type PipelineStage struct {
+	ID         string   `json:"id"`
+	State      string   `json:"state"` // pending | queued | running | succeeded | blocked | failed | skipped | cancelled
+	Deps       []string `json:"deps,omitempty"`
+	Cmd        string   `json:"cmd,omitempty"`
+	JobID      string   `json:"jobId,omitempty"`
+	Attempt    int      `json:"attempt,omitempty"`
+	Needs      []string `json:"needs,omitempty"`
+	Summary    string   `json:"summary,omitempty"`
+	StartedAt  int64    `json:"startedAt,omitempty"`  // epoch milliseconds
+	FinishedAt int64    `json:"finishedAt,omitempty"` // epoch milliseconds
+}
+
 // DataSource is the read-only feed the dashboard renders. Implementations must
 // be safe for concurrent use.
 type DataSource interface {
@@ -468,5 +531,12 @@ type DataSource interface {
 	// supersede edges between them. Ordering must be deterministic (the UI polls
 	// with a signature-skip).
 	Knowledge(ctx context.Context) (Knowledge, error)
+	// Pipelines returns every declared pipeline with its schedule state and recent
+	// run outcomes (newest-first, capped at 10), sorted by name. Ordering must be
+	// deterministic (the UI polls with a signature-skip).
+	Pipelines(ctx context.Context) ([]PipelineSummary, error)
+	// PipelineRun returns the full detail for a single run by run id, stages in
+	// spec (topological) order. Unknown ids return ErrPipelineRunNotFound.
+	PipelineRun(ctx context.Context, id string) (PipelineRun, error)
 	Subscribe(ctx context.Context, runID string) (<-chan State, func(), error) // for SSE
 }

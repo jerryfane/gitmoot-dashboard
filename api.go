@@ -23,7 +23,7 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 // statusForError maps a DataSource error to an HTTP status code: not-found
 // sentinels become 404, everything else 500.
 func statusForError(err error) int {
-	if errors.Is(err, ErrRunNotFound) || errors.Is(err, ErrJobNotFound) || errors.Is(err, ErrAgentNotFound) {
+	if errors.Is(err, ErrRunNotFound) || errors.Is(err, ErrJobNotFound) || errors.Is(err, ErrAgentNotFound) || errors.Is(err, ErrPipelineRunNotFound) {
 		return http.StatusNotFound
 	}
 	return http.StatusInternalServerError
@@ -184,6 +184,47 @@ func (s *server) handleLearningKnowledge(w http.ResponseWriter, r *http.Request)
 		k.Edges = []KnowledgeEdge{}
 	}
 	writeJSON(w, http.StatusOK, k)
+}
+
+// handlePipelines serves GET /api/pipelines -> []PipelineSummary, the declared
+// pipelines with their schedule state and recent run outcomes. Mirrors
+// handleRuns; the list and every element's Recent are coerced non-nil so the
+// client always sees JSON arrays.
+func (s *server) handlePipelines(w http.ResponseWriter, r *http.Request) {
+	pipelines, err := s.ds.Pipelines(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), statusForError(err))
+		return
+	}
+	if pipelines == nil {
+		pipelines = []PipelineSummary{}
+	}
+	for i := range pipelines {
+		if pipelines[i].Recent == nil {
+			pipelines[i].Recent = []PipelineRunSummary{}
+		}
+	}
+	writeJSON(w, http.StatusOK, pipelines)
+}
+
+// handlePipelineRun serves GET /api/pipeline/run/{id} -> PipelineRun, the full
+// detail for a single run. Unknown ids map to 404 (mirrors handleJob). Stages is
+// coerced non-nil so the client always sees a JSON array.
+func (s *server) handlePipelineRun(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		http.Error(w, "missing pipeline run id", http.StatusBadRequest)
+		return
+	}
+	run, err := s.ds.PipelineRun(r.Context(), id)
+	if err != nil {
+		http.Error(w, err.Error(), statusForError(err))
+		return
+	}
+	if run.Stages == nil {
+		run.Stages = []PipelineStage{}
+	}
+	writeJSON(w, http.StatusOK, run)
 }
 
 // handleState serves GET /api/state?run=<id> -> State. An empty run resolves to

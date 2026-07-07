@@ -67,3 +67,24 @@ func TestStateRouteRegistered(t *testing.T) {
 		t.Fatalf("GET /api/state Content-Type = %q, want application/json", ct)
 	}
 }
+
+// TestPipelinesRouteRegistered asserts the /api/pipelines route is wired into
+// the mux and served by the JSON handler (not the static SPA fallback, which
+// would return an HTML index). Mirrors TestStateRouteRegistered.
+func TestPipelinesRouteRegistered(t *testing.T) {
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/api/pipelines")
+	if err != nil {
+		t.Fatalf("GET /api/pipelines: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET /api/pipelines status = %d, want 200", resp.StatusCode)
+	}
+	if ct := resp.Header.Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
+		t.Fatalf("GET /api/pipelines Content-Type = %q, want application/json", ct)
+	}
+}
