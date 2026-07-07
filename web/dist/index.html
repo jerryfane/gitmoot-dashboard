@@ -554,6 +554,7 @@ class Component extends DCLogic {
     this.stopKnowledgePoll();
     this.stopPipelinesPoll();
     this.stopPipelineRunPoll();
+    this.stopPipelineDetailPoll();
     try { if (this._es) this._es.close(); } catch (e) {}
     window.removeEventListener('resize', this.onResize);
     try { window.removeEventListener('popstate', this._onPopState); } catch (e) {}
@@ -668,12 +669,16 @@ class Component extends DCLogic {
       // open it now; also restart the run poll for an already-open detail.
       if (this._pendingPipelineDetail && this._pipelinesByName && this._pipelinesByName[this._pendingPipelineDetail]) {
         const nm = this._pendingPipelineDetail; this._pendingPipelineDetail = null; this.openPipelineDetail(nm);
-      } else if (this._plDetailName && this._plSelectedRun) {
-        this.startPipelineRunPoll();
+      } else if (this._plDetailName) {
+        // re-entering an already-open detail: refresh its data + restart both polls.
+        this.fetchPipelineDetailData(this._plDetailName, false);
+        this.startPipelineDetailPoll();
+        if (this._plSelectedRun) this.startPipelineRunPoll();
       }
     } else {
       this.stopPipelinesPoll();
       this.stopPipelineRunPoll();
+      this.stopPipelineDetailPoll();
       if (this._pipelinesRoot) this._pipelinesRoot.style.display = 'none';
     }
   }
@@ -4405,13 +4410,56 @@ class Component extends DCLogic {
       "#pipelines-root .pl-node-top{display:flex;align-items:center;gap:8px}",
       "#pipelines-root .pl-node-dot{width:9px;height:9px;border-radius:50%;flex:none}",
       "#pipelines-root .pl-node-id{font-family:Inter,system-ui,sans-serif;font-size:13px;font-weight:600;color:#eef0ff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}",
-      "#pipelines-root .pl-node-try{font-family:'JetBrains Mono',monospace;font-size:10px;color:#e0af68;background:rgba(224,175,104,0.12);border:1px solid rgba(224,175,104,0.3);border-radius:6px;padding:1px 5px;flex:none}",
+      "#pipelines-root .pl-node-try{font-family:'JetBrains Mono',monospace;font-size:10px;color:#e0af68;background:rgba(224,175,104,0.12);border:1px solid rgba(224,175,104,0.3);border-radius:6px;padding:1px 5px;flex:none;white-space:nowrap}",
       "#pipelines-root .pl-node-meta{display:flex;align-items:center;gap:8px;font-family:'JetBrains Mono',monospace;font-size:11px}",
       "#pipelines-root .pl-node-state{font-weight:600}",
       "#pipelines-root .pl-node-el{color:#868db5}",
       "#pipelines-root .pl-node-job{color:#7aa2f7;margin-left:auto}",
       "#pipelines-root .pl-node-sum{font-family:'JetBrains Mono',monospace;font-size:11px;line-height:1.35;color:#868db5;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}",
+      // ---- upcoming card (v1.6) ----
+      "#pipelines-root .pl-upcoming{background:#0d0f1c;border:1px solid rgba(160,168,220,0.1);border-radius:12px;padding:10px 14px;margin-bottom:4px}",
+      "#pipelines-root .pl-up-row{display:flex;align-items:center;gap:12px;padding:6px 4px;border-bottom:1px solid rgba(160,168,220,0.05)}",
+      "#pipelines-root .pl-up-row:last-child{border-bottom:none}",
+      "#pipelines-root .pl-up-row.next{background:rgba(122,162,247,0.06);border-radius:8px}",
+      "#pipelines-root .pl-up-tag{font-family:'JetBrains Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:0.1em;color:#7aa2f7;width:30px;flex:none}",
+      "#pipelines-root .pl-up-abs{font-family:'JetBrains Mono',monospace;font-size:12px;color:#eef0ff;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
+      "#pipelines-root .pl-up-rel{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#868db5;flex:none}",
+      "#pipelines-root .pl-up-jit{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#5a6088;flex:none}",
+      "#pipelines-root .pl-up-note{font-family:'JetBrains Mono',monospace;font-size:12px;color:#868db5}",
+      // ---- stage x run matrix (v1.6) ----
+      "#pipelines-root .pl-mx-wrap{overflow-x:auto;padding-bottom:8px;margin-bottom:4px}",
+      "#pipelines-root .pl-mx{border-collapse:collapse}",
+      "#pipelines-root .pl-mx td{padding:3px 3px}",
+      "#pipelines-root .pl-mx-lbl{font-family:'JetBrains Mono',monospace;font-size:11px;color:#a8aecf;text-align:right;padding-right:10px;white-space:nowrap;position:sticky;left:0;background:#07080f}",
+      "#pipelines-root .pl-mx-cell{cursor:pointer;text-align:center;width:16px;min-width:16px;border-radius:4px}",
+      "#pipelines-root .pl-mx-cell:hover{background:rgba(160,168,220,0.08)}",
+      "#pipelines-root .pl-mx-cell.sel{background:rgba(122,162,247,0.16)}",
+      "#pipelines-root .pl-mx-dot{display:inline-block;width:10px;height:10px;border-radius:50%;vertical-align:middle}",
+      "#pipelines-root .pl-mx-empty .pl-mx-dot{width:6px;height:6px;background:rgba(90,96,136,0.35)}",
+      // ---- run-history table (v1.6) ----
+      "#pipelines-root .pl-htable{width:100%;border-collapse:collapse;font-size:13px;margin-top:2px}",
+      "#pipelines-root .pl-htable thead th{text-align:left;padding:8px 12px;font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:0.1em;color:#5a6088;font-weight:600;border-bottom:1px solid rgba(160,168,220,0.1);white-space:nowrap}",
+      "#pipelines-root .pl-htable tbody tr.pl-htrow{border-bottom:1px solid rgba(160,168,220,0.05);cursor:pointer}",
+      "#pipelines-root .pl-htable tbody tr.pl-htrow:hover{background:rgba(160,168,220,0.04)}",
+      "#pipelines-root .pl-htable tbody tr.pl-htrow.sel{background:rgba(122,162,247,0.08)}",
+      "#pipelines-root .pl-htable td{padding:9px 12px;vertical-align:middle;color:#a8aecf}",
+      "#pipelines-root .pl-ht-note{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#5a6088;margin-top:8px}",
+      "#pipelines-root .pl-tbadge{display:inline-flex;align-items:center;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;padding:2px 8px;border-radius:6px;border:1px solid transparent}",
+      "#pipelines-root .pl-tbadge.manual{color:#7dcfff;background:rgba(125,207,255,0.1);border-color:rgba(125,207,255,0.28)}",
+      "#pipelines-root .pl-tbadge.schedule{color:#bb9af7;background:rgba(187,154,247,0.1);border-color:rgba(187,154,247,0.28)}",
+      // ---- list stats + strip glyph (v1.6) ----
+      "#pipelines-root .pl-rate{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#5a6088;margin-top:6px}",
+      "#pipelines-root .pl-runchip-tg{font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;color:#868db5;border:1px solid rgba(160,168,220,0.22);border-radius:4px;padding:0 3px;line-height:1.5}",
+      // ---- selected-run summary bar + parked note (v1.6) ----
+      "#pipelines-root .pl-runsum{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;font-family:'JetBrains Mono',monospace;font-size:12px}",
+      "#pipelines-root .pl-runsum-id{color:#eef0ff;font-weight:600}",
+      "#pipelines-root .pl-runsum-t{color:#868db5}",
+      "#pipelines-root .pl-banner-parked{color:#868db5;font-family:'JetBrains Mono',monospace;font-size:11.5px;margin-left:8px}",
+      // ---- declared-DAG preview (v1.6) ----
+      "#pipelines-root .pl-declared-note{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#868db5;margin-bottom:12px;display:flex;align-items:center;gap:9px;flex-wrap:wrap}",
+      "#pipelines-root .pl-declared-note code{font-family:'JetBrains Mono',monospace;font-size:11px;color:#c7c9e5;background:#0a0b16;border:1px solid rgba(160,168,220,0.14);border-radius:6px;padding:3px 8px}",
       "@media (max-width:768px){#pipelines-root .pl-head{padding-left:16px;padding-right:16px}#pipelines-root .pl-tablewrap{padding-left:14px;padding-right:14px}#pipelines-root #pl-detail{padding-left:16px;padding-right:16px}#pipelines-root .pl-table,#pipelines-root .pl-table tbody{display:block}#pipelines-root .pl-table thead{display:none}#pipelines-root .pl-table tr.pl-row{display:block;background:#0d0f1c;border:1px solid rgba(160,168,220,0.1);border-radius:11px;padding:11px 13px;margin-bottom:8px}#pipelines-root .pl-table tr.pl-row td{display:block;width:auto;padding:5px 0;border:none;white-space:normal;overflow:visible;text-overflow:clip}#pipelines-root .pl-dh-name{font-size:20px}#pipelines-root .xd-panel{width:100%;left:0;border-left:none}}",
+      "@media (max-width:768px){#pipelines-root .pl-htable,#pipelines-root .pl-htable tbody{display:block}#pipelines-root .pl-htable thead{display:none}#pipelines-root .pl-htable tr.pl-htrow{display:block;background:#0d0f1c;border:1px solid rgba(160,168,220,0.1);border-radius:11px;padding:11px 13px;margin-bottom:8px}#pipelines-root .pl-htable tr.pl-htrow td{display:block;width:auto;padding:4px 0;border:none;white-space:normal}#pipelines-root .pl-mx-lbl{position:static;background:transparent}}",
       "@media (pointer:coarse){#pipelines-root .xd-panel .xd-close{width:44px;height:44px;font-size:17px}}"
     ].join('\n');
     document.head.appendChild(st);
@@ -4427,7 +4475,10 @@ class Component extends DCLogic {
       '<div id="pl-detail" style="display:none">',
       '  <button class="pl-back" id="pl-back">‹ Pipelines</button>',
       '  <div id="pl-detail-head"></div>',
+      '  <div id="pl-upcoming"></div>',
       '  <div class="pl-history-wrap"><div class="pl-history-lbl">runs</div><div id="pl-history" class="pl-history"></div></div>',
+      '  <div id="pl-matrix"></div>',
+      '  <div id="pl-htable"></div>',
       '  <div id="pl-run-area" class="pl-run-area"></div>',
       '</div>'
     ].join('\n');
@@ -4443,6 +4494,10 @@ class Component extends DCLogic {
       if (back) { this.closePipelineDetail(); this._navRoute('pipelines'); return; }
       const chip = (e.target.closest && e.target.closest('.pl-runchip')) || null;
       if (chip) { const rid = chip.getAttribute('data-run'); if (rid) this.selectPipelineRun(rid); return; }
+      const mxc = (e.target.closest && e.target.closest('.pl-mx-cell')) || null;
+      if (mxc) { const rid = mxc.getAttribute('data-run'); if (rid) this.selectPipelineRun(rid); return; }
+      const htr = (e.target.closest && e.target.closest('.pl-htrow')) || null;
+      if (htr) { const rid = htr.getAttribute('data-run'); if (rid) this.selectPipelineRun(rid); return; }
       const node = (e.target.closest && e.target.closest('.pl-node')) || null;
       if (node) { const sid = node.getAttribute('data-stage'); if (sid) this.openPipelineStageDetail(sid); return; }
       const prow = (e.target.closest && e.target.closest('tr.pl-row')) || null;
@@ -4517,13 +4572,17 @@ class Component extends DCLogic {
     const strip = recent.length
       ? '<div class="pl-strip">' + recent.map(r => { const c = this._galaxyStateColor(r.state); return '<span class="pl-pip" style="background:' + c + '" title="' + esc(r.state) + (r.startedAt ? ' · ' + esc(this._relFromMs(r.startedAt)) : '') + '"></span>'; }).join('') + '</div>'
       : '<span class="pl-nohist">no runs</span>';
+    // v1.6: success rate + avg duration computed client-side from recent[].
+    const rate = this._plSuccessRate(p.recent);
+    const avg = this._plAvgDuration(p.recent);
+    const stats = (rate || avg) ? '<div class="pl-rate">' + [rate, avg].filter(Boolean).join(' · ') + '</div>' : '';
     return '<tr class="pl-row" data-name="' + esc(p.name) + '" title="open ' + esc(p.name) + '">' +
       '<td><div class="pl-name">' + esc(p.name) + '</div>' + (p.repo ? '<div class="pl-repo">' + esc(p.repo) + '</div>' : '') + '</td>' +
       '<td>' + enChip + '</td>' +
       '<td class="pl-mono">' + sched + '</td>' +
       '<td>' + lastChip + '</td>' +
       '<td>' + due + '</td>' +
-      '<td>' + strip + '</td>' +
+      '<td>' + strip + stats + '</td>' +
     '</tr>';
   }
 
@@ -4532,13 +4591,21 @@ class Component extends DCLogic {
     if (!name) { this.closePipelineDetail(); return; }
     const summary = this._pipelinesByName && this._pipelinesByName[name];
     if (!summary) { this._pendingPipelineDetail = name; return; } // opens after fetchPipelines
+    const switching = (this._plDetailName !== name);
     this._plDetailName = name;
+    if (switching) { this._plSelectedRun = null; this._plRun = null; } // don't carry a prior pipeline's run
+    // reset the detail-data channel so a prior pipeline's matrix/table/upcoming never flashes.
+    this._plDetail = null; this._plDetailSig = null;
     const list = this._pipelinesRoot.querySelector('#pl-list');
     const det = this._pipelinesRoot.querySelector('#pl-detail');
     if (list) list.style.display = 'none';
     if (det) det.style.display = 'block';
+    ['#pl-upcoming', '#pl-matrix', '#pl-htable'].forEach(sel => { const el = this._pipelinesRoot.querySelector(sel); if (el) el.innerHTML = ''; });
     try { this._pipelinesRoot.scrollTop = 0; } catch (e) {}
     this.renderPipelineDetailShell(summary);
+    // v1.6: second fetch — the pipeline's declared DAG + full run history (own poll).
+    this.fetchPipelineDetailData(name, false);
+    this.startPipelineDetailPoll();
     const recent = Array.isArray(summary.recent) ? summary.recent : [];
     const def = summary.lastRunId || (recent[0] && recent[0].id) || '';
     if (def) this.selectPipelineRun(def);
@@ -4553,6 +4620,11 @@ class Component extends DCLogic {
       const sched = summary.interval ? ('every ' + esc(summary.interval) + (summary.jitter ? ' +' + esc(summary.jitter) : '')) : 'manual';
       const enChip = summary.enabled ? '<span class="pl-chip on">enabled</span>' : '<span class="pl-chip off">disabled</span>';
       const nStages = summary.stageCount || 0;
+      // run-count prefers the full history (detail endpoint); falls back to the
+      // recent strip (capped at 10) until the detail data lands.
+      const runCount = (this._plDetail && this._plDetail.name === summary.name && Array.isArray(this._plDetail.runs))
+        ? this._plDetail.runs.length
+        : (Array.isArray(summary.recent) ? summary.recent.length : 0);
       head.innerHTML =
         '<div class="pl-dh-name">' + esc(summary.name) + '</div>' +
         '<div class="pl-dh-meta">' +
@@ -4560,6 +4632,7 @@ class Component extends DCLogic {
           enChip +
           '<span>' + sched + '</span>' +
           '<span>' + nStages + ' stage' + (nStages === 1 ? '' : 's') + '</span>' +
+          '<span id="pl-runcount">' + runCount + ' run' + (runCount === 1 ? '' : 's') + '</span>' +
           (summary.nextDueAt ? '<span class="pl-due pl-dh-due" data-due="' + summary.nextDueAt + '">' + esc(this._plFmtCountdown(summary.nextDueAt)) + '</span>' : '') +
         '</div>';
     }
@@ -4573,10 +4646,16 @@ class Component extends DCLogic {
           const shortId = String(r.id || '').split('-').pop();
           const rel = r.startedAt ? this._relFromMs(r.startedAt) : '';
           const sel = (r.id === this._plSelectedRun) ? ' sel' : '';
+          // v1.6: trigger glyph (M/S) + run duration on each quick-selector chip.
+          const trig = (r.trigger === 'manual' || r.trigger === 'schedule')
+            ? '<span class="pl-runchip-tg" title="' + esc(r.trigger) + '">' + (r.trigger === 'manual' ? 'M' : 'S') + '</span>' : '';
+          const dur = (r.duration && r.duration > 0) ? '<span class="pl-runchip-t">' + esc(this._fmtDur(r.duration)) + '</span>' : '';
           return '<button class="pl-runchip' + sel + '" data-run="' + esc(r.id) + '" style="--rc:' + col + '" title="' + esc(r.state) + '">' +
             '<span class="pl-runchip-dot" style="background:' + col + '"></span>' +
             '<span class="pl-runchip-id">#' + esc(shortId) + '</span>' +
+            trig +
             (rel ? '<span class="pl-runchip-t">' + esc(rel) + '</span>' : '') +
+            dur +
           '</button>';
         }).join('');
       }
@@ -4587,7 +4666,8 @@ class Component extends DCLogic {
     if (!id) return;
     this._plSelectedRun = id;
     if (this._pipelinesRoot) {
-      this._pipelinesRoot.querySelectorAll('.pl-runchip').forEach(c => c.classList.toggle('sel', c.getAttribute('data-run') === id));
+      // v1.6: keep the strip, matrix, and history table selection in sync.
+      this._plSyncRunSelection(id);
       const area = this._pipelinesRoot.querySelector('#pl-run-area');
       if (area) area.innerHTML = '<div class="pl-empty">loading run…</div>';
     }
@@ -4609,6 +4689,11 @@ class Component extends DCLogic {
       })
       .catch(err => {
         if (isPoll || this._plRunFetchId !== fid || this._plSelectedRun !== id) return;
+        // v1.6: when the full run detail is unavailable (e.g. a pruned run), fall
+        // back to the run's per-stage marks overlaid on the declared DAG so the
+        // matrix/table click still shows that run's shape.
+        const fb = this._plRunFromHistory(id);
+        if (fb) { this._plRun = fb; this.renderPipelineRun(fb); return; }
         const area = this._pipelinesRoot && this._pipelinesRoot.querySelector('#pl-run-area');
         if (area) area.innerHTML = '<div class="pl-empty" style="color:#f7768e">could not load this run (' + this._galaxyEsc(err && err.message) + ')</div>';
       });
@@ -4618,14 +4703,39 @@ class Component extends DCLogic {
     if (!this._pipelinesRoot) return;
     const area = this._pipelinesRoot.querySelector('#pl-run-area');
     if (!area) return;
-    if (!run) { area.innerHTML = '<div class="pl-empty">no runs for this pipeline yet</div>'; return; }
+    if (!run) {
+      // v1.6: a never-run pipeline shows its DECLARED DAG (all pending) once the
+      // detail data has landed; otherwise the plain empty note.
+      const d = this._plDetail;
+      if (d && (!Array.isArray(d.runs) || !d.runs.length) && Array.isArray(d.declared) && d.declared.length) {
+        area.innerHTML = this._plDeclaredDagHtml(d);
+      } else {
+        area.innerHTML = '<div class="pl-empty">no runs for this pipeline yet</div>';
+      }
+      return;
+    }
     const esc = (s) => this._galaxyEsc(s);
+    // v1.6: selected-run summary bar — trigger badge + total duration + park time.
+    const rcol = this._galaxyStateColor(run.state);
+    const shortId = String(run.id || '').split('-').pop();
+    const dur = (run.finishedAt > run.startedAt) ? this._fmtDur(run.finishedAt - run.startedAt) : '';
+    const startedAbs = run.startedAt ? this._plFmtAbsTime(run.startedAt) : '';
+    const parkedTs = run.finishedAt > 0 ? run.finishedAt : (run.startedAt || 0);
+    const parked = ((run.state === 'blocked' || run.state === 'failed') && parkedTs > 0) ? this._relFromMs(parkedTs) : '';
+    const sumBar = '<div class="pl-runsum">' +
+      '<span class="pl-runsum-id">#' + esc(shortId) + '</span>' +
+      '<span class="pl-statechip" style="color:' + rcol + ';background:color-mix(in srgb,' + rcol + ' 12%, transparent);border:1px solid color-mix(in srgb,' + rcol + ' 30%, transparent)">' + esc(run.state) + '</span>' +
+      (this._plTriggerBadge(run.trigger) || '') +
+      (startedAbs ? '<span class="pl-runsum-t">' + esc(startedAbs) + '</span>' : '') +
+      (dur ? '<span class="pl-runsum-t">⏱ ' + esc(dur) + '</span>' : '') +
+    '</div>';
+    const parkedTag = parked ? '<span class="pl-banner-parked">parked ' + esc(parked) + ' ago</span>' : '';
     let banner = '';
     if (run.state === 'blocked') {
       const needs = Array.isArray(run.needs) ? run.needs : [];
       const cmd = 'gitmoot pipeline resume ' + (run.id || '');
       banner = '<div class="pl-banner blocked">' +
-        '<div class="pl-banner-head"><span class="pl-banner-ic">⚠</span><span class="pl-banner-title">blocked at <b>' + esc(run.haltStage || '?') + '</b></span></div>' +
+        '<div class="pl-banner-head"><span class="pl-banner-ic">⚠</span><span class="pl-banner-title">blocked at <b>' + esc(run.haltStage || '?') + '</b>' + parkedTag + '</span></div>' +
         (run.haltReason ? '<div class="pl-banner-reason">' + esc(run.haltReason) + '</div>' : '') +
         (needs.length ? '<ul class="pl-needs">' + needs.map(n => '<li>' + esc(n) + '</li>').join('') + '</ul>' : '') +
         '<div class="pl-cmd"><code>' + esc(cmd) + '</code><button class="pl-copy" data-cmd="' + esc(cmd) + '">copy</button></div>' +
@@ -4636,12 +4746,12 @@ class Component extends DCLogic {
       const jobId = (halt && halt.jobId) ? halt.jobId : '';
       const cmd = jobId ? ('gitmoot report bug --job ' + jobId) : '';
       banner = '<div class="pl-banner failed">' +
-        '<div class="pl-banner-head"><span class="pl-banner-ic">✕</span><span class="pl-banner-title">failed at <b>' + esc(run.haltStage || (halt && halt.id) || '?') + '</b></span></div>' +
+        '<div class="pl-banner-head"><span class="pl-banner-ic">✕</span><span class="pl-banner-title">failed at <b>' + esc(run.haltStage || (halt && halt.id) || '?') + '</b>' + parkedTag + '</span></div>' +
         (run.haltReason ? '<div class="pl-banner-reason">' + esc(run.haltReason) + '</div>' : '') +
         (cmd ? '<div class="pl-cmd"><code>' + esc(cmd) + '</code><button class="pl-copy" data-cmd="' + esc(cmd) + '">copy</button></div>' : '') +
       '</div>';
     }
-    area.innerHTML = banner + this._pipelineStageDag(run.stages);
+    area.innerHTML = sumBar + banner + this._pipelineStageDag(run.stages);
   }
 
   // Hand-rolled inline-SVG stage DAG: depth-column layout from stage deps (the
@@ -4706,7 +4816,13 @@ class Component extends DCLogic {
     const col = this._plStageColor(state);
     const running = state === 'running';
     const dim = (state === 'pending' || state === 'skipped');
-    const attempt = (s.attempt && s.attempt > 1) ? s.attempt : 0;
+    // Attempt is 0-based (verified against the gitmoot bridge: job ids a0/a1/a2,
+    // resume does row.Attempt+1); Retry is the spec budget, so max attempts =
+    // retry+1. Surface the badge only once a retry has been consumed (att>0),
+    // reading "attempt N/M" (1-based) when a budget exists, else a plain count.
+    const att = (s.attempt && s.attempt > 0) ? s.attempt : 0;
+    const ret = (s.retry && s.retry > 0) ? s.retry : 0;
+    const tryLabel = att ? (ret ? ('attempt ' + (att + 1) + '/' + (ret + 1)) : ('attempt ' + (att + 1))) : '';
     let elapsed = '';
     if (s.startedAt > 0) {
       const end = s.finishedAt > 0 ? s.finishedAt : (running ? Date.now() : 0);
@@ -4718,7 +4834,7 @@ class Component extends DCLogic {
       '<div class="pl-node-top">' +
         '<span class="pl-node-dot" style="background:' + col + ';box-shadow:0 0 7px ' + col + (running ? ';animation:dotpulse 1.4s ease-in-out infinite' : '') + '"></span>' +
         '<span class="pl-node-id">' + esc(s.id) + '</span>' +
-        (attempt ? '<span class="pl-node-try" title="attempt ' + attempt + '">×' + attempt + '</span>' : '') +
+        (tryLabel ? '<span class="pl-node-try" title="' + esc(tryLabel) + '">' + esc(tryLabel) + '</span>' : '') +
       '</div>' +
       '<div class="pl-node-meta"><span class="pl-node-state" style="color:' + col + '">' + esc(state) + '</span>' +
         (elapsed ? '<span class="pl-node-el">' + esc(elapsed) + '</span>' : '') +
@@ -4732,7 +4848,9 @@ class Component extends DCLogic {
     this._plDetailName = null;
     this._plSelectedRun = null;
     this._plRun = null;
+    this._plDetail = null; this._plDetailSig = null;
     this.stopPipelineRunPoll();
+    this.stopPipelineDetailPoll();
     this.closePipelineStageDetail();
     if (this._pipelinesRoot) {
       const det = this._pipelinesRoot.querySelector('#pl-detail');
@@ -4804,6 +4922,259 @@ class Component extends DCLogic {
       (stage.summary ? '<div class="xd-sec">Summary</div><div class="xd-block">' + esc(stage.summary) + '</div>' : ''),
       '</div>'
     ].join('');
+  }
+
+  // ==========================================================================
+  // v1.6: pipeline detail data (declared DAG + full run history) — a SECOND fetch
+  // against /api/pipelines/<name>, its own 12s signature-skip poll while a detail
+  // is open. Drives the upcoming card, stage x run matrix, run-history table, and
+  // the never-run declared preview. Every new member is _pl-prefixed (the v1.5
+  // shadow lesson: a duplicate member name silently overrides an existing one).
+  // ==========================================================================
+
+  // Parse a Go duration string (h/m/s composites like "1h30m", "24h", "90s") to
+  // milliseconds. Returns 0 on an empty/unparseable value (callers hide the card).
+  _plParseGoDur(s) {
+    if (!s || typeof s !== 'string') return 0;
+    const str = s.trim();
+    if (!/^(\d+(?:\.\d+)?(h|m|s))+$/.test(str)) return 0;
+    let ms = 0, re = /(\d+(?:\.\d+)?)(h|m|s)/g, mt;
+    while ((mt = re.exec(str)) !== null) {
+      const v = parseFloat(mt[1]);
+      ms += v * (mt[2] === 'h' ? 3600000 : (mt[2] === 'm' ? 60000 : 1000));
+    }
+    return ms;
+  }
+
+  // Absolute local time (month/day + HH:MM), matching the Jobs/Health idiom.
+  _plFmtAbsTime(ms) {
+    if (!ms || ms <= 0) return '—';
+    try { return new Date(ms).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); }
+    catch (e) { return '—'; }
+  }
+
+  // Trigger badge (manual | schedule) — an empty string for anything else.
+  _plTriggerBadge(trigger) {
+    const t = (trigger === 'manual' || trigger === 'schedule') ? trigger : '';
+    if (!t) return '';
+    return '<span class="pl-tbadge ' + t + '">' + t + '</span>';
+  }
+
+  // "8/10 ✓" success rate over finished (non-running) recent runs; "" when none.
+  _plSuccessRate(recent) {
+    const list = Array.isArray(recent) ? recent : [];
+    let finished = 0, ok = 0;
+    list.forEach(r => { if (r && r.state && r.state !== 'running') { finished++; if (r.state === 'succeeded') ok++; } });
+    if (!finished) return '';
+    return ok + '/' + finished + ' ✓';
+  }
+
+  // "~4m" average duration over finished recent runs with a duration; "" when none.
+  _plAvgDuration(recent) {
+    const list = Array.isArray(recent) ? recent : [];
+    let sum = 0, n = 0;
+    list.forEach(r => { if (r && r.duration && r.duration > 0) { sum += r.duration; n++; } });
+    if (!n) return '';
+    return '~' + this._fmtDur(Math.round(sum / n));
+  }
+
+  startPipelineDetailPoll() {
+    if (this._plDetailPoll) return;
+    this._plDetailPoll = setInterval(() => {
+      if (this.state.view !== 'pipelines' || !this._plDetailName) return;
+      this.fetchPipelineDetailData(this._plDetailName, true);
+    }, 12000);
+  }
+  stopPipelineDetailPoll() { try { clearInterval(this._plDetailPoll); } catch (e) {} this._plDetailPoll = null; }
+
+  fetchPipelineDetailData(name, isPoll) {
+    if (!name) return;
+    const fname = (this._plDetailFetchName = name);
+    fetch('/api/pipelines/' + encodeURIComponent(name), { cache: 'no-store' })
+      .then(r => r.ok ? r.text() : Promise.reject(new Error('HTTP ' + r.status)))
+      .then(txt => {
+        if (this._plDetailFetchName !== fname || this._plDetailName !== name) return; // superseded
+        if (isPoll && this._plDetailSig === txt) return; // unchanged — skip re-render
+        this._plDetailSig = txt;
+        let detail = null; try { detail = JSON.parse(txt); } catch (e) { detail = null; }
+        this._plDetail = detail;
+        this.renderPipelineDetailData();
+      })
+      .catch(err => {
+        // the detail data is supplementary (the header + selected run render from
+        // the list + run endpoints); a poll failure keeps what's on screen.
+        if (isPoll || this._plDetailFetchName !== fname || this._plDetailName !== name) return;
+        const mx = this._pipelinesRoot && this._pipelinesRoot.querySelector('#pl-matrix');
+        if (mx) mx.innerHTML = '';
+      });
+  }
+
+  // Render the detail-data sections (upcoming, matrix, table) + refresh the run
+  // count, then re-apply the current run selection and the countdown labels.
+  renderPipelineDetailData() {
+    if (!this._pipelinesRoot) return;
+    const detail = this._plDetail;
+    const name = this._plDetailName;
+    const summary = this._pipelinesByName && this._pipelinesByName[name];
+    const runs = (detail && Array.isArray(detail.runs)) ? detail.runs : [];
+    const up = this._pipelinesRoot.querySelector('#pl-upcoming');
+    if (up) up.innerHTML = summary ? this._plUpcomingHtml(summary) : '';
+    const mx = this._pipelinesRoot.querySelector('#pl-matrix');
+    if (mx) mx.innerHTML = runs.length ? this._plMatrixHtml(detail) : '';
+    const tb = this._pipelinesRoot.querySelector('#pl-htable');
+    if (tb) tb.innerHTML = runs.length ? this._plHistoryTableHtml(detail) : '';
+    const rc = this._pipelinesRoot.querySelector('#pl-runcount');
+    if (rc && detail) rc.textContent = runs.length + ' run' + (runs.length === 1 ? '' : 's');
+    if (runs.length && !this._plSelectedRun) {
+      // the list's recent strip was empty/stale but history has runs: pick newest.
+      this.selectPipelineRun(runs[0].id);
+    } else if (!runs.length && !this._plSelectedRun) {
+      // never-run pipeline: paint the declared DAG preview.
+      this.renderPipelineRun(null);
+    }
+    if (this._plSelectedRun) this._plSyncRunSelection(this._plSelectedRun);
+    this.refreshPipelineCountdowns(); // upcoming rows carry .pl-due countdowns
+  }
+
+  // Upcoming-runs projection: next 5 fire times (nextDueAt + k*interval), rolled
+  // forward past `now` so a stale anchor still shows real future times. Absolute
+  // local time + a live .pl-due countdown; "± jitter" suffix; first row = next.
+  _plUpcomingHtml(summary) {
+    const esc = (s) => this._galaxyEsc(s);
+    const lbl = '<div class="pl-history-lbl">upcoming</div>';
+    const rawInterval = (summary.interval || '').trim();
+    if (!rawInterval) {
+      const cmd = 'gitmoot pipeline run ' + (summary.name || '');
+      return lbl + '<div class="pl-upcoming"><div class="pl-up-note">manual-only — run with</div>' +
+        '<div class="pl-cmd"><code>' + esc(cmd) + '</code><button class="pl-copy" data-cmd="' + esc(cmd) + '">copy</button></div></div>';
+    }
+    if (!summary.enabled) {
+      return lbl + '<div class="pl-upcoming"><div class="pl-up-note">schedule paused (disabled)</div></div>';
+    }
+    const interval = this._plParseGoDur(rawInterval);
+    if (!interval) return ''; // interval present but unparseable — hide the card
+    const now = Date.now();
+    let base = +summary.nextDueAt || 0;
+    if (base <= 0) base = now;
+    if (base < now) { const k = Math.ceil((now - base) / interval); base = base + k * interval; }
+    const jit = (summary.jitter && this._plParseGoDur(summary.jitter)) ? String(summary.jitter) : '';
+    let rows = '';
+    for (let k = 0; k < 5; k++) {
+      const t = base + k * interval;
+      const next = k === 0 ? ' next' : '';
+      rows += '<div class="pl-up-row' + next + '">' +
+        '<span class="pl-up-tag">' + (k === 0 ? 'next' : '') + '</span>' +
+        '<span class="pl-up-abs">' + esc(this._plFmtAbsTime(t)) + '</span>' +
+        '<span class="pl-due pl-up-rel" data-due="' + t + '">' + esc(this._plFmtCountdown(t, now)) + '</span>' +
+        (jit ? '<span class="pl-up-jit">± ' + esc(jit) + '</span>' : '') +
+      '</div>';
+    }
+    return lbl + '<div class="pl-upcoming">' + rows + '</div>';
+  }
+
+  // Stage x run matrix: rows = stage ids (declared order, then any history-only
+  // ids appended), columns = last <=15 runs oldest->newest (newest rightmost,
+  // aligned with the outcomes strip). Cells are state dots; a cell click selects
+  // the run. Horizontal scroll on overflow.
+  _plMatrixHtml(detail) {
+    const esc = (s) => this._galaxyEsc(s);
+    const runs = (Array.isArray(detail.runs) ? detail.runs.slice(0, 15) : []).reverse(); // oldest -> newest
+    if (!runs.length) return '';
+    const declared = Array.isArray(detail.declared) ? detail.declared : [];
+    const order = [], seen = {};
+    declared.forEach(s => { if (s && s.id && !seen[s.id]) { seen[s.id] = true; order.push(s.id); } });
+    runs.forEach(r => (Array.isArray(r.stages) ? r.stages : []).forEach(m => { if (m && m.id && !seen[m.id]) { seen[m.id] = true; order.push(m.id); } }));
+    if (!order.length) return '';
+    const rowsHtml = order.map(sid => {
+      let cells = '';
+      runs.forEach(r => {
+        const marks = Array.isArray(r.stages) ? r.stages : [];
+        const mk = marks.find(m => m && m.id === sid);
+        const shortId = String(r.id || '').split('-').pop();
+        const rel = r.startedAt ? this._relFromMs(r.startedAt) : '';
+        const state = mk ? mk.state : '—';
+        const tip = '#' + shortId + (rel ? ' · ' + rel : '') + ' · ' + sid + ': ' + state;
+        if (mk) {
+          const col = this._plStageColor(mk.state);
+          cells += '<td class="pl-mx-cell" data-run="' + esc(r.id) + '" title="' + esc(tip) + '"><span class="pl-mx-dot" style="background:' + col + '"></span></td>';
+        } else {
+          cells += '<td class="pl-mx-cell pl-mx-empty" data-run="' + esc(r.id) + '" title="' + esc(tip) + '"><span class="pl-mx-dot"></span></td>';
+        }
+      });
+      return '<tr><td class="pl-mx-lbl">' + esc(sid) + '</td>' + cells + '</tr>';
+    }).join('');
+    return '<div class="pl-history-lbl">stage × run</div>' +
+      '<div class="pl-mx-wrap"><table class="pl-mx"><tbody>' + rowsHtml + '</tbody></table></div>';
+  }
+
+  // Run-history table: started (absolute + relative) · trigger · state · duration
+  // · halt stage. Newest-first, capped at 100 (server) with a note at the cap; a
+  // row click selects the run. Reuses the .pl- table idiom + mobile card reflow.
+  _plHistoryTableHtml(detail) {
+    const esc = (s) => this._galaxyEsc(s);
+    const runs = Array.isArray(detail.runs) ? detail.runs : [];
+    if (!runs.length) return '';
+    const rows = runs.map(r => {
+      const col = this._galaxyStateColor(r.state);
+      const shortId = String(r.id || '').split('-').pop();
+      const abs = r.startedAt ? this._plFmtAbsTime(r.startedAt) : '—';
+      const rel = r.startedAt ? this._relFromMs(r.startedAt) : '';
+      const dur = (r.finishedAt > r.startedAt) ? this._fmtDur(r.finishedAt - r.startedAt) : (r.state === 'running' ? 'running' : '—');
+      const halt = r.haltStage ? esc(r.haltStage) : '—';
+      const stateChip = '<span class="pl-statechip" style="color:' + col + ';background:color-mix(in srgb,' + col + ' 12%, transparent);border:1px solid color-mix(in srgb,' + col + ' 30%, transparent)">' + esc(r.state) + '</span>';
+      const sel = (r.id === this._plSelectedRun) ? ' sel' : '';
+      const trig = this._plTriggerBadge(r.trigger) || '<span class="pl-nohist">—</span>';
+      return '<tr class="pl-htrow' + sel + '" data-run="' + esc(r.id) + '" title="open #' + esc(shortId) + '">' +
+        '<td><div class="pl-mono">' + esc(abs) + '</div>' + (rel ? '<div class="pl-repo">' + esc(rel) + '</div>' : '') + '</td>' +
+        '<td>' + trig + '</td>' +
+        '<td>' + stateChip + '</td>' +
+        '<td class="pl-mono">' + esc(dur) + '</td>' +
+        '<td class="pl-mono">' + halt + '</td>' +
+      '</tr>';
+    }).join('');
+    const note = (runs.length >= 100) ? '<div class="pl-ht-note">showing last 100 runs</div>' : '';
+    return '<div class="pl-history-lbl">run history</div>' +
+      '<table class="pl-htable"><thead><tr><th>started</th><th>trigger</th><th>state</th><th>duration</th><th>halt</th></tr></thead><tbody>' + rows + '</tbody></table>' + note;
+  }
+
+  // Never-run pipeline: render the DECLARED DAG (all pending, dimmed by the chip's
+  // pending styling) with a copyable run command.
+  _plDeclaredDagHtml(detail) {
+    const esc = (s) => this._galaxyEsc(s);
+    const declared = Array.isArray(detail.declared) ? detail.declared : [];
+    if (!declared.length) return '<div class="pl-empty">no stages declared for this pipeline</div>';
+    const name = detail.name || this._plDetailName || '';
+    const cmd = 'gitmoot pipeline run ' + name;
+    const note = '<div class="pl-declared-note">never run yet — <code>' + esc(cmd) + '</code>' +
+      '<button class="pl-copy" data-cmd="' + esc(cmd) + '">copy</button></div>';
+    return note + this._pipelineStageDag(declared);
+  }
+
+  // Toggle the selection highlight across all three run selectors (strip chips,
+  // matrix columns, history-table rows) for the given run id.
+  _plSyncRunSelection(id) {
+    if (!this._pipelinesRoot) return;
+    this._pipelinesRoot.querySelectorAll('.pl-runchip').forEach(c => c.classList.toggle('sel', c.getAttribute('data-run') === id));
+    this._pipelinesRoot.querySelectorAll('.pl-htrow').forEach(r => r.classList.toggle('sel', r.getAttribute('data-run') === id));
+    this._pipelinesRoot.querySelectorAll('.pl-mx-cell').forEach(c => c.classList.toggle('sel', c.getAttribute('data-run') === id));
+  }
+
+  // Fallback run detail synthesized from the history entry's per-stage marks
+  // overlaid on the declared DAG (deps/cmd by stage id) — used when the full
+  // /api/pipeline/run/<id> detail is unavailable so a matrix/table click still
+  // shows that run's shape. Returns null when the run is not in the history.
+  _plRunFromHistory(id) {
+    const detail = this._plDetail;
+    if (!detail || !Array.isArray(detail.runs)) return null;
+    const e = detail.runs.find(r => r && r.id === id);
+    if (!e) return null;
+    const declBy = {};
+    (Array.isArray(detail.declared) ? detail.declared : []).forEach(s => { if (s && s.id) declBy[s.id] = s; });
+    const stages = (Array.isArray(e.stages) ? e.stages : []).map(m => {
+      const d = declBy[m.id] || {};
+      return { id: m.id, state: m.state, deps: Array.isArray(d.deps) ? d.deps : [], cmd: d.cmd || '' };
+    });
+    return { id: e.id, pipeline: detail.name, trigger: e.trigger, state: e.state, haltStage: e.haltStage, startedAt: e.startedAt, finishedAt: e.finishedAt, stages: stages };
   }
 
   _overlayLeft() { return this.state.isMobile ? '0' : '216px'; }
