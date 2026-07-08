@@ -180,6 +180,9 @@ func (s *server) handleLearningKnowledge(w http.ResponseWriter, r *http.Request)
 	if k.Facts == nil {
 		k.Facts = []KnowledgeFact{}
 	}
+	if k.Clusters == nil {
+		k.Clusters = []KnowledgeCluster{}
+	}
 	if k.Edges == nil {
 		k.Edges = []KnowledgeEdge{}
 	}
