@@ -1244,17 +1244,22 @@ func (f *FakeDataSource) Skills(ctx context.Context) (Skills, error) {
 func fakeKnowledge() Knowledge {
 	dA := func(n int) int64 { return fakeChartsNow.AddDate(0, 0, -n).UnixMilli() }
 
+	// Fact bodies deliberately mix angle brackets, ampersands and quotes (to
+	// exercise the client's escape-FIRST HTML escaping) with a safe markdown
+	// subset — **bold**, `inline code`, - lists, fenced code, plain https links
+	// and [[fact:id]] wikilinks — so the detail panel's markdown renderer is
+	// exercised end-to-end. The wikilinks mirror the Links slice.
 	facts := []KnowledgeFact{
-		{ID: "fact:1", Content: `Build with GOTOOLCHAIN=local & GOFLAGS=-mod=mod; the pinned go1.26.4 toolchain lives under /root/.local.`, Repo: fakeRepo, Key: "build-toolchain", Owner: "researcher", Witnesses: 5, FirstSeen: dA(18), LastSeen: dA(1)},
-		{ID: "fact:2", Content: `TestExport is flaky under -race; retry once before failing the job.`, Repo: fakeRepo, Key: "test-flake", Owner: "reviewer-kimi", Witnesses: 3, FirstSeen: dA(16), LastSeen: dA(2)},
-		{ID: "fact:3", Content: `Auth uses <bearer> tokens & refreshes 5m before expiry; header is "Authorization".`, Repo: fakeRepo, Key: "auth-flow", Owner: "researcher", Witnesses: 7, FirstSeen: dA(15), LastSeen: dA(2), Superseded: true},
-		{ID: "fact:4", Content: `Exports default to CSV; JSON is opt-in via --format json.`, Repo: "jerryfane/noted", Key: "export-format", Owner: "project-lead", Witnesses: 2, FirstSeen: dA(12), LastSeen: dA(3)},
-		{ID: "fact:5", Content: `Search index rebuilds lazily on the first query after a write.`, Repo: "jerryfane/noted", Key: "search-index", Owner: "researcher", Witnesses: 4, FirstSeen: dA(10), LastSeen: dA(1)},
-		{ID: "fact:6", Content: `Bulk delete requires a confirm token & is soft-delete for 30 days.`, Repo: "jerryfane/noted", Key: "delete-safety", Owner: "reviewer-kimi", Witnesses: 1, FirstSeen: dA(9), LastSeen: dA(4)},
-		{ID: "fact:7", Content: `Rate limiting is per-token: 100 req/min, burst 20; 429 carries Retry-After.`, Repo: "jerryfane/noted", Key: "rate-limit", Owner: "researcher", Witnesses: 4, FirstSeen: dA(7), LastSeen: dA(2)},
-		{ID: "fact:8", Content: `Cut GA releases only with explicit sign-off; "deploy latest" means build & install locally.`, Key: "release-policy", Owner: "researcher", Witnesses: 6, FirstSeen: dA(5), LastSeen: dA(1)},
-		{ID: "fact:9", Content: `Auth migrated to <PASETO> tokens & rotating keys; refresh 10m before "expiry".`, Repo: fakeRepo, Key: "auth-flow", Owner: "researcher", Witnesses: 2, FirstSeen: dA(2), LastSeen: dA(1)},
-		{ID: "fact:10", Content: `Prefer table-driven tests & gofmt; avoid naked returns in long functions.`, Key: "coding-style", Owner: "project-lead", Witnesses: 3, FirstSeen: dA(4), LastSeen: dA(1)},
+		{ID: "fact:1", Content: `Build with GOTOOLCHAIN=local & GOFLAGS=-mod=mod; the pinned go1.26.4 toolchain lives under /root/.local.`, Repo: fakeRepo, Key: "build-toolchain", Owner: "researcher", Witnesses: 5, FirstSeen: dA(18), LastSeen: dA(1), Cluster: "cluster:3", SourceJob: "job:build-31", Links: []string{"fact:8"}},
+		{ID: "fact:2", Content: `TestExport is flaky under -race; retry once before failing the job.`, Repo: fakeRepo, Key: "test-flake", Owner: "reviewer-kimi", Witnesses: 3, FirstSeen: dA(16), LastSeen: dA(2), Cluster: "cluster:2", SourceJob: "job:test-88"},
+		{ID: "fact:3", Content: `Auth uses <bearer> tokens & refreshes 5m before expiry; header is "Authorization".`, Repo: fakeRepo, Key: "auth-flow", Owner: "researcher", Witnesses: 7, FirstSeen: dA(15), LastSeen: dA(2), Superseded: true, Cluster: "cluster:1", SourceJob: "job:auth-12"},
+		{ID: "fact:4", Content: `Exports default to CSV; JSON is opt-in via --format json.`, Repo: "jerryfane/noted", Key: "export-format", Owner: "project-lead", Witnesses: 2, FirstSeen: dA(12), LastSeen: dA(3), Cluster: "cluster:4", SourceFile: "jerryfane/noted:docs/exports.md"},
+		{ID: "fact:5", Content: `Search index rebuilds lazily on the first query after a write.`, Repo: "jerryfane/noted", Key: "search-index", Owner: "researcher", Witnesses: 4, FirstSeen: dA(10), LastSeen: dA(1), Cluster: "cluster:4", SourceJob: "job:idx-40", Links: []string{"fact:7"}},
+		{ID: "fact:6", Content: `Bulk delete requires a confirm token & is soft-delete for 30 days.`, Repo: "jerryfane/noted", Key: "delete-safety", Owner: "reviewer-kimi", Witnesses: 1, FirstSeen: dA(9), LastSeen: dA(4), Cluster: "cluster:4", SourceFile: "jerryfane/noted:docs/deletion.md"},
+		{ID: "fact:7", Content: `Rate limiting is per-token: 100 req/min, burst 20; 429 carries Retry-After.`, Repo: "jerryfane/noted", Key: "rate-limit", Owner: "researcher", Witnesses: 4, FirstSeen: dA(7), LastSeen: dA(2), Cluster: "cluster:4", SourceJob: "job:rl-19"},
+		{ID: "fact:8", Content: "Cut GA releases only with explicit sign-off; \"deploy latest\" means build & install locally.\n\nChecklist:\n- run `make release`\n- verify the tag & sha256sums\n- see https://gitmoot.io/docs/releasing\n\n```sh\ngh release create vX.Y.Z --latest\n```\n\nRelated: [[fact:1]].", Key: "release-policy", Owner: "researcher", Witnesses: 6, FirstSeen: dA(5), LastSeen: dA(1), Cluster: "cluster:3", SourceFile: "docs/RELEASING.md", Links: []string{"fact:1"}},
+		{ID: "fact:9", Content: "Auth migrated to <PASETO> tokens & rotating keys; refresh 10m before \"expiry\". Supersedes [[fact:3]]; **rotate keys** nightly via `authctl rotate`.", Repo: fakeRepo, Key: "auth-flow", Owner: "researcher", Witnesses: 2, FirstSeen: dA(2), LastSeen: dA(1), Cluster: "cluster:1", SourceJob: "job:auth-77", Links: []string{"fact:3"}},
+		{ID: "fact:10", Content: `Prefer table-driven tests & gofmt; avoid naked returns in long functions.`, Key: "coding-style", Owner: "project-lead", Witnesses: 3, FirstSeen: dA(4), LastSeen: dA(1), Cluster: "cluster:2", SourceFile: "CONTRIBUTING.md"},
 	}
 	// Newest-first by FirstSeen (distinct across the fixture), ID tie-break.
 	sort.SliceStable(facts, func(i, j int) bool {
@@ -1277,9 +1282,33 @@ func fakeKnowledge() Knowledge {
 	}
 	sort.SliceStable(agents, func(i, j int) bool { return agents[i].Name < agents[j].Name })
 
-	// Owner + category edges per fact, then the one supersede chain (the newer
-	// auth-flow fact supersedes the older one).
-	edges := make([]KnowledgeEdge, 0, len(facts)*2+1)
+	// Emergent clusters (gitmoot #763): four communities over the ten facts,
+	// anchored to a medoid fact for label stability. Repo is the dominant repo
+	// scope ("" = general/mixed), so the client nests repo -> cluster -> fact.
+	// The client renders Label verbatim (an owner override wins server-side).
+	clusters := []KnowledgeCluster{
+		{ID: "cluster:1", Label: "auth & tokens", Repo: fakeRepo, Medoid: "fact:9"},
+		{ID: "cluster:2", Label: "testing & style", Medoid: "fact:2"},
+		{ID: "cluster:3", Label: "build & release", Medoid: "fact:1"},
+		{ID: "cluster:4", Label: "noted api & data", Repo: "jerryfane/noted", Medoid: "fact:7"},
+	}
+	// Count is derived from the assignments so it can never drift from the facts.
+	clusterCount := map[string]int{}
+	for _, fct := range facts {
+		if fct.Cluster != "" {
+			clusterCount[fct.Cluster]++
+		}
+	}
+	for i := range clusters {
+		clusters[i].Count = clusterCount[clusters[i].ID]
+	}
+	sort.SliceStable(clusters, func(i, j int) bool { return clusters[i].ID < clusters[j].ID })
+
+	// Owner + category + cluster edges per fact, then the one supersede chain
+	// (the newer auth-flow fact supersedes the older one). Category edges stay
+	// for the pre-cluster fallback view; cluster edges back the repo -> cluster
+	// -> fact hierarchy.
+	edges := make([]KnowledgeEdge, 0, len(facts)*3+1)
 	for _, fct := range facts {
 		edges = append(edges, KnowledgeEdge{Source: fct.ID, Target: fct.Owner, Kind: "owner"})
 		cat := fct.Repo
@@ -1287,6 +1316,9 @@ func fakeKnowledge() Knowledge {
 			cat = "general"
 		}
 		edges = append(edges, KnowledgeEdge{Source: fct.ID, Target: cat, Kind: "category"})
+		if fct.Cluster != "" {
+			edges = append(edges, KnowledgeEdge{Source: fct.ID, Target: fct.Cluster, Kind: "cluster"})
+		}
 	}
 	edges = append(edges, KnowledgeEdge{Source: "fact:9", Target: "fact:3", Kind: "supersede"})
 	sort.SliceStable(edges, func(i, j int) bool {
@@ -1299,7 +1331,7 @@ func fakeKnowledge() Knowledge {
 		return edges[i].Target < edges[j].Target
 	})
 
-	return Knowledge{Agents: agents, Facts: facts, Edges: edges}
+	return Knowledge{Agents: agents, Facts: facts, Clusters: clusters, Edges: edges}
 }
 
 // Knowledge implements DataSource. It returns the fixed fakeKnowledge fixture;
@@ -1975,10 +2007,10 @@ func fakeAttention() Attention {
 		SynthItems: []AttentionSynthItem{
 			{ID: "synth-reviewer-0031", TemplateID: "tmpl-reviewer", Repo: "jerryfane/gitmoot",
 				Question: "Should a review flag an unearned pass when the asserting test is skipped?",
-				Gap: 0.29, WeakAgent: "reviewer@v2", StrongAgent: "reviewer@v3", JudgeAgent: "cross-family-judge", CreatedAt: at(4 * h)},
+				Gap:      0.29, WeakAgent: "reviewer@v2", StrongAgent: "reviewer@v3", JudgeAgent: "cross-family-judge", CreatedAt: at(4 * h)},
 			{ID: "synth-reviewer-0030", TemplateID: "tmpl-reviewer", Repo: "jerryfane/gitmoot",
 				Question: "Does the review keep findings scoped to the diff under test?",
-				Gap: 0.18, WeakAgent: "reviewer@v2", StrongAgent: "reviewer@v3", JudgeAgent: "cross-family-judge", CreatedAt: at(5 * h)},
+				Gap:      0.18, WeakAgent: "reviewer@v2", StrongAgent: "reviewer@v3", JudgeAgent: "cross-family-judge", CreatedAt: at(5 * h)},
 		},
 		Candidates: []AttentionCandidate{
 			{TemplateID: "tmpl-reviewer", Name: "reviewer", VersionID: "skill-reviewer-v3", Number: 3, Score: "0.81", CreatedAt: at(6 * h)},

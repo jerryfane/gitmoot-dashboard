@@ -400,8 +400,34 @@ type KnowledgeAgent struct {
 	Observations int    `json:"observations"`
 }
 
+// KnowledgeCluster is an emergent memory cluster (Knowledge graph v2, gitmoot
+// #763): a community of similar facts derived deterministically over the
+// fact-similarity graph (the same FTS/bm25 signal that seeds vault [[links]]).
+// The same DB yields byte-identical clusters, matching the vault byte-identity
+// house rule. Label is the display label (an owner override wins server-side,
+// so the client renders Label verbatim); Count is the number of member facts;
+// Repo is the cluster's dominant repo scope ("" = general/mixed) so the client
+// can nest repo -> cluster -> fact; Medoid anchors the label to a representative
+// fact for stability across recomputes.
+//
+// Additive contract: Track A (the gitmoot bridge) fills this. A gitmoot build
+// that predates clusters simply omits the enclosing Clusters slice and leaves
+// each fact's Cluster empty, so the client falls back to its pre-cluster view.
+type KnowledgeCluster struct {
+	ID     string `json:"id"`               // stable unique id (e.g. "cluster:<n>")
+	Label  string `json:"label"`            // display label (owner override wins server-side)
+	Count  int    `json:"count"`            // member-fact count
+	Repo   string `json:"repo,omitempty"`   // dominant repo scope, "" = general/mixed
+	Medoid string `json:"medoid,omitempty"` // anchor fact id (label stability)
+}
+
 // KnowledgeFact is a single confirmed memory. Repo scopes the fact ("" = general
 // scope); Superseded marks a fact replaced by a newer one on the same key.
+//
+// The Cluster/SourceJob/SourceFile/Links fields back the Knowledge graph v2
+// detail panel (gitmoot #763) and are all additive + optional: a pre-cluster
+// gitmoot build leaves them empty and the client degrades gracefully.
+// Created/updated are already carried by FirstSeen/LastSeen.
 type KnowledgeFact struct {
 	ID         string `json:"id"` // stable unique id (e.g. "fact:<rowid>")
 	Content    string `json:"content"`
@@ -412,23 +438,38 @@ type KnowledgeFact struct {
 	FirstSeen  int64  `json:"firstSeen,omitempty"`
 	LastSeen   int64  `json:"lastSeen,omitempty"`
 	Superseded bool   `json:"superseded,omitempty"`
+	// Cluster is the id of the fact's owning KnowledgeCluster ("" = unclustered).
+	Cluster string `json:"cluster,omitempty"`
+	// SourceJob is the job id the fact was learned from (provenance).
+	SourceJob string `json:"sourceJob,omitempty"`
+	// SourceFile is the file the fact was ingested from (provenance).
+	SourceFile string `json:"sourceFile,omitempty"`
+	// Links are the ids of facts this fact references (the vault [[wikilinks]]),
+	// rendered as clickable cross-references in the detail panel.
+	Links []string `json:"links,omitempty"`
 }
 
 // KnowledgeEdge is one edge in the brain graph: a fact to its owner agent
-// (owner), a fact to its category/scope hub (category), or a newer fact to the
-// older fact it supersedes (supersede).
+// (owner), a fact to its category/scope hub (category), a fact to its emergent
+// cluster hub (cluster, gitmoot #763), or a newer fact to the older fact it
+// supersedes (supersede).
 type KnowledgeEdge struct {
 	Source string `json:"source"`
 	Target string `json:"target"`
-	Kind   string `json:"kind"` // owner | category | supersede
+	Kind   string `json:"kind"` // owner | category | cluster | supersede
 }
 
 // Knowledge is the data behind the Learning page's Knowledge view: the memory
-// brain graph of enrolled agents, their facts and the edges between them.
+// brain graph of enrolled agents, their facts, the emergent clusters those
+// facts belong to (gitmoot #763) and the edges between them.
 type Knowledge struct {
 	Agents []KnowledgeAgent `json:"agents"`
 	Facts  []KnowledgeFact  `json:"facts"`
-	Edges  []KnowledgeEdge  `json:"edges"`
+	// Clusters are the emergent memory clusters (gitmoot #763). Additive: a
+	// pre-cluster gitmoot build leaves this empty and the client falls back to
+	// its scope/category view.
+	Clusters []KnowledgeCluster `json:"clusters"`
+	Edges    []KnowledgeEdge    `json:"edges"`
 }
 
 // Pipelines — the declared shell-stage pipelines (gitmoot #681).
@@ -714,9 +755,12 @@ type DataSource interface {
 	// template's versions ascending by Number.
 	Skills(ctx context.Context) (Skills, error)
 	// Knowledge returns the memory brain graph behind the Learning page's
-	// Knowledge view: enrolled agents, their facts and the owner/category/
-	// supersede edges between them. Ordering must be deterministic (the UI polls
-	// with a signature-skip).
+	// Knowledge view: enrolled agents, their facts, the emergent clusters those
+	// facts belong to (gitmoot #763) and the owner/category/cluster/supersede
+	// edges between them. Clusters are additive — a pre-cluster gitmoot build
+	// returns an empty Clusters slice and empty per-fact Cluster fields, and the
+	// client falls back to its scope/category view. Ordering must be
+	// deterministic (the UI polls with a signature-skip).
 	Knowledge(ctx context.Context) (Knowledge, error)
 	// Pipelines returns every declared pipeline with its schedule state and recent
 	// run outcomes (newest-first, capped at 10), sorted by name. Ordering must be

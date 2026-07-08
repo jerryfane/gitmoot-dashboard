@@ -906,7 +906,7 @@ func TestHandleLearningKnowledge(t *testing.T) {
 	if err := json.Unmarshal(getRaw(t, srv.URL+"/api/learning/knowledge"), &k); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if k.Agents == nil || k.Facts == nil || k.Edges == nil {
+	if k.Agents == nil || k.Facts == nil || k.Clusters == nil || k.Edges == nil {
 		t.Fatalf("knowledge slices must be non-nil: %+v", k)
 	}
 
@@ -973,10 +973,69 @@ func TestHandleLearningKnowledge(t *testing.T) {
 	// Edges: only the three real kinds, at least one of each; owner/category
 	// sources and supersede endpoints reference known facts; owner targets are
 	// enrolled agents.
+	// Clusters (gitmoot #763): every cluster has an id/label and a positive count
+	// that matches its member-fact assignments; every fact's Cluster references a
+	// known cluster; a cluster's Medoid (when set) is a member fact.
+	clusterIDs := map[string]bool{}
+	clusterMembers := map[string]int{}
+	if len(k.Clusters) == 0 {
+		t.Fatalf("expected >=1 cluster, got 0")
+	}
+	for _, c := range k.Clusters {
+		if c.ID == "" || c.Label == "" {
+			t.Fatalf("cluster missing id/label: %+v", c)
+		}
+		if clusterIDs[c.ID] {
+			t.Fatalf("duplicate cluster id %q", c.ID)
+		}
+		clusterIDs[c.ID] = true
+	}
+	clusterOf := map[string]string{}
+	for _, fct := range k.Facts {
+		if fct.Cluster == "" {
+			continue
+		}
+		if !clusterIDs[fct.Cluster] {
+			t.Fatalf("fact %s cluster %q is not a known cluster", fct.ID, fct.Cluster)
+		}
+		clusterMembers[fct.Cluster]++
+		clusterOf[fct.ID] = fct.Cluster
+		// Provenance is one of source job / source file, never both.
+		if fct.SourceJob != "" && fct.SourceFile != "" {
+			t.Fatalf("fact %s carries both sourceJob and sourceFile", fct.ID)
+		}
+		// Linked fact ids must reference known facts (no dangling wikilinks).
+		for _, id := range fct.Links {
+			if !factIDs[id] {
+				t.Fatalf("fact %s links to unknown fact %q", fct.ID, id)
+			}
+		}
+	}
+	for _, c := range k.Clusters {
+		if c.Count != clusterMembers[c.ID] {
+			t.Fatalf("cluster %s count = %d, want member total %d", c.ID, c.Count, clusterMembers[c.ID])
+		}
+		if c.Count <= 0 {
+			t.Fatalf("cluster %s has non-positive count %d", c.ID, c.Count)
+		}
+		if c.Medoid != "" && clusterOf[c.Medoid] != c.ID {
+			t.Fatalf("cluster %s medoid %q is not one of its member facts", c.ID, c.Medoid)
+		}
+	}
+	// Clusters sorted by id asc (deterministic ordering for the sig-skip).
+	for i := 1; i < len(k.Clusters); i++ {
+		if k.Clusters[i-1].ID > k.Clusters[i].ID {
+			t.Fatalf("clusters not id-sorted: %+v", k.Clusters)
+		}
+	}
+
+	// Edges: the four real kinds, at least one of each; owner/category/cluster
+	// sources and supersede endpoints reference known facts; owner targets are
+	// enrolled agents; cluster targets are known clusters.
 	kinds := map[string]int{}
 	for _, e := range k.Edges {
 		switch e.Kind {
-		case "owner", "category", "supersede":
+		case "owner", "category", "cluster", "supersede":
 		default:
 			t.Fatalf("edge has unexpected kind %q: %+v", e.Kind, e)
 		}
@@ -989,23 +1048,36 @@ func TestHandleLearningKnowledge(t *testing.T) {
 			if !agentNames[e.Target] {
 				t.Fatalf("owner edge target %q is not an enrolled agent", e.Target)
 			}
+		case "cluster":
+			if !clusterIDs[e.Target] {
+				t.Fatalf("cluster edge target %q is not a known cluster", e.Target)
+			}
 		case "supersede":
 			if !factIDs[e.Target] {
 				t.Fatalf("supersede edge target %q is not a known fact", e.Target)
 			}
 		}
 	}
-	for _, kind := range []string{"owner", "category", "supersede"} {
+	for _, kind := range []string{"owner", "category", "cluster", "supersede"} {
 		if kinds[kind] == 0 {
 			t.Fatalf("expected at least one %q edge: %+v", kind, kinds)
 		}
 	}
-	// One owner + one category edge per fact.
+	// One owner + one category edge per fact; one cluster edge per clustered fact.
 	if kinds["owner"] != len(k.Facts) {
 		t.Fatalf("owner edges = %d, want one per fact (%d)", kinds["owner"], len(k.Facts))
 	}
 	if kinds["category"] != len(k.Facts) {
 		t.Fatalf("category edges = %d, want one per fact (%d)", kinds["category"], len(k.Facts))
+	}
+	clustered := 0
+	for _, fct := range k.Facts {
+		if fct.Cluster != "" {
+			clustered++
+		}
+	}
+	if kinds["cluster"] != clustered {
+		t.Fatalf("cluster edges = %d, want one per clustered fact (%d)", kinds["cluster"], clustered)
 	}
 }
 
