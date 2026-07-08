@@ -5634,11 +5634,6 @@ class Component extends DCLogic {
     } catch (e) { this._copyFallback(cmd); flash(); }
   }
 
-  _chatFilterLabel() {
-    const f = this._chatFilter || 'open';
-    return f === 'archived' ? 'archived' : (f === 'all' ? 'all' : 'open');
-  }
-
   // ============================================================
   // Chat view (gitmoot #534) — THREE-PANE: thread rail | conversation
   // | thread details. Body-appended imperative overlay (#chat-root),
@@ -5700,7 +5695,9 @@ class Component extends DCLogic {
       "#chat-root .ch-conv-sub{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#5a6088;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
       "#chat-root .ch-conv-repo{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#5a6088;margin-left:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
       "#chat-root .ch-cdot{width:8px;height:8px;border-radius:50%;flex:none;background:#5a6088}",
-      "#chat-root .ch-live{width:8px;height:8px;border-radius:50%;flex:none;background:#7aa2f7;box-shadow:0 0 8px rgba(122,162,247,0.6);animation:dotpulse 1.4s ease-in-out infinite}",
+      "#chat-root .ch-statechip{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;letter-spacing:0.4px;padding:2px 8px;border-radius:6px;text-transform:lowercase}",
+      "#chat-root .ch-statechip.open{color:#9ece6a;background:rgba(158,206,106,0.12);border:1px solid rgba(158,206,106,0.3)}",
+      "#chat-root .ch-statechip.archived{color:#8a91b8;background:rgba(138,145,184,0.10);border:1px solid rgba(138,145,184,0.3)}",
       "#chat-root .cd-body{flex:1;overflow-y:auto;min-height:0}",
       "#chat-root .cd-empty{padding:30px 22px;color:#5a6088;font-size:12.5px}",
       "#chat-root .cd-empty-view{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:#5a6088;padding:20px;text-align:center}",
@@ -6146,7 +6143,9 @@ class Component extends DCLogic {
     const newN = this._chatNewCount || 0;
 
     const mobile = this.state.isMobile;
-    const liveDot = arch ? '<span class="ch-cdot"></span>' : '<span class="ch-live"></span>';
+    // Header dot mirrors the thread list's state colors (green open / grey archived) —
+    // the pulsing .ch-live dot overstated activity on idle open threads (review catch).
+    const liveDot = '<span class="ch-dot ' + (arch ? 'archived' : 'open') + '"></span>';
     const infoIcon = "<svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='9'></circle><path d='M12 11v5'></path><path d='M12 8h.01'></path></svg>";
     let header;
     if (mobile) {
@@ -6480,6 +6479,9 @@ class Component extends DCLogic {
   // Deep-link a job chip into the Jobs view and open that job's detail rail.
   _chatOpenJob(id) {
     if (!id) return;
+    // Close the mobile info sheet before leaving, or it re-appears over the
+    // conversation when navigating back to Chat (review catch).
+    if (this._chatSheetOpen) this._chatCloseInfoSheet();
     this._pendingJobDetail = id;
     this.showJobs();
   }
