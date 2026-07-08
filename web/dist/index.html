@@ -1678,7 +1678,9 @@ class Component extends DCLogic {
   // active. Escaping + state colors reuse _galaxyEsc /
   // _galaxyStateColor; job detail reuses the galaxy detail layout.
   // ============================================================
-  runtimeColors = { codex: '#9ece6a', claude: '#bb9af7', kimi: '#7dcfff', shell: '#5a6088' };
+  // Design palette: codex cyan / claude purple / kimi orange / shell grey — cyan for
+  // codex avoids colliding with the succeeded-green state color in the same charts.
+  runtimeColors = { codex: '#7dcfff', claude: '#bb9af7', kimi: '#e0af68', shell: '#5a6088' };
   _runtimeColor(rt) { return this.runtimeColors[rt] || '#5a6088'; }
   _fmtDur(ms) {
     if (!ms || ms <= 0) return '—';
@@ -2138,7 +2140,8 @@ class Component extends DCLogic {
   _agStatusMeta = { busy: { c: '#7aa2f7', label: 'busy' }, failing: { c: '#f7768e', label: 'failing' }, idle: { c: '#5a6088', label: 'idle' } };
   // Derived agent status from the summary counts + health, per the wave-5
   // contract: any running job -> busy (highest precedence); else a failing
-  // signal (failures with no recent success, or an explicit failed health)
+  // signal (failures with zero lifetime successes, or an explicit failed health;
+  // counts are all-time aggregates — the contract has no recency window)
   // -> failing; else idle. Never returns/renders "unknown".
   _agDerivedStatus(a) {
     a = a || {};
@@ -2611,7 +2614,7 @@ class Component extends DCLogic {
         const tip = (stateTxt ? stateTxt : '') + (desc ? (stateTxt ? ' · ' : '') + desc : '');
         return '<div class="ag-vchip' + (cur ? ' cur' : '') + '"' + (tip ? ' title="' + esc(tip) + '"' : '') + '>' +
           '<span class="ag-vchip-num">' + esc(num) + '</span>' +
-          '<span class="ag-vchip-when">' + esc(cur ? (when === '—' ? 'current' : when) : when) + '</span>' +
+          '<span class="ag-vchip-when">' + esc(cur ? 'now' : when) + '</span>' +
         '</div>';
       }).join('') + '</div>';
     } else {
@@ -2736,8 +2739,6 @@ class Component extends DCLogic {
     st.textContent = [
       "#charts-root{font-family:Inter,system-ui,sans-serif;color:#c8cce6}",
       "#charts-root .ch-head{display:flex;align-items:center;gap:16px;padding:18px 24px 14px;flex-wrap:wrap}",
-      "#charts-root .ch-title{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:20px;color:#eef0ff;letter-spacing:-0.02em}",
-      "#charts-root .ch-title .ch-tdot{color:#9ece6a;margin-left:1px}",
       "#charts-root .ch-range{display:flex;gap:4px;background:#0f1120;border:1px solid rgba(160,168,220,0.12);border-radius:9px;padding:3px}",
       "#charts-root .ch-chip{background:none;border:none;color:#868db5;font-family:'JetBrains Mono',monospace;font-size:11.5px;padding:5px 12px;border-radius:7px;cursor:pointer}",
       "#charts-root .ch-chip:hover{color:#c8cce6}",
@@ -2802,12 +2803,13 @@ class Component extends DCLogic {
     // Legends + scale toggle are static (colors are fixed / from the runtime map),
     // so build them once here; renderCharts only fills the data slots.
     const legItem = (label, col) => '<span class="ch-lgi"><span class="sw" style="background:' + col + '"></span>' + label + '</span>';
-    const jobsLegend = '<div class="ch-leg">' + legItem('succeeded', '#9ece6a') + legItem('failed', '#f7768e') + legItem('blocked', '#e0af68') + legItem('running', '#7aa2f7') + '</div>';
+    // Derived from _jobSegs() so legend swatches can never diverge from the bars
+    // (review catch: queued/cancelled greys rendered with no legend entry).
+    const jobsLegend = '<div class="ch-leg">' + this._jobSegs().map(g => legItem(g[0], g[1])).join('') + '</div>';
     const rtLegend = '<div class="ch-leg">' + ['codex', 'claude', 'kimi'].map(rt => legItem(rt, this._runtimeColor(rt))).join('') + '</div>';
     const scaleToggle = '<div class="ch-scale" id="ch-scale"><button class="ch-sbtn" data-scale="linear" type="button">linear</button><button class="ch-sbtn" data-scale="log" type="button">log</button></div>';
     root.innerHTML = [
       '<div class="ch-head">',
-      '  <div class="ch-title">Charts<span class="ch-tdot">.</span></div>',
       '  <div class="ch-range" id="ch-range">',
       '    <button class="ch-chip" data-days="7">7d</button>',
       '    <button class="ch-chip" data-days="30">30d</button>',
