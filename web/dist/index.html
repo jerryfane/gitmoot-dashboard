@@ -2738,6 +2738,7 @@ class Component extends DCLogic {
     const st = document.createElement('style');
     st.textContent = [
       "#charts-root{font-family:Inter,system-ui,sans-serif;color:#c8cce6}",
+      "#charts-root .ch-scroll{position:absolute;inset:0;overflow-y:auto}",
       "#charts-root .ch-head{display:flex;align-items:center;gap:16px;padding:18px 24px 14px;flex-wrap:wrap}",
       "#charts-root .ch-range{display:flex;gap:4px;background:#0f1120;border:1px solid rgba(160,168,220,0.12);border-radius:9px;padding:3px}",
       "#charts-root .ch-chip{background:none;border:none;color:#868db5;font-family:'JetBrains Mono',monospace;font-size:11.5px;padding:5px 12px;border-radius:7px;cursor:pointer}",
@@ -2799,7 +2800,7 @@ class Component extends DCLogic {
 
     const root = document.createElement('div');
     root.id = 'charts-root';
-    root.style.cssText = 'position:fixed;left:216px;top:54px;right:0;bottom:0;z-index:40;background:#07080f;display:none;overflow-y:auto;font-family:Inter,system-ui,sans-serif;color:#c8cce6';
+    root.style.cssText = 'position:fixed;left:216px;top:54px;right:0;bottom:0;z-index:40;background:#07080f;display:none;font-family:Inter,system-ui,sans-serif;color:#c8cce6';
     // Legends + scale toggle are static (colors are fixed / from the runtime map),
     // so build them once here; renderCharts only fills the data slots.
     const legItem = (label, col) => '<span class="ch-lgi"><span class="sw" style="background:' + col + '"></span>' + label + '</span>';
@@ -2809,6 +2810,7 @@ class Component extends DCLogic {
     const rtLegend = '<div class="ch-leg">' + ['codex', 'claude', 'kimi'].map(rt => legItem(rt, this._runtimeColor(rt))).join('') + '</div>';
     const scaleToggle = '<div class="ch-scale" id="ch-scale"><button class="ch-sbtn" data-scale="linear" type="button">linear</button><button class="ch-sbtn" data-scale="log" type="button">log</button></div>';
     root.innerHTML = [
+      '<div class="ch-scroll">',
       '<div class="ch-head">',
       '  <div class="ch-range" id="ch-range">',
       '    <button class="ch-chip" data-days="7">7d</button>',
@@ -2832,7 +2834,8 @@ class Component extends DCLogic {
       '  <div class="ch-card"><div class="ch-chead"><span class="ch-ct">Top agents</span>' + rtLegend + '</div><div class="ch-plot" id="ch-agents"></div></div>',
       '  <div class="ch-card"><div class="ch-chead"><span class="ch-ct">Top repos</span></div><div class="ch-plot" id="ch-repos"></div></div>',
       '</div>',
-      '<div class="ch-tooltip" id="ch-tip" style="display:none"></div>'
+      '<div class="ch-tooltip" id="ch-tip" style="display:none"></div>',
+      '</div>'
     ].join('\n');
     document.body.appendChild(root);
     this._dockOverlay(root); // mobile: left:0 + bottom clears the tab bar
@@ -3167,6 +3170,7 @@ class Component extends DCLogic {
       "#attention-root .at-title{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:20px;color:#eef0ff;letter-spacing:-0.02em}",
       "#attention-root .at-title .at-tdot{color:#e0af68;margin-left:1px}",
       "#attention-root .at-updated{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#5a6088}",
+      "#attention-root .at-scroll{position:absolute;inset:0;overflow-y:auto}",
       "#attention-root .at-sub{padding:0 24px 2px;font-size:12.5px;color:#7f86ad;line-height:1.5;max-width:760px}",
       "#attention-root .at-hero{margin:10px 24px 4px;display:flex;flex-wrap:wrap;gap:10px}",
       "#attention-root .at-stat{flex:1;min-width:150px;padding:13px 15px;background-color:#0d0f1c;border:1px solid rgba(160,168,220,0.1);border-radius:12px}",
@@ -3202,14 +3206,16 @@ class Component extends DCLogic {
 
     const root = document.createElement('div');
     root.id = 'attention-root';
-    root.style.cssText = 'position:fixed;left:216px;top:54px;right:0;bottom:0;z-index:40;background:#07080f;display:none;overflow-y:auto;font-family:Inter,system-ui,sans-serif;color:#c8cce6';
+    root.style.cssText = 'position:fixed;left:216px;top:54px;right:0;bottom:0;z-index:40;background:#07080f;display:none;font-family:Inter,system-ui,sans-serif;color:#c8cce6';
     root.innerHTML = [
+      '<div class="at-scroll">',
       '<div class="at-head"><div class="at-title">Needs a human<span class="at-tdot">.</span></div><div class="at-updated" id="at-updated"></div></div>',
       '<div class="at-sub">Everything parked on an explicit human decision — retry, approve, reject, continue or escalate.</div>',
       '<div class="at-hero" id="at-hero"></div>',
       '<div class="at-section"><div class="at-h">Blocked job gates <span class="at-hc" id="at-gates-c"></span></div><div class="at-list" id="at-gates"></div></div>',
       '<div class="at-section"><div class="at-h">Pending synth approvals <span class="at-hc" id="at-synth-c"></span></div><div class="at-list" id="at-synth"></div></div>',
-      '<div class="at-section" style="padding-bottom:30px"><div class="at-h">Candidates awaiting promotion <span class="at-hc" id="at-cand-c"></span></div><div class="at-list" id="at-cand"></div></div>'
+      '<div class="at-section" style="padding-bottom:30px"><div class="at-h">Candidates awaiting promotion <span class="at-hc" id="at-cand-c"></span></div><div class="at-list" id="at-cand"></div></div>',
+      '</div>'
     ].join('\n');
     document.body.appendChild(root);
     this._dockOverlay(root); // mobile: left:0 + bottom clears the tab bar
@@ -3372,7 +3378,7 @@ class Component extends DCLogic {
     const st = document.createElement('style');
     st.textContent = [
       "#health-root{font-family:Inter,system-ui,sans-serif;color:#c8cce6}",
-      "#health-root .hl-body{max-width:1080px;margin:0 auto;padding:24px 28px 40px;display:flex;flex-direction:column;gap:20px}",
+      "#health-root .hl-body{position:absolute;inset:0;overflow-y:auto;box-sizing:border-box;padding:24px 28px 40px;display:flex;flex-direction:column;gap:20px}",
       "#health-root .hl-banner{display:flex;align-items:center;gap:16px;padding:18px 22px;border-radius:13px}",
       "#health-root .hl-bnicon{width:44px;height:44px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex:none;font-size:20px}",
       "#health-root .hl-bntext{flex:1;min-width:0}",
@@ -3426,7 +3432,7 @@ class Component extends DCLogic {
 
     const root = document.createElement('div');
     root.id = 'health-root';
-    root.style.cssText = 'position:fixed;left:216px;top:54px;right:0;bottom:0;z-index:40;background:#07080f;display:none;overflow-y:auto;font-family:Inter,system-ui,sans-serif;color:#c8cce6';
+    root.style.cssText = 'position:fixed;left:216px;top:54px;right:0;bottom:0;z-index:40;background:#07080f;display:none;font-family:Inter,system-ui,sans-serif;color:#c8cce6';
     root.innerHTML = [
       '<div class="hl-body">',
       '<div id="hl-banner"></div>',
@@ -3911,7 +3917,7 @@ class Component extends DCLogic {
       "#learning-root #lr-skills{position:absolute;inset:0;overflow-y:auto}",
       "#learning-root #lr-knowledge{position:absolute;inset:0;background:#080a14}",
       "#learning-root .lr-skbody{padding:22px 24px 40px}",
-      "#learning-root .lr-skcol{max-width:1000px;margin:0 auto;display:flex;flex-direction:column;gap:20px}",
+      "#learning-root .lr-skcol{display:flex;flex-direction:column;gap:20px}",
       "#learning-root .lr-needs{background:linear-gradient(180deg,rgba(224,175,104,0.07),#111325);border:1px solid rgba(224,175,104,0.26);border-left:3px solid #e0af68;border-radius:12px;overflow:hidden}",
       "#learning-root .lr-ndhead{display:flex;align-items:center;gap:9px;padding:13px 16px}",
       "#learning-root .lr-nd{width:7px;height:7px;border-radius:50%;background:#e0af68;box-shadow:0 0 8px rgba(224,175,104,0.7);flex:none}",
