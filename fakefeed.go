@@ -1286,6 +1286,13 @@ func fakeKnowledge() Knowledge {
 	// anchored to a medoid fact for label stability. Repo is the dominant repo
 	// scope ("" = general/mixed), so the client nests repo -> cluster -> fact.
 	// The client renders Label verbatim (an owner override wins server-side).
+	//
+	// The member distribution is deliberately UNEVEN (4 / 2 / 2 / 2 facts) so the
+	// clustered four-column layout shows visibly grouped fact bands with gaps
+	// between cluster groups. This non-empty slice drives the clustered left ->
+	// right column view; a build that returns an EMPTY clusters slice (and empty
+	// per-fact Cluster fields) instead exercises the legacy fallback layout
+	// (the scope/category columns), so both code paths stay reachable in fake mode.
 	clusters := []KnowledgeCluster{
 		{ID: "cluster:1", Label: "auth & tokens", Repo: fakeRepo, Medoid: "fact:9"},
 		{ID: "cluster:2", Label: "testing & style", Medoid: "fact:2"},
