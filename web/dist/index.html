@@ -26,7 +26,7 @@
  ::-webkit-scrollbar{width:9px;height:9px}
  ::-webkit-scrollbar-thumb{background:rgba(160,168,220,0.16);border-radius:6px}
  ::-webkit-scrollbar-track{background:transparent}
- .gm-copy{display:inline-flex;align-items:center;gap:5px;border:none;border-radius:6px;font-family:'JetBrains Mono',monospace;font-size:10.5px;font-weight:600;line-height:1;cursor:pointer;padding:6px 11px;transition:background .15s ease,color .15s ease;background:rgba(160,168,220,0.1);color:#a8aecf}
+ .gm-copy{display:inline-flex;align-items:center;gap:5px;border:none;border-radius:6px;font-family:'JetBrains Mono',monospace;font-size:10.5px;font-weight:600;line-height:1;cursor:pointer;padding:4px 9px;transition:background .15s ease,color .15s ease;background:rgba(160,168,220,0.1);color:#a8aecf}
  .gm-copy:hover{background:rgba(160,168,220,0.16);color:#c7c9e5}
  .gm-copy.done{background:rgba(158,206,106,0.16);color:#c5f882}
 </style>
@@ -77,7 +77,7 @@
 
     <div style="font-family:'JetBrains Mono';font-size:9.5px;letter-spacing:0.15em;color:#5a6088;padding:14px 10px 7px">FLEET</div>
     <div onClick="{{ showAgents }}" title="Registered agents + ephemeral workers" style="{{ agentsNavStyle }}">
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="7" y="7" width="10" height="10" rx="2"/><path d="M10 2.5v3M14 2.5v3M10 18.5v3M14 18.5v3M2.5 10h3M2.5 14h3M18.5 10h3M18.5 14h3"/></svg>
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="8" width="14" height="11" rx="2.5"/><path d="M12 8V5"/><circle cx="12" cy="3.6" r="1"/><path d="M9.6 13h.01"/><path d="M14.4 13h.01"/></svg>
       <span style="flex:1">Agents</span>
       <span style="{{ agentsNavDotStyle }}"></span>
     </div>
@@ -89,7 +89,7 @@
 
     <div style="font-family:'JetBrains Mono';font-size:9.5px;letter-spacing:0.15em;color:#5a6088;padding:14px 10px 7px">INSIGHT</div>
     <div onClick="{{ showGalaxy }}" title="Cross-run galaxy view" style="{{ galaxyNavStyle }}">
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="5" cy="6" r="1.7" fill="currentColor" stroke="none"/><circle cx="12.5" cy="12.5" r="1.7" fill="currentColor" stroke="none"/><circle cx="18.5" cy="7" r="1.7" fill="currentColor" stroke="none"/><circle cx="16.5" cy="17.5" r="1.7" fill="currentColor" stroke="none"/><circle cx="6.5" cy="17" r="1.7" fill="currentColor" stroke="none"/><path d="M5 6l7.5 6.5M12.5 12.5l6-5.5M12.5 12.5l4 5M12.5 12.5l-6 4.5" opacity="0.5"/></svg>
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.7 4.5L18 9l-4.3 1.5L12 15l-1.7-4.5L6 9l4.3-1.5z"/><circle cx="18.5" cy="17.5" r="1"/></svg>
       <span style="flex:1">Galaxy</span>
       <span style="{{ galaxyNavDotStyle }}"></span>
     </div>
@@ -99,7 +99,7 @@
       <span style="{{ chartsNavDotStyle }}"></span>
     </div>
     <div onClick="{{ showLearning }}" title="SkillOpt evolution + the memory brain graph" style="{{ learningNavStyle }}">
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M12 3l8 4.5-8 4.5-8-4.5L12 3z"/><path d="M4 12l8 4.5 8-4.5"/><path d="M4 16.5l8 4.5 8-4.5"/></svg>
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.4.9 1 .9 1.6v.5h5.2v-.5c0-.6.3-1.2.9-1.6A6 6 0 0 0 12 3z"/><path d="M9.6 20h4.8"/><path d="M10.6 22h2.8"/></svg>
       <span style="flex:1">Learning</span>
       <span style="{{ learningNavDotStyle }}"></span>
     </div>
@@ -247,7 +247,7 @@
       <div style="width:36px;height:4px;border-radius:2px;background:rgba(160,168,220,0.2);margin:4px auto 10px"></div>
       <div style="font-family:'JetBrains Mono';font-size:9.5px;letter-spacing:0.15em;color:#5a6088;padding:2px 8px 8px">MORE</div>
       <div onClick="{{ showGalaxyFromMore }}" style="display:flex;align-items:center;gap:13px;padding:12px 10px;border-radius:10px;color:#c8cce6;cursor:pointer;font-size:14px;font-weight:500">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="5" cy="6" r="1.7" fill="currentColor" stroke="none"/><circle cx="12.5" cy="12.5" r="1.7" fill="currentColor" stroke="none"/><circle cx="18.5" cy="7" r="1.7" fill="currentColor" stroke="none"/><circle cx="16.5" cy="17.5" r="1.7" fill="currentColor" stroke="none"/><circle cx="6.5" cy="17" r="1.7" fill="currentColor" stroke="none"/><path d="M5 6l7.5 6.5M12.5 12.5l6-5.5M12.5 12.5l4 5M12.5 12.5l-6 4.5" opacity="0.5"/></svg>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.7 4.5L18 9l-4.3 1.5L12 15l-1.7-4.5L6 9l4.3-1.5z"/><circle cx="18.5" cy="17.5" r="1"/></svg>
         <span style="flex:1">Galaxy</span>
       </div>
       <div onClick="{{ showChartsFromMore }}" style="display:flex;align-items:center;gap:13px;padding:12px 10px;border-radius:10px;color:#c8cce6;cursor:pointer;font-size:14px;font-weight:500">
@@ -255,7 +255,7 @@
         <span style="flex:1">Charts</span>
       </div>
       <div onClick="{{ showLearningFromMore }}" style="display:flex;align-items:center;gap:13px;padding:12px 10px;border-radius:10px;color:#c8cce6;cursor:pointer;font-size:14px;font-weight:500">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M12 3l8 4.5-8 4.5-8-4.5L12 3z"/><path d="M4 12l8 4.5 8-4.5"/><path d="M4 16.5l8 4.5 8-4.5"/></svg>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.4.9 1 .9 1.6v.5h5.2v-.5c0-.6.3-1.2.9-1.6A6 6 0 0 0 12 3z"/><path d="M9.6 20h4.8"/><path d="M10.6 22h2.8"/></svg>
         <span style="flex:1">Learning</span>
         <span style="{{ moreLearnDotStyle }}"></span>
       </div>
@@ -282,7 +282,7 @@
       <span style="{{ chatTabAttnStyle }}"></span>
     </div>
     <div onClick="{{ showAgents }}" title="Agents" style="{{ tabAgentsStyle }}">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="7" y="7" width="10" height="10" rx="2"/><path d="M10 2.5v3M14 2.5v3M10 18.5v3M14 18.5v3M2.5 10h3M2.5 14h3M18.5 10h3M18.5 14h3"/></svg>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="8" width="14" height="11" rx="2.5"/><path d="M12 8V5"/><circle cx="12" cy="3.6" r="1"/><path d="M9.6 13h.01"/><path d="M14.4 13h.01"/></svg>
       <span style="{{ tabLabelStyle }}">Agents</span>
     </div>
     <div onClick="{{ showAttention }}" title="Needs a human" style="{{ tabAttentionStyle }}">
@@ -2153,7 +2153,7 @@ class Component extends DCLogic {
       // detail. #agents-root scrolls (overflow-y:auto), so the panel is position:fixed
       // (pinned to the viewport, which coincides with the overlay's right edge) rather
       // than absolute — an absolute panel would scroll out of view with the card grid.
-      "#agents-root .ad-panel{position:fixed;right:0;top:0;bottom:0;width:360px;z-index:45;background:rgba(15,17,32,0.94);border-left:1px solid rgba(160,168,220,0.14);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:-30px 0 60px rgba(0,0,0,0.5);display:flex;flex-direction:column;animation:panelin .28s cubic-bezier(.2,.8,.2,1)}",
+      "#agents-root .ad-panel{position:absolute;right:0;top:0;bottom:0;width:360px;z-index:45;background:rgba(15,17,32,0.94);border-left:1px solid rgba(160,168,220,0.14);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:-30px 0 60px rgba(0,0,0,0.5);display:flex;flex-direction:column;animation:panelin .28s cubic-bezier(.2,.8,.2,1)}",
       "#agents-root .ad-head{padding:18px 20px 14px;border-bottom:1px solid rgba(160,168,220,0.08)}",
       "#agents-root .ad-hrow{display:flex;align-items:flex-start;gap:10px}",
       "#agents-root .ad-dot{width:11px;height:11px;border-radius:50%;flex:none;margin-top:4px}",
@@ -4724,7 +4724,7 @@ class Component extends DCLogic {
       "#pipelines-root .pl-history-wrap{margin-top:20px}",
       "#pipelines-root .pl-history-lbl{font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:0.12em;color:#5a6088;margin-bottom:8px}",
       "#pipelines-root .pl-history{display:flex;align-items:center;gap:8px;flex-wrap:wrap}",
-      "#pipelines-root .pl-runchip{display:inline-flex;align-items:center;gap:7px;background:#0f1120;border:1px solid rgba(160,168,220,0.12);border-radius:9px;padding:6px 11px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#a8aecf}",
+      "#pipelines-root .pl-runchip{display:inline-flex;align-items:center;gap:7px;background:#0f1120;border:1px solid rgba(160,168,220,0.12);border-radius:9px;padding:4px 9px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#a8aecf}",
       "#pipelines-root .pl-runchip:hover{border-color:rgba(160,168,220,0.3)}",
       "#pipelines-root .pl-runchip.sel{border-color:var(--rc);background:color-mix(in srgb,var(--rc) 12%, #0f1120)}",
       "#pipelines-root .pl-runchip-dot{width:8px;height:8px;border-radius:50%;flex:none}",
@@ -6887,13 +6887,10 @@ class Component extends DCLogic {
       moreLearnDotStyle: needsDot(learningAttn),
       daemonText, daemonTextStyle, liveWord, liveBadgeStyle, liveDotStyle,
       railStyle, tabBarStyle, tabLabelStyle,
-      tabGraphStyle: tabStyle(isGraph), tabGalaxyStyle: tabStyle(isGalaxy),
-      tabJobsStyle: tabStyle(isJobs), tabAgentsStyle: tabStyle(isAgents),
-      tabChartsStyle: tabStyle(isCharts),
-      tabHealthStyle: { ...tabStyle(isHealth), position: 'relative' },
+      tabGraphStyle: tabStyle(isGraph),       tabJobsStyle: tabStyle(isJobs), tabAgentsStyle: tabStyle(isAgents),
+            tabHealthStyle: { ...tabStyle(isHealth), position: 'relative' },
       tabAttentionStyle: { ...tabStyle(isAttention), position: 'relative' },
-      tabLearningStyle: tabStyle(isLearning),
-      tabPipelinesStyle: { ...tabStyle(isPipelines), position: 'relative' },
+            tabPipelinesStyle: { ...tabStyle(isPipelines), position: 'relative' },
       tabChatStyle: { ...tabStyle(isChat), position: 'relative' },
       tabMoreStyle: { ...tabStyle(isGalaxy || isCharts || isLearning), position: 'relative' },
       crumbRepoStyle, crumbSepStyle, liveTextStyle, detailAsideStyle, zoomCtrlStyle, footerStyle,
