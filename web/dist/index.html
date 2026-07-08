@@ -586,6 +586,7 @@ class Component extends DCLogic {
         const after = () => {
           this._redockOverlays();
           if (this.state.view === 'jobs') this.renderJobsTable();
+          if (this.state.view === 'agents') { this._agApplyMobileClass(); this.renderAgentsPane(true); }
           if (this.state.view === 'pipelines' && this._plDetailName) { this._plLayout(); this._plUpdateScrollCue(); }
           if (this.state.view === 'chat') this._chatRerender();
           if (this.state.view === 'charts' && this._chartsLoaded) this.renderCharts(false);
@@ -720,7 +721,8 @@ class Component extends DCLogic {
     // Agents overlay (imperative card grid).
     if (v === 'agents') {
       const root = this.ensureAgentsDom();
-      root.style.display = 'block';
+      root.style.display = 'flex';
+      this._agApplyMobileClass();
       this.startAgentsPoll();
       this.fetchAgents();
       // Deep-link intent (/agents/<name>): open the detail panel once the view is
@@ -2119,152 +2121,211 @@ class Component extends DCLogic {
   }
 
   // ---- Agents page ----
+  // ============================================================
+  // Agents view (wave 5a redesign): a two-pane FLEET WORKBENCH — a
+  // persistent left rail (search + runtime segmented filter + clickable
+  // status rollup + dense agent rows + pinned ephemeral-workers fleet
+  // footer) beside a persistent right detail pane that fills the width
+  // (monogram header + derived-status chip, 4 stat tiles, CONFIG card,
+  // TEMPLATE card with the shared collapsible prompt viewer, VERSION
+  // HISTORY chip strip, and a RECENT RUNS list populated client-side from
+  // /api/jobs filtered by the selected agent). Body-appended imperative
+  // overlay (#agents-root), same sanitizer-skip pattern as jobs/charts.
+  // DERIVED STATUS (busy | failing | idle) replaces the raw health string
+  // everywhere; the word "unknown" is never rendered. Mobile (<=768px)
+  // behaves as list -> full-screen detail sheet.
+  // ============================================================
+  _agStatusMeta = { busy: { c: '#7aa2f7', label: 'busy' }, failing: { c: '#f7768e', label: 'failing' }, idle: { c: '#5a6088', label: 'idle' } };
+  // Derived agent status from the summary counts + health, per the wave-5
+  // contract: any running job -> busy (highest precedence); else a failing
+  // signal (failures with no recent success, or an explicit failed health)
+  // -> failing; else idle. Never returns/renders "unknown".
+  _agDerivedStatus(a) {
+    a = a || {};
+    if ((a.runningCount || 0) > 0) return 'busy';
+    const failed = a.failedCount || 0, ok = a.succeededCount || 0;
+    const health = String(a.health == null ? '' : a.health).toLowerCase();
+    if (health === 'failed' || (failed > 0 && ok === 0)) return 'failing';
+    return 'idle';
+  }
+  // Compact relative age: '' for none, 'now' for <45s, else 'Nm/h/d ago'.
+  _agRelShort(ms) {
+    if (!ms || ms <= 0) return '';
+    const r = this.relTime(Math.max(0, Date.now() - ms));
+    return r === 'just now' ? 'now' : r;
+  }
+
   ensureAgentsDom() {
     if (this._agentsRoot) return this._agentsRoot;
     const st = document.createElement('style');
     st.textContent = [
-      "#agents-root .ag-head{display:flex;align-items:baseline;gap:14px;padding:18px 24px 14px}",
-      "#agents-root .ag-title{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:20px;color:#eef0ff;letter-spacing:-0.02em}",
-      "#agents-root .ag-title .ag-tdot{color:#bb9af7;margin-left:1px}",
-      "#agents-root .ag-count{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#7f86ad}",
-      "#agents-root .ag-count b{color:#c8cce6;font-weight:500}",
-      "#agents-root .ag-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;padding:0 24px 28px}",
-      "#agents-root .ag-empty{padding:60px 20px;text-align:center;color:#5a6088;font-size:13px;grid-column:1/-1}",
-      "#agents-root .ag-card{background-color:#0d0f1c;border:1px solid rgba(160,168,220,0.1);border-radius:13px;padding:15px 16px 13px;display:flex;flex-direction:column;gap:9px;cursor:default;transition:border-color .14s ease,transform .14s ease}",
-      "#agents-root .ag-card[data-agent]{cursor:pointer}",
-      "#agents-root .ag-card[data-agent]:hover{border-color:rgba(158,206,106,0.3);transform:translateY(-2px)}",
-      "#agents-root .ag-card.eph{border-style:dashed;border-color:rgba(160,168,220,0.22);background-color:#0a0b16}",
-      "#agents-root .ag-crow{display:flex;align-items:center;gap:9px}",
-      "#agents-root .ag-name{flex:1;min-width:0;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:15px;color:#eef0ff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
-      "#agents-root .ag-rt{font-family:'JetBrains Mono',monospace;font-size:9.5px;padding:2px 7px;border-radius:6px;text-transform:lowercase;flex:none}",
-      "#agents-root .ag-mem{font-family:'JetBrains Mono',monospace;font-size:9px;padding:2px 6px;border-radius:6px;text-transform:lowercase;flex:none;color:#7dcfff;background:rgba(125,207,255,0.08);border:1px solid rgba(125,207,255,0.22)}",
-      "#agents-root .ag-meta{display:flex;align-items:center;gap:7px;font-size:11.5px;color:#a8aecf}",
-      "#agents-root .ag-hdot{width:7px;height:7px;border-radius:50%;flex:none}",
-      "#agents-root .ag-health{font-family:'JetBrains Mono',monospace;font-size:9.5px;color:#7f86ad;text-transform:uppercase;letter-spacing:0.08em}",
-      "#agents-root .ag-model{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#7f86ad;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
-      "#agents-root .ag-pol{font-family:'JetBrains Mono',monospace;font-size:10px;color:#5a6088}",
-      "#agents-root .ag-chips{display:flex;flex-wrap:wrap;gap:5px}",
-      "#agents-root .ag-chip{font-family:'JetBrains Mono',monospace;font-size:9.5px;padding:2px 7px;border-radius:6px;border:1px solid rgba(160,168,220,0.12)}",
-      "#agents-root .ag-chip.repo{color:#7dcfff;border-color:rgba(125,207,255,0.2);background:rgba(125,207,255,0.06)}",
-      "#agents-root .ag-chip.cap{color:#a8aecf;background:rgba(160,168,220,0.05)}",
-      "#agents-root .ag-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:3px;padding-top:11px;border-top:1px solid rgba(160,168,220,0.08)}",
-      "#agents-root .ag-stat{text-align:center}",
-      "#agents-root .ag-sv{font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:600}",
-      "#agents-root .ag-sl{font-size:9px;color:#5a6088;text-transform:uppercase;letter-spacing:0.06em;margin-top:2px}",
-      "#agents-root .ag-last{font-family:'JetBrains Mono',monospace;font-size:10px;color:#5a6088;margin-top:1px}",
-      "#agents-root .ag-card.sel{border-color:rgba(158,206,106,0.45)}",
-      // Agent detail panel: a right-side aside in the same visual family as the Jobs
-      // detail. #agents-root scrolls (overflow-y:auto), so the panel is position:fixed
-      // (pinned to the viewport, which coincides with the overlay's right edge) rather
-      // than absolute — an absolute panel would scroll out of view with the card grid.
-      "#agents-root .ad-panel{position:absolute;right:0;top:0;bottom:0;width:360px;z-index:45;background:rgba(15,17,32,0.94);border-left:1px solid rgba(160,168,220,0.14);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:-30px 0 60px rgba(0,0,0,0.5);display:flex;flex-direction:column;animation:panelin .28s cubic-bezier(.2,.8,.2,1)}",
-      "#agents-root .ad-head{padding:18px 20px 14px;border-bottom:1px solid rgba(160,168,220,0.08)}",
-      "#agents-root .ad-hrow{display:flex;align-items:flex-start;gap:10px}",
-      "#agents-root .ad-dot{width:11px;height:11px;border-radius:50%;flex:none;margin-top:4px}",
-      "#agents-root .ad-name{font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:600;color:#eef0ff;line-height:1.25;word-break:break-word}",
-      "#agents-root .ad-sub{font-family:'JetBrains Mono',monospace;font-size:11px;color:#868db5;margin-top:4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}",
-      "#agents-root .ad-rt{font-family:'JetBrains Mono',monospace;font-size:9.5px;padding:1px 7px;border-radius:6px;text-transform:lowercase}",
-      "#agents-root .ad-hdot{width:7px;height:7px;border-radius:50%;flex:none;display:inline-block}",
-      "#agents-root .ad-close{width:26px;height:26px;flex:none;background:rgba(160,168,220,0.08);border:1px solid rgba(160,168,220,0.12);border-radius:7px;color:#868db5;font-size:14px;cursor:pointer;line-height:1}",
-      "#agents-root .ad-badges{display:flex;gap:8px;margin-top:13px;flex-wrap:wrap}",
-      "#agents-root .ad-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:7px;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:400;color:#868db5;background:rgba(160,168,220,0.06);border:1px solid rgba(160,168,220,0.1)}",
-      "#agents-root .ad-body{flex:1;overflow-y:auto;padding:16px 20px 22px}",
-      "#agents-root .ad-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:22px}",
-      "#agents-root .ad-stat{background:rgba(10,11,22,0.6);border:1px solid rgba(160,168,220,0.08);border-radius:9px;padding:10px 4px;text-align:center}",
-      "#agents-root .ad-sv{font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:600}",
-      "#agents-root .ad-sl{font-size:9px;color:#5a6088;text-transform:uppercase;letter-spacing:0.06em;margin-top:3px}",
-      "#agents-root .ad-sec{font-size:10.5px;color:#5a6088;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:10px}",
-      "#agents-root .ad-cfg{background:rgba(10,11,22,0.6);border:1px solid rgba(160,168,220,0.08);border-radius:10px;padding:12px 13px;margin-bottom:22px}",
-      "#agents-root .ad-cfg-grid{display:grid;grid-template-columns:auto 1fr;gap:7px 14px;align-items:baseline}",
-      "#agents-root .ad-cfg-k{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#5a6088}",
-      "#agents-root .ad-cfg-v{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#a8aecf;word-break:break-word;display:flex;flex-wrap:wrap;gap:5px;align-items:center}",
-      "#agents-root .ad-cfg-v.on{color:#7dcfff;font-weight:600}",
-      "#agents-root .ad-cfg-v.off{color:#5a6088}",
-      "#agents-root .ad-cfg-cap{font-family:'JetBrains Mono',monospace;font-size:9.5px;padding:2px 7px;border-radius:6px;color:#a8aecf;background:rgba(160,168,220,0.05);border:1px solid rgba(160,168,220,0.12)}",
-      "#agents-root .ad-cfg-note{font-family:'JetBrains Mono',monospace;font-size:9.5px;color:#5a6088;margin-top:11px;font-style:italic}",
-      "#agents-root .ad-cfg-mem{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#7dcfff;margin-top:10px;padding-top:10px;border-top:1px solid rgba(160,168,220,0.08);word-break:break-word}",
-      "#agents-root .ad-cfg-mem.empty{color:#7f86ad}",
-      "#agents-root .ad-nocfg{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#5a6088}",
-      "#agents-root .ad-tmpl{background:rgba(10,11,22,0.6);border:1px solid rgba(160,168,220,0.08);border-radius:10px;padding:12px 13px;margin-bottom:22px}",
-      "#agents-root .ad-tname{font-size:13.5px;font-weight:600;color:#eef0ff;word-break:break-word}",
-      "#agents-root .ad-tid{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#7f86ad;margin-top:2px;word-break:break-all}",
-      "#agents-root .ad-tdesc{font-size:12px;color:#a8aecf;margin-top:8px;line-height:1.45}",
-      "#agents-root .ad-trow{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#868db5;margin-top:9px;display:flex;flex-direction:column;gap:5px}",
-      "#agents-root .ad-trow span{word-break:break-all}",
-      "#agents-root .ad-tk{color:#5a6088;margin-right:6px}",
-      "#agents-root .ad-notmpl{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#5a6088;background:#0b0d18;border:1px dashed rgba(160,168,220,0.12);border-radius:10px;padding:14px;text-align:center;margin-bottom:22px}",
-      "#agents-root .ad-vers{display:flex;flex-direction:column;gap:0}",
-      "#agents-root .ad-ver{display:flex;gap:12px;align-items:flex-start;position:relative;padding-bottom:16px}",
-      "#agents-root .ad-ver .rail{display:flex;flex-direction:column;align-items:center;flex:none;padding-top:3px}",
-      "#agents-root .ad-ver .rail .dot{width:9px;height:9px;border-radius:50%}",
-      "#agents-root .ad-ver .rail .line{width:1px;flex:1;background:rgba(160,168,220,0.12);margin-top:3px;min-height:10px}",
-      "#agents-root .ad-ver .vmain{flex:1;min-width:0}",
-      "#agents-root .ad-vtop{display:flex;align-items:center;gap:8px;flex-wrap:wrap}",
-      "#agents-root .ad-vnum{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:600;color:#eef0ff}",
-      "#agents-root .ad-vbadge{font-family:'JetBrains Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:0.05em;padding:1px 7px;border-radius:5px;font-weight:600}",
-      "#agents-root .ad-vcur{font-family:'JetBrains Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:0.05em;padding:1px 7px;border-radius:5px;color:#9ece6a;border:1px solid rgba(158,206,106,0.4);background:rgba(158,206,106,0.1)}",
-      "#agents-root .ad-vname{font-size:12px;color:#c7c9e5;margin-top:5px;line-height:1.4;word-break:break-word}",
-      "#agents-root .ad-vt{font-family:'JetBrains Mono',monospace;font-size:10px;color:#5a6088;margin-top:5px;display:flex;gap:12px;flex-wrap:wrap}",
-      "#agents-root .ad-vempty{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#5a6088;padding:6px 0 12px}",
-      "#agents-root .ad-foot{flex:none;padding:13px 20px;border-top:1px solid rgba(160,168,220,0.08)}",
-      "#agents-root .ad-viewjobs{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;box-sizing:border-box;padding:10px 14px;background:rgba(158,206,106,0.1);border:1px solid rgba(158,206,106,0.24);border-radius:10px;color:#c5f882;font-size:13px;font-weight:500;cursor:pointer;font-family:Inter,system-ui,sans-serif}",
-      "#agents-root .ad-viewjobs:hover{background:rgba(158,206,106,0.16)}",
-      "#agents-root .ad-prompt{margin-top:10px}",
+      "#agents-root{display:flex;min-width:0}",
+      // ---- LEFT RAIL ----
+      "#agents-root .ag-rail{width:340px;flex:none;background:#0a0b16;border-right:1px solid rgba(160,168,220,0.08);display:flex;flex-direction:column;min-height:0}",
+      "#agents-root .ag-rl-head{display:flex;align-items:center;padding:14px 14px 10px}",
+      "#agents-root .ag-rl-title{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:0.14em;color:#868db5;font-weight:600}",
+      "#agents-root .ag-rl-count{margin-left:7px;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#5a6088}",
+      "#agents-root .ag-search-wrap{padding:0 14px 9px}",
+      "#agents-root .ag-search{width:100%;box-sizing:border-box;padding:8px 12px;background:#0f1120;border:1px solid rgba(160,168,220,0.14);border-radius:9px;color:#eef0ff;font-size:12.5px;font-family:Inter,system-ui,sans-serif;outline:none}",
+      "#agents-root .ag-search:focus{border-color:rgba(158,206,106,0.4)}",
+      "#agents-root .ag-rtfilter{padding:0 14px 9px}",
+      "#agents-root .ag-rtseg{display:flex;background:#14172a;border:1px solid rgba(160,168,220,0.14);border-radius:8px;padding:2px;gap:2px}",
+      "#agents-root .ag-rtbtn{flex:1;padding:5px 8px;border:none;border-radius:6px;cursor:pointer;font-family:Inter,system-ui,sans-serif;font-size:11px;font-weight:500;background:transparent;color:#868db5;text-transform:lowercase}",
+      "#agents-root .ag-rtbtn:hover{color:#c8cce6}",
+      "#agents-root .ag-rtbtn.on{background:rgba(158,206,106,0.14);color:#c5f882}",
+      "#agents-root .ag-rollup{padding:0 14px 11px;display:flex;gap:7px}",
+      "#agents-root .ag-roll{display:flex;align-items:center;gap:6px;flex:1;padding:7px 8px;border:1px solid rgba(160,168,220,0.12);background:rgba(160,168,220,0.04);border-radius:8px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:11px;color:#a8aecf;justify-content:center;white-space:nowrap}",
+      "#agents-root .ag-roll-dot{width:6px;height:6px;border-radius:50%;flex:none}",
+      "#agents-root .ag-list{flex:1;overflow-y:auto;min-height:0}",
+      "#agents-root .ag-empty{padding:40px 18px;text-align:center;color:#5a6088;font-size:12.5px}",
+      "#agents-root .ag-row{display:flex;align-items:center;gap:9px;padding:9px 11px;margin:2px 4px;border-radius:9px;cursor:pointer;border:1px solid transparent}",
+      "#agents-root .ag-row:hover{background:rgba(160,168,220,0.05)}",
+      "#agents-root .ag-row.sel{background:rgba(158,206,106,0.09);border-color:rgba(158,206,106,0.22)}",
+      "#agents-root .ag-row.sel:hover{background:rgba(158,206,106,0.11)}",
+      "#agents-root .ag-rdot{width:8px;height:8px;border-radius:50%;flex:none}",
+      "#agents-root .ag-rname{font-size:13px;font-weight:600;color:#eef0ff;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
+      "#agents-root .ag-rrt{font-family:'JetBrains Mono',monospace;font-size:9.5px;border-radius:5px;padding:1px 6px;flex:none}",
+      "#agents-root .ag-rspace{flex:1;min-width:6px}",
+      "#agents-root .ag-rmini{font-family:'JetBrains Mono',monospace;font-size:10.5px;flex:none}",
+      "#agents-root .ag-ractive{font-family:'JetBrains Mono',monospace;font-size:9.5px;color:#5a6088;flex:none;min-width:52px;text-align:right;white-space:nowrap}",
+      "#agents-root .ag-fleet{flex:none;margin:8px;padding:12px 13px;border:1px dashed rgba(125,207,255,0.32);border-radius:11px;background:rgba(125,207,255,0.05)}",
+      "#agents-root .ag-fleet-top{display:flex;align-items:center;gap:9px}",
+      "#agents-root .ag-fleet-dot{width:8px;height:8px;border-radius:50%;background:#7dcfff;box-shadow:0 0 8px rgba(125,207,255,0.6);flex:none;animation:dotpulse 1.4s ease-in-out infinite}",
+      "#agents-root .ag-fleet-name{font-size:12.5px;font-weight:600;color:#cdeaff}",
+      "#agents-root .ag-fleet-tag{font-family:'JetBrains Mono',monospace;font-size:9px;color:#7dcfff;background:rgba(125,207,255,0.12);border-radius:5px;padding:1px 6px}",
+      "#agents-root .ag-fleet-stats{display:flex;align-items:center;gap:12px;margin-top:7px;padding-left:17px;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#7c9fc0}",
+      // ---- RIGHT PANE ----
+      "#agents-root .ag-pane{flex:1;display:flex;flex-direction:column;min-width:0;overflow:auto;background:#0b0d16}",
+      "#agents-root .ag-pane-inner{padding:20px 24px 28px;display:flex;flex-direction:column;gap:20px}",
+      "#agents-root .ag-pane-empty{flex:1;display:flex;align-items:center;justify-content:center;color:#5a6088;font-size:13px}",
+      "#agents-root .ag-back{display:none;align-self:flex-start;background:rgba(160,168,220,0.08);border:1px solid rgba(160,168,220,0.14);border-radius:8px;color:#a8aecf;font-family:Inter,system-ui,sans-serif;font-size:12.5px;padding:7px 12px;cursor:pointer}",
+      "#agents-root .ag-ph{display:flex;align-items:center;gap:14px}",
+      "#agents-root .ag-mono{width:40px;height:40px;border-radius:12px;flex:none;display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:17px}",
+      "#agents-root .ag-ph-main{flex:1;min-width:0}",
+      "#agents-root .ag-ph-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}",
+      "#agents-root .ag-ph-name{font-family:'Space Grotesk',sans-serif;font-size:19px;font-weight:600;color:#eef0ff;word-break:break-word}",
+      "#agents-root .ag-ph-pill{font-family:'JetBrains Mono',monospace;font-size:10.5px;border-radius:6px;padding:2px 9px;font-weight:600}",
+      "#agents-root .ag-ph-rt{font-family:'JetBrains Mono',monospace;font-size:10.5px;border-radius:6px;padding:2px 8px;margin-top:5px;display:inline-block}",
+      "#agents-root .ag-tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}",
+      "#agents-root .ag-tile{padding:14px 16px;background:linear-gradient(180deg,#15182b,#111325);border:1px solid rgba(160,168,220,0.12);border-radius:11px;display:flex;flex-direction:column;gap:3px}",
+      "#agents-root .ag-tile-l{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:0.1em;color:#868db5}",
+      "#agents-root .ag-tile-v{font-family:'JetBrains Mono',monospace;font-size:26px;font-weight:600;line-height:1;margin-top:3px}",
+      "#agents-root .ag-cols{display:grid;grid-template-columns:1fr 1.35fr;gap:16px}",
+      "#agents-root .ag-colL{display:flex;flex-direction:column;gap:16px}",
+      "#agents-root .ag-sec{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:0.13em;color:#5a6088;margin-bottom:10px}",
+      "#agents-root .ag-cfg{background:linear-gradient(180deg,#15182b,#111325);border:1px solid rgba(160,168,220,0.1);border-radius:11px;padding:6px 14px}",
+      "#agents-root .ag-cfg-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid rgba(160,168,220,0.06)}",
+      "#agents-root .ag-cfg-row:last-child{border-bottom:none}",
+      "#agents-root .ag-cfg-k{font-size:12px;color:#868db5}",
+      "#agents-root .ag-cfg-v{font-family:'JetBrains Mono',monospace;font-size:12px;color:#e7e9f7;text-align:right;word-break:break-word}",
+      "#agents-root .ag-vh{display:flex;gap:8px;flex-wrap:wrap}",
+      "#agents-root .ag-vchip{display:flex;flex-direction:column;gap:2px;padding:8px 12px;border-radius:9px;border:1px solid rgba(160,168,220,0.12);background:rgba(160,168,220,0.03)}",
+      "#agents-root .ag-vchip.cur{border-color:rgba(158,206,106,0.3);background:rgba(158,206,106,0.08)}",
+      "#agents-root .ag-vchip-num{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;color:#a8aecf}",
+      "#agents-root .ag-vchip.cur .ag-vchip-num{color:#c5f882}",
+      "#agents-root .ag-vchip-when{font-family:'JetBrains Mono',monospace;font-size:9.5px;color:#5a6088}",
+      "#agents-root .ag-vempty{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#5a6088}",
+      "#agents-root .ag-tmpl-head{display:flex;align-items:center;gap:9px;margin-bottom:10px;flex-wrap:wrap}",
+      "#agents-root .ag-tmpl-name{font-family:'JetBrains Mono',monospace;font-size:12px;color:#eef0ff;word-break:break-word}",
+      "#agents-root .ag-tmpl-ver{font-family:'JetBrains Mono',monospace;font-size:10px;color:#a8aecf;background:rgba(160,168,220,0.08);border-radius:5px;padding:1px 6px}",
+      "#agents-root .ag-tmpl-box{background:#0a0b16;border:1px solid rgba(160,168,220,0.12);border-radius:11px;padding:14px 16px}",
+      "#agents-root .ag-tmpl-excerpt{font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:1.6;color:#c7c9e5;white-space:pre-wrap;word-break:break-word;max-height:150px;overflow:hidden;-webkit-mask-image:linear-gradient(#000 70%,transparent);mask-image:linear-gradient(#000 70%,transparent)}",
+      "#agents-root .ag-tmpl-none{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#5a6088;background:#0a0b16;border:1px dashed rgba(160,168,220,0.14);border-radius:11px;padding:16px;text-align:center}",
+      "#agents-root .ag-runs{border:1px solid rgba(160,168,220,0.1);border-radius:11px;overflow:hidden}",
+      "#agents-root .ag-run{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid rgba(160,168,220,0.05);cursor:pointer}",
+      "#agents-root .ag-run:last-child{border-bottom:none}",
+      "#agents-root .ag-run:hover{background:rgba(160,168,220,0.045)}",
+      "#agents-root .ag-run-dot{width:8px;height:8px;border-radius:50%;flex:none}",
+      "#agents-root .ag-run-title{font-size:12.5px;color:#e7e9f7;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
+      "#agents-root .ag-run-repo{font-family:'JetBrains Mono',monospace;font-size:11px;color:#5a6088;flex:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px}",
+      "#agents-root .ag-run-dur{font-family:'JetBrains Mono',monospace;font-size:11px;color:#7c83a8;width:66px;text-align:right;flex:none}",
+      "#agents-root .ag-run-age{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#5a6088;width:56px;text-align:right;flex:none}",
+      "#agents-root .ag-runs-empty{border:1px solid rgba(160,168,220,0.1);border-radius:11px;padding:20px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#5a6088}",
+      // shared collapsible prompt viewer (template card)
+      "#agents-root .ad-prompt{margin-top:12px}",
       "#agents-root .ad-prompt-bar{display:flex;align-items:center;gap:8px}",
       "#agents-root .ad-prompt-toggle{flex:1;min-width:0;display:flex;align-items:center;gap:6px;background:none;border:0;padding:2px 0;margin:0;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#868db5;text-align:left}",
       "#agents-root .ad-prompt-toggle:hover{color:#c7c9e5}",
       "#agents-root .ad-prompt-chev{display:inline-block;width:9px;flex:none;color:#7f86ad}",
       "#agents-root .ad-prompt-lbl{flex:none}",
       "#agents-root .ad-prompt-hint{color:#5a6088;font-size:9.5px;margin-left:2px;white-space:nowrap}",
-      "#agents-root .ad-prompt-view{margin-top:8px;max-height:40vh;overflow:auto;background:#07080f;border:1px solid rgba(160,168,220,0.14);border-radius:8px;padding:10px 12px;font-family:'JetBrains Mono',monospace;font-size:11px;line-height:1.5;color:#c7c9e5;white-space:pre-wrap;word-break:break-word}",
+      "#agents-root .ad-prompt-view{margin-top:8px;max-height:44vh;overflow:auto;background:#07080f;border:1px solid rgba(160,168,220,0.14);border-radius:8px;padding:10px 12px;font-family:'JetBrains Mono',monospace;font-size:11px;line-height:1.55;color:#c7c9e5;white-space:pre-wrap;word-break:break-word}",
       "#agents-root .ad-prompt-view[hidden]{display:none}",
-      "#agents-root .ad-diff{margin-top:8px}",
-      "#agents-root .ad-diff-toggle{color:#868db5}",
-      "#agents-root .ad-diff-view{margin-top:8px;max-height:40vh;overflow:auto;background:#07080f;border:1px solid rgba(160,168,220,0.14);border-radius:8px;padding:8px 0;font-family:'JetBrains Mono',monospace;font-size:11px;line-height:1.5}",
-      "#agents-root .ad-diff-view[hidden]{display:none}",
-      "#agents-root .ad-diff-hd{font-family:'JetBrains Mono',monospace;font-size:10px;color:#7f86ad;padding:2px 12px 8px;margin-bottom:6px;border-bottom:1px solid rgba(160,168,220,0.1);letter-spacing:0.03em}",
-      "#agents-root .ad-diff-l{padding:1px 12px;white-space:pre-wrap;word-break:break-word;border-left:2px solid transparent}",
-      "#agents-root .ad-diff-same{color:#868db5}",
-      "#agents-root .ad-diff-add{background:rgba(158,206,106,0.10);border-left-color:#9ece6a;color:#c5f882}",
-      "#agents-root .ad-diff-del{background:rgba(247,118,142,0.09);border-left-color:#f7768e;color:#f7a0b3}",
-      "#agents-root .ad-diff-sep{text-align:center;color:#5a6088;font-size:10px;padding:4px 12px;font-family:'JetBrains Mono',monospace}",
-      "#agents-root .ad-diff-note{color:#5a6088;font-family:'JetBrains Mono',monospace;font-size:11.5px;padding:8px 12px}",
-      // Mobile: single-column grid + tighter padding; the detail becomes a full-screen
-      // sheet. .ad-panel is position:fixed (not relative to the docked root), so it also
-      // needs an explicit bottom to clear the tab bar.
-      "@media (max-width:768px){#agents-root .ag-grid{grid-template-columns:1fr;padding-left:14px;padding-right:14px}#agents-root .ag-head{padding-left:16px;padding-right:16px}#agents-root .ad-panel{width:100%;left:0;border-left:none;bottom:calc(60px + env(safe-area-inset-bottom))}}",
-      "@media (pointer:coarse){#agents-root .ad-panel .ad-close{width:44px;height:44px;font-size:17px}}"
+      // Mobile: rail and pane each fill the width; show the rail by default and swap to
+      // the pane (full-screen sheet) when #agents-root carries .ag-detail. The back
+      // button returns to the list.
+      "@media (max-width:768px){#agents-root .ag-rail{width:100%;border-right:none}#agents-root .ag-pane{display:none}#agents-root.ag-detail .ag-rail{display:none}#agents-root.ag-detail .ag-pane{display:flex}#agents-root .ag-back{display:inline-block}#agents-root .ag-cols{grid-template-columns:1fr}#agents-root .ag-tiles{grid-template-columns:repeat(2,1fr)}#agents-root .ag-pane-inner{padding-left:16px;padding-right:16px}}"
     ].join('\n');
     document.head.appendChild(st);
 
     const root = document.createElement('div');
     root.id = 'agents-root';
-    root.style.cssText = 'position:fixed;left:216px;top:54px;right:0;bottom:0;z-index:40;background:#07080f;display:none;overflow-y:auto;font-family:Inter,system-ui,sans-serif;color:#c8cce6';
+    root.style.cssText = 'position:fixed;left:216px;top:54px;right:0;bottom:0;z-index:40;background:#07080f;display:none;font-family:Inter,system-ui,sans-serif;color:#c8cce6';
     root.innerHTML = [
-      '<div class="ag-head">',
-      '  <div class="ag-title">Agents<span class="ag-tdot">.</span></div>',
-      '  <div class="ag-count">showing <b id="ag-count">0</b> agents</div>',
+      '<div class="ag-rail">',
+      '  <div class="ag-rl-head"><span class="ag-rl-title">AGENTS</span><span class="ag-rl-count" id="ag-count">(0)</span></div>',
+      '  <div class="ag-search-wrap"><input id="ag-search" class="ag-search" type="text" placeholder="Search agents…" autocomplete="off" spellcheck="false"></div>',
+      '  <div class="ag-rtfilter"><div class="ag-rtseg" id="ag-rtseg"></div></div>',
+      '  <div class="ag-rollup" id="ag-rollup"></div>',
+      '  <div class="ag-list" id="ag-list"></div>',
+      '  <div id="ag-fleet"></div>',
       '</div>',
-      '<div class="ag-grid" id="ag-grid"></div>'
+      '<div class="ag-pane" id="ag-pane"></div>'
     ].join('\n');
     document.body.appendChild(root);
     this._dockOverlay(root); // mobile: left:0 + bottom clears the tab bar
     this._agentsRoot = root;
 
-    // Card click -> opens that agent's detail panel; a click on the grid background
-    // (or the non-clickable ephemeral rollup, which carries no data-agent) closes it.
-    // The panel is a sibling of #ag-grid, so clicks inside it never reach this listener
-    // — mirrors the Jobs page's row-open / background-close delegation.
-    root.querySelector('#ag-grid').addEventListener('click', (e) => {
-      const card = (e.target.closest && e.target.closest('[data-agent]')) || null;
-      if (card) {
-        const name = card.getAttribute('data-agent');
-        if (name) this.openAgentsDetail(name);
-      } else {
-        this.closeAgentsDetail();
+    // Search: filter the list only (the input is outside #ag-list, so re-rendering
+    // the list never steals focus). Escaped/lowercased at filter time.
+    const search = root.querySelector('#ag-search');
+    if (search) search.addEventListener('input', (e) => { this._agSearch = e.target.value; this.renderAgents(); });
+    // Runtime segmented filter (delegated).
+    root.querySelector('#ag-rtseg').addEventListener('click', (e) => {
+      const b = (e.target.closest && e.target.closest('[data-rt]')) || null;
+      if (!b) return;
+      const rt = b.getAttribute('data-rt');
+      if (this._agRuntimeFilter === rt) return;
+      this._agRuntimeFilter = rt;
+      this.renderAgents();
+    });
+    // Status rollup chips: click toggles that status filter (click the active one to clear).
+    root.querySelector('#ag-rollup').addEventListener('click', (e) => {
+      const c = (e.target.closest && e.target.closest('[data-status]')) || null;
+      if (!c) return;
+      const s = c.getAttribute('data-status');
+      this._agStatusFilter = (this._agStatusFilter === s) ? 'all' : s;
+      this.renderAgents();
+    });
+    // Agent row click -> select that agent (persistent pane).
+    root.querySelector('#ag-list').addEventListener('click', (e) => {
+      const row = (e.target.closest && e.target.closest('[data-agent]')) || null;
+      if (row) { const nm = row.getAttribute('data-agent'); if (nm) this.openAgentsDetail(nm); }
+    });
+    // Pane interactions (delegated once): mobile back, recent-run row -> shared job
+    // rail, and the collapsible prompt viewer toggle/copy.
+    root.querySelector('#ag-pane').addEventListener('click', (e) => {
+      const t = e.target;
+      if (t.closest && t.closest('.ag-back')) { this.closeAgentsDetail(); return; }
+      const runRow = t.closest && t.closest('[data-run]');
+      if (runRow) { this._agOpenRun(runRow.getAttribute('data-run')); return; }
+      const tog = t.closest && t.closest('.ad-prompt-toggle');
+      if (tog) {
+        const box = tog.closest('.ad-prompt');
+        const view = box && box.querySelector('.ad-prompt-view');
+        const chev = box && box.querySelector('.ad-prompt-chev');
+        if (view) { const willOpen = view.hasAttribute('hidden'); view.toggleAttribute('hidden'); if (chev) chev.textContent = willOpen ? '▾' : '▸'; }
+        return;
+      }
+      const copy = t.closest && t.closest('.gm-copy');
+      if (copy) {
+        const box = copy.closest('.ad-prompt');
+        const view = box && box.querySelector('.ad-prompt-view');
+        if (view) this._gmCopyChip(copy, view.textContent);
       }
     });
-    this._agentsKeydown = (e) => { if (e.key === 'Escape' && this.state.view === 'agents' && this._agentsSelected) this.closeAgentsDetail(); };
+    // Escape on mobile returns from the detail sheet to the list.
+    this._agentsKeydown = (e) => { if (e.key === 'Escape' && this.state.view === 'agents' && this.state.isMobile && this._agMobileDetail) this.closeAgentsDetail(); };
     document.addEventListener('keydown', this._agentsKeydown);
     return root;
   }
@@ -2272,73 +2333,358 @@ class Component extends DCLogic {
   fetchAgents(isPoll) {
     fetch('/api/agents', { cache: 'no-store' })
       .then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)))
-      .then(json => { this._agentsData = Array.isArray(json) ? json : []; this._agentsLoaded = true; this.renderAgents(); })
-      .catch(err => {
-        if (isPoll) return; // keep current cards on a transient poll failure
+      .then(json => {
+        this._agentsData = Array.isArray(json) ? json : [];
         this._agentsLoaded = true;
-        const grid = this._agentsRoot && this._agentsRoot.querySelector('#ag-grid');
-        if (grid) grid.innerHTML = '<div class="ag-empty" style="color:#f7768e">could not load /api/agents (' + this._galaxyEsc(err && err.message) + ')</div>';
+        this.renderAgents();
+        this._agEnsureSelection();
+        this.renderAgentsPane(!isPoll); // poll: signature-skip preserves an open prompt viewer
+      })
+      .catch(err => {
+        if (isPoll) return; // keep current rail/pane on a transient poll failure
+        this._agentsLoaded = true;
+        this.renderAgents();
+        const pane = this._agentsRoot && this._agentsRoot.querySelector('#ag-pane');
+        if (pane && !this._agentsSelected) pane.innerHTML = '<div class="ag-pane-empty" style="color:#f7768e">could not load /api/agents (' + this._galaxyEsc(err && err.message) + ')</div>';
       });
+  }
+
+  // The non-ephemeral agents (the fleet footer row is rendered separately).
+  _agRealAgents() { return (this._agentsData || []).filter(a => !a.ephemeral); }
+  // Ensure a valid selection: keep the current one if it still exists, else default
+  // to the first real agent (URL canonicalized to /agents/<name> via replaceState).
+  _agEnsureSelection() {
+    const reals = this._agRealAgents();
+    if (!reals.length) return;
+    const has = this._agentsSelected && reals.some(a => a.name === this._agentsSelected);
+    if (has) { this._agEnsureDetail(this._agentsSelected); this._agEnsureRecent(this._agentsSelected); return; }
+    this._agSelect(reals[0].name, { push: false, mobileDetail: false });
   }
 
   renderAgents() {
     if (!this._agentsRoot) return;
-    const data = this._agentsData || [];
-    const cnt = this._agentsRoot.querySelector('#ag-count'); if (cnt) cnt.textContent = data.length;
-    const grid = this._agentsRoot.querySelector('#ag-grid');
-    if (!grid) return;
-    if (!data.length) { grid.innerHTML = '<div class="ag-empty">' + (this._agentsLoaded ? 'No agents registered' : 'loading…') + '</div>'; return; }
-    grid.innerHTML = data.map(a => this._agentCardHtml(a)).join('');
+    const reals = this._agRealAgents();
+    const withStatus = reals.map(a => ({ a, st: this._agDerivedStatus(a) }));
+    const rollup = { busy: 0, idle: 0, failing: 0 };
+    withStatus.forEach(x => { rollup[x.st]++; });
+
+    // Runtime segmented filter: the design's fixed set, plus shell when present.
+    const seg = this._agentsRoot.querySelector('#ag-rtseg');
+    if (seg) {
+      const rts = ['all', 'codex', 'claude', 'kimi'];
+      if (reals.some(a => a.runtime === 'shell')) rts.push('shell');
+      const cur = this._agRuntimeFilter || 'all';
+      seg.innerHTML = rts.map(rt => '<button class="ag-rtbtn' + (cur === rt ? ' on' : '') + '" data-rt="' + rt + '">' + (rt === 'all' ? 'All' : rt) + '</button>').join('');
+    }
+
+    // Status rollup chips.
+    const roll = this._agentsRoot.querySelector('#ag-rollup');
+    if (roll) {
+      const cur = this._agStatusFilter || 'all';
+      const chip = (status, n, label) => {
+        const c = this._agStatusMeta[status].c;
+        const on = cur === status;
+        const style = on
+          ? 'border-color:color-mix(in srgb,' + c + ' 40%, transparent);background:color-mix(in srgb,' + c + ' 12%, transparent);color:' + c
+          : '';
+        return '<div class="ag-roll" data-status="' + status + '"' + (style ? ' style="' + style + '"' : '') + '><span class="ag-roll-dot" style="background:' + c + '"></span>' + n + ' ' + label + '</div>';
+      };
+      roll.innerHTML = chip('busy', rollup.busy, 'running') + chip('idle', rollup.idle, 'idle') + chip('failing', rollup.failing, 'failing');
+    }
+
+    // Filtered rows.
+    const q = (this._agSearch || '').trim().toLowerCase();
+    const rf = this._agRuntimeFilter || 'all';
+    const sf = this._agStatusFilter || 'all';
+    const filtered = withStatus.filter(x =>
+      (rf === 'all' || x.a.runtime === rf) &&
+      (sf === 'all' || x.st === sf) &&
+      (!q || String(x.a.name || '').toLowerCase().indexOf(q) >= 0));
+
+    const cnt = this._agentsRoot.querySelector('#ag-count');
+    if (cnt) cnt.textContent = '(' + filtered.length + ')';
+
+    const list = this._agentsRoot.querySelector('#ag-list');
+    if (list) {
+      if (!filtered.length) {
+        list.innerHTML = '<div class="ag-empty">' + (this._agentsLoaded ? (reals.length ? 'No agents match' : 'No agents registered') : 'loading…') + '</div>';
+      } else {
+        list.innerHTML = filtered.map(({ a, st }) => this._agRowHtml(a, st)).join('');
+      }
+    }
+
+    // Ephemeral-workers fleet footer.
+    const fleetEl = this._agentsRoot.querySelector('#ag-fleet');
+    if (fleetEl) {
+      const eph = (this._agentsData || []).find(a => a.ephemeral);
+      fleetEl.innerHTML = eph ? this._agFleetHtml(eph) : '';
+    }
   }
 
-  _agentCardHtml(a) {
+  _agRowHtml(a, st) {
     const esc = (s) => this._galaxyEsc(s);
-    const rt = a.runtime || '';
-    const rtCol = this._runtimeColor(rt);
-    const eph = !!a.ephemeral;
-    const health = a.health || '';
-    const healthCol = /ok|healthy|ready|idle|active/i.test(health) ? '#9ece6a' : /busy|running/i.test(health) ? '#7aa2f7' : /err|fail|down|unhealthy|degrad/i.test(health) ? '#f7768e' : '#5a6088';
-    const running = (a.runningCount || 0) > 0;
-    const chips = (arr, cls) => (arr && arr.length) ? arr.map(x => '<span class="ag-chip ' + cls + '">' + esc(x) + '</span>').join('') : '';
-    const repoChips = chips(a.repoScope, 'repo');
-    const capChips = chips(a.capabilities, 'cap');
-    const clickable = !eph;
-    const selected = clickable && this._agentsSelected === a.name;
-    const stat = (label, val, valCol, pulse) => '<div class="ag-stat"><div class="ag-sv" style="color:' + (valCol || '#eef0ff') + (pulse ? ';animation:livedot 1.6s ease-in-out infinite' : '') + '">' + val + '</div><div class="ag-sl">' + label + '</div></div>';
-    return '<div class="ag-card' + (eph ? ' eph' : '') + (selected ? ' sel' : '') + '"' + (clickable ? ' data-agent="' + esc(a.name) + '" title="View ' + esc(a.name) + ' details"' : '') + '>' +
-      '<div class="ag-crow">' +
-        '<div class="ag-name">' + esc(eph ? 'ephemeral workers' : (a.name || '—')) + '</div>' +
-        (rt ? '<span class="ag-rt" style="color:' + rtCol + ';background:color-mix(in srgb,' + rtCol + ' 14%, transparent);border:1px solid color-mix(in srgb,' + rtCol + ' 34%, transparent)">' + esc(rt) + '</span>' : '') +
-        (a.memoryEnabled ? '<span class="ag-mem" title="memory enabled">memory</span>' : '') +
-      '</div>' +
-      ((a.role || health) ? '<div class="ag-meta">' + (health ? '<span class="ag-hdot" style="background:' + healthCol + '"></span>' : '') + (a.role ? '<span>' + esc(a.role) + '</span>' : '') + (health ? '<span class="ag-health">' + esc(health) + '</span>' : '') + '</div>' : '') +
-      (a.model ? '<div class="ag-model">' + esc(a.model) + '</div>' : '') +
-      (a.autonomyPolicy ? '<div class="ag-pol">policy · ' + esc(a.autonomyPolicy) + '</div>' : '') +
-      ((repoChips || capChips) ? '<div class="ag-chips">' + repoChips + capChips + '</div>' : '') +
-      '<div class="ag-stats">' +
-        stat('jobs', (a.jobCount || 0), '#c8cce6') +
-        stat('running', (a.runningCount || 0), running ? '#7aa2f7' : '#5a6088', running) +
-        stat('ok', (a.succeededCount || 0), '#9ece6a') +
-        stat('failed', (a.failedCount || 0), (a.failedCount > 0) ? '#f7768e' : '#5a6088') +
-      '</div>' +
-      '<div class="ag-last">' + (a.lastActive ? ('active ' + esc(this._relFromMs(a.lastActive))) : 'no activity') + '</div>' +
+    const meta = this._agStatusMeta[st] || this._agStatusMeta.idle;
+    const rtCol = this._runtimeColor(a.runtime || '');
+    const sel = this._agentsSelected === a.name;
+    const pulse = (st === 'busy' || st === 'failing');
+    const dot = '<span class="ag-rdot" style="background:' + meta.c + (st === 'idle' ? '' : ';box-shadow:0 0 8px ' + meta.c) + (pulse ? ';animation:dotpulse 1.4s ease-in-out infinite' : '') + '"></span>';
+    const rtChip = a.runtime
+      ? '<span class="ag-rrt" style="color:' + rtCol + ';background:color-mix(in srgb,' + rtCol + ' 12%, transparent);border:1px solid color-mix(in srgb,' + rtCol + ' 24%, transparent)">' + esc(a.runtime) + '</span>'
+      : '';
+    const miniCol = st === 'failing' ? '#f7768e' : '#868db5';
+    const mini = '<span class="ag-rmini" style="color:' + miniCol + '">' + (a.runningCount || 0) + '▶ ' + (a.failedCount || 0) + '✗</span>';
+    const active = a.lastActive ? esc(this._agRelShort(a.lastActive)) : '—';
+    return '<div class="ag-row' + (sel ? ' sel' : '') + '" data-agent="' + esc(a.name) + '" title="' + esc(a.name) + '">' +
+      dot +
+      '<span class="ag-rname">' + esc(a.name || '—') + '</span>' +
+      rtChip +
+      '<span class="ag-rspace"></span>' +
+      mini +
+      '<span class="ag-ractive">' + active + '</span>' +
     '</div>';
   }
 
-  // ---- Agent detail panel ----
-  // Version-history state colors: current (green; the store emits 'current' for the
-  // live version — 'promoted' kept as a defensive alias), canary (blue), pending
-  // (amber), superseded/rejected/unknown (grey). Mirrors the Jobs detail's palette.
-  _versionStateColor(s) {
-    s = String(s == null ? '' : s).toLowerCase();
-    if (s === 'current' || s === 'promoted') return '#9ece6a';
-    if (s === 'canary') return '#7aa2f7';
-    if (s === 'pending') return '#e0af68';
-    return '#5a6088';
+  _agFleetHtml(eph) {
+    const running = eph.runningCount || 0;
+    const done = Math.max(0, (eph.jobCount || 0) - running);
+    const fmt = (n) => { try { return n.toLocaleString(); } catch (e) { return String(n); } };
+    return '<div class="ag-fleet">' +
+      '<div class="ag-fleet-top">' +
+        '<span class="ag-fleet-dot"></span>' +
+        '<span class="ag-fleet-name">ephemeral workers</span>' +
+        '<span class="ag-fleet-tag">fleet</span>' +
+      '</div>' +
+      '<div class="ag-fleet-stats"><span>' + fmt(running) + ' running</span><span>·</span><span>' + fmt(done) + ' done</span></div>' +
+    '</div>';
   }
-  _agentStatCell(label, val, valCol, pulse) {
-    return '<div class="ad-stat"><div class="ad-sv" style="color:' + (valCol || '#eef0ff') + (pulse ? ';animation:livedot 1.6s ease-in-out infinite' : '') + '">' + val + '</div><div class="ad-sl">' + label + '</div></div>';
+
+  // ---- selection + persistent detail pane ----
+  // openAgentsDetail is the public "select this agent" entry (row click, deep link,
+  // Skills cross-nav, popstate). It pushes /agents/<name> and, on mobile, opens the
+  // full-screen detail sheet.
+  openAgentsDetail(name) {
+    if (!name) return;
+    this._agSelect(name, { push: true, mobileDetail: true });
   }
+  // Core selection: set the selected agent, sync the URL, re-render rail + pane, and
+  // kick the detail + recent-runs loads (both guarded/cached per selection).
+  _agSelect(name, opts) {
+    opts = opts || {};
+    this._agentsSelected = name;
+    if (opts.mobileDetail && this.state.isMobile) this._agMobileDetail = true;
+    this._navRoute('agents', { agent: name }, !opts.push); // replace when not an explicit push
+    this._agApplyMobileClass();
+    this.renderAgents();          // rail highlight
+    this.renderAgentsPane(true);  // immediate switch (force)
+    this._agEnsureDetail(name);
+    this._agEnsureRecent(name);
+  }
+  // Mobile "back": leave the detail sheet for the list. On desktop the pane is always
+  // visible so this is effectively a no-op beyond the URL. Suppressed history writes
+  // during popstate are handled by _navRoute's _routing guard.
+  closeAgentsDetail() {
+    if (this._agMobileDetail) { this._agMobileDetail = false; this._agApplyMobileClass(); }
+    this._navRoute('agents');
+  }
+  _agApplyMobileClass() {
+    if (!this._agentsRoot) return;
+    this._agentsRoot.classList.toggle('ag-detail', !!(this.state.isMobile && this._agMobileDetail));
+  }
+  // Fetch /api/agent/<name> once per selection (cached by name). status: loading|ok|error.
+  _agEnsureDetail(name) {
+    if (this._agDetailName === name) { this.renderAgentsPane(false); return; }
+    if (this._agDetailFetchName === name) return; // in-flight for this name
+    this._agDetailFetchName = name;
+    this._agDetailStatus = 'loading';
+    fetch('/api/agent/' + encodeURIComponent(name), { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)))
+      .then(detail => {
+        if (this._agDetailFetchName !== name) return;
+        this._agDetailFetchName = null; this._agDetail = detail || {}; this._agDetailName = name; this._agDetailStatus = 'ok';
+        if (this._agentsSelected === name) this.renderAgentsPane(false);
+      })
+      .catch(() => {
+        if (this._agDetailFetchName !== name) return;
+        this._agDetailFetchName = null; this._agDetail = null; this._agDetailName = name; this._agDetailStatus = 'error';
+        if (this._agentsSelected === name) this.renderAgentsPane(false);
+      });
+  }
+  // Recent runs + avg-duration come from /api/jobs filtered by agent. The full jobs
+  // payload is fetched once and cached (10s) across selections, then filtered per
+  // render — so switching agents is instant and no per-agent request is issued.
+  _agEnsureRecent(name) {
+    const fresh = this._agAllJobs && (Date.now() - (this._agAllJobsAt || 0) < 10000);
+    if (fresh) { this.renderAgentsPane(false); return; }
+    if (this._agJobsInFlight) return;
+    this._agJobsInFlight = true;
+    fetch('/api/jobs', { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)))
+      .then(json => { this._agJobsInFlight = false; this._agAllJobs = Array.isArray(json) ? json : []; this._agAllJobsAt = Date.now(); if (this.state.view === 'agents') this.renderAgentsPane(false); })
+      .catch(() => { this._agJobsInFlight = false; if (!this._agAllJobs) { this._agAllJobs = []; this._agAllJobsAt = Date.now(); if (this.state.view === 'agents') this.renderAgentsPane(false); } });
+  }
+  _agOpenRun(id) {
+    if (!id) return;
+    this._jobsFacetAgent = this._agentsSelected || '';
+    this._pendingJobDetail = id;          // applyView opens the shared job rail after Jobs mounts
+    this.setState({ view: 'jobs' });
+    this._navRoute('jobs', { agent: this._jobsFacetAgent || undefined });
+  }
+
+  // Signature of everything the pane renders, so a 12s poll re-render is skipped when
+  // nothing changed (which would otherwise collapse an open prompt viewer).
+  _agPaneSig(name) {
+    const a = (this._agentsData || []).find(x => x.name === name) || {};
+    const st = this._agDerivedStatus(a);
+    const dReady = this._agDetailName === name ? (this._agDetailStatus || '') : 'loading';
+    const jobs = (this._agAllJobs || []).filter(j => (j.agent || '') === name);
+    const first = jobs.length ? (jobs[0].id + ':' + (jobs[0].updated || 0)) : '';
+    // The jobs-loaded flag matters even for a 0-job agent: it flips RECENT RUNS from
+    // "loading…" to "no runs recorded yet" (and the sig would otherwise be identical).
+    return [name, st, a.jobCount || 0, a.runningCount || 0, a.succeededCount || 0, a.failedCount || 0, a.lastActive || 0, dReady, this._agAllJobs ? 1 : 0, jobs.length, first].join('|');
+  }
+
+  _agTileHtml(label, val, col) {
+    return '<div class="ag-tile"><span class="ag-tile-l">' + label + '</span><span class="ag-tile-v" style="color:' + (col || '#eef0ff') + '">' + val + '</span></div>';
+  }
+
+  renderAgentsPane(force) {
+    const pane = this._agentsRoot && this._agentsRoot.querySelector('#ag-pane');
+    if (!pane) return;
+    const esc = (s) => this._galaxyEsc(s);
+    const name = this._agentsSelected;
+    if (!name) {
+      pane.innerHTML = '<div class="ag-pane-empty">' + (this._agentsLoaded ? 'No agent selected' : 'loading…') + '</div>';
+      this._agPaneLastSig = null;
+      return;
+    }
+    const sig = this._agPaneSig(name);
+    if (!force && sig === this._agPaneLastSig) return;
+    this._agPaneLastSig = sig;
+
+    const a = (this._agentsData || []).find(x => x.name === name) || { name: name };
+    const st = this._agDerivedStatus(a);
+    const meta = this._agStatusMeta[st];
+    const runtime = a.runtime || '';
+    const rtCol = this._runtimeColor(runtime);
+    const detailReady = this._agDetailName === name;
+    const status = detailReady ? (this._agDetailStatus || 'ok') : 'loading';
+    const d = (detailReady && this._agDetail) ? this._agDetail : {};
+    const cfg = d.config || null;
+
+    // Agent's jobs (client-side, from the cached /api/jobs payload).
+    const jobs = (this._agAllJobs || []).filter(j => (j.agent || '') === name);
+    let durSum = 0, durCnt = 0;
+    for (let i = 0; i < jobs.length; i++) { if (jobs[i].duration > 0) { durSum += jobs[i].duration; durCnt++; } }
+    const avgDur = durCnt ? this._fmtDur(Math.round(durSum / durCnt)) : '—';
+    const recent = jobs.slice(0, 8);
+
+    // Stat tiles.
+    const jobCount = a.jobCount || 0, running = a.runningCount || 0, succ = a.succeededCount || 0, failed = a.failedCount || 0;
+    const term = succ + failed;
+    const pct = term > 0 ? Math.round(100 * succ / term) : null;
+    const pctCol = pct == null ? '#5a6088' : (pct >= 85 ? '#9ece6a' : (pct >= 70 ? '#e0af68' : '#f7768e'));
+
+    // Config rows (contract fields only — no tokens row; the contract lacks it).
+    const model = (cfg && cfg.model) || a.model || '';
+    const concurrency = (cfg && cfg.maxBackground) ? String(cfg.maxBackground) : '—';
+    const timeout = (cfg && (cfg.jobTimeout || cfg.idleTimeout)) || '—';
+    const cfgRow = (k, v) => '<div class="ag-cfg-row"><span class="ag-cfg-k">' + esc(k) + '</span><span class="ag-cfg-v">' + esc(v) + '</span></div>';
+    const cfgHtml = '<div class="ag-cfg">' +
+      cfgRow('runtime', runtime || '—') +
+      cfgRow('model', model || '—') +
+      cfgRow('concurrency', concurrency) +
+      cfgRow('timeout', timeout) +
+      cfgRow('avg duration', avgDur) +
+    '</div>';
+
+    // Version history chip strip (newest first; current highlighted — no double
+    // "current" badge, superseding the old CURRENT CURRENT bug).
+    const versions = Array.isArray(d.versions) ? d.versions : [];
+    let vhHtml;
+    if (versions.length) {
+      vhHtml = '<div class="ag-vh">' + versions.map(v => {
+        const cur = !!v.current;
+        const when = this._agRelShort(v.promotedAt || v.createdAt) || '—';
+        const num = v.number != null ? ('v' + v.number) : 'v?';
+        const stateTxt = String(v.state == null ? '' : v.state);
+        const desc = v.description || v.name || '';
+        const tip = (stateTxt ? stateTxt : '') + (desc ? (stateTxt ? ' · ' : '') + desc : '');
+        return '<div class="ag-vchip' + (cur ? ' cur' : '') + '"' + (tip ? ' title="' + esc(tip) + '"' : '') + '>' +
+          '<span class="ag-vchip-num">' + esc(num) + '</span>' +
+          '<span class="ag-vchip-when">' + esc(cur ? (when === '—' ? 'current' : when) : when) + '</span>' +
+        '</div>';
+      }).join('') + '</div>';
+    } else {
+      vhHtml = '<div class="ag-vempty">' + (status === 'loading' ? 'loading…' : 'no versions recorded') + '</div>';
+    }
+
+    // Template card: name + current-version chip + excerpt + shared collapsible viewer.
+    const tmpl = d.template || null;
+    let tmplHtml;
+    if (tmpl) {
+      const curV = versions.find(v => v.current) || versions[0] || null;
+      const tmplVer = (curV && curV.number != null) ? ('v' + curV.number) : '';
+      const content = tmpl.content || '';
+      const excerpt = content ? String(content).split('\n').slice(0, 6).join('\n') : '';
+      tmplHtml = '<div class="ag-tmpl-head"><span class="ag-tmpl-name">' + esc(tmpl.name || tmpl.id || '—') + '</span>' + (tmplVer ? '<span class="ag-tmpl-ver">' + esc(tmplVer) + '</span>' : '') + '</div>' +
+        '<div class="ag-tmpl-box">' +
+          (excerpt ? '<div class="ag-tmpl-excerpt">' + esc(excerpt) + '</div>' : '<div class="ag-vempty">no prompt recorded</div>') +
+          (content ? this._promptViewerHtml(esc, 'view full prompt', content, true) : '') +
+        '</div>';
+    } else {
+      tmplHtml = '<div class="ag-tmpl-none">' + (status === 'loading' ? 'loading…' : 'no template') + '</div>';
+    }
+
+    // Recent runs.
+    let runsHtml;
+    if (recent.length) {
+      runsHtml = '<div class="ag-runs">' + recent.map(j => {
+        const col = this._galaxyStateColor(j.state);
+        const rp = j.state === 'running';
+        return '<div class="ag-run" data-run="' + esc(j.id) + '" title="' + esc(j.title || j.id) + '">' +
+          '<span class="ag-run-dot" style="background:' + col + (rp ? ';box-shadow:0 0 6px ' + col + ';animation:dotpulse 1.4s ease-in-out infinite' : '') + '"></span>' +
+          '<span class="ag-run-title">' + esc(j.title || j.id) + '</span>' +
+          '<span class="ag-run-repo">' + esc(j.repo || '') + '</span>' +
+          '<span class="ag-run-dur">' + esc(j.duration > 0 ? this._fmtDur(j.duration) : '—') + '</span>' +
+          '<span class="ag-run-age">' + esc(this._agRelShort(j.started || j.updated) || '—') + '</span>' +
+        '</div>';
+      }).join('') + '</div>';
+    } else {
+      runsHtml = '<div class="ag-runs-empty">' + (this._agAllJobs ? 'no runs recorded yet' : 'loading…') + '</div>';
+    }
+
+    const mono = String(name || '?').charAt(0).toUpperCase();
+    const rtChip = runtime ? '<span class="ag-ph-rt" style="color:' + rtCol + ';background:color-mix(in srgb,' + rtCol + ' 12%, transparent);border:1px solid color-mix(in srgb,' + rtCol + ' 26%, transparent)">' + esc(runtime) + '</span>' : '';
+    const pillPulse = (st === 'busy' || st === 'failing');
+
+    pane.innerHTML = '<div class="ag-pane-inner">' +
+      '<button class="ag-back" type="button">← agents</button>' +
+      '<div class="ag-ph">' +
+        '<div class="ag-mono" style="color:' + rtCol + ';background:color-mix(in srgb,' + rtCol + ' 16%, transparent);border:1px solid color-mix(in srgb,' + rtCol + ' 30%, transparent)">' + esc(mono) + '</div>' +
+        '<div class="ag-ph-main">' +
+          '<div class="ag-ph-row"><span class="ag-ph-name">' + esc(name) + '</span>' +
+            '<span class="ag-ph-pill" style="color:' + meta.c + ';background:color-mix(in srgb,' + meta.c + ' 14%, transparent);border:1px solid color-mix(in srgb,' + meta.c + ' 30%, transparent)' + (pillPulse ? ';animation:livedot 1.8s ease-in-out infinite' : '') + '">' + meta.label + '</span>' +
+          '</div>' +
+          (rtChip || '') +
+        '</div>' +
+      '</div>' +
+      '<div class="ag-tiles">' +
+        this._agTileHtml('TOTAL RUNS', String(jobCount), '#eef0ff') +
+        this._agTileHtml('SUCCESS', pct == null ? '—' : pct + '%', pctCol) +
+        this._agTileHtml('RUNNING', String(running), '#7aa2f7') +
+        this._agTileHtml('FAILED', String(failed), failed > 0 ? '#f7768e' : '#868db5') +
+      '</div>' +
+      '<div class="ag-cols">' +
+        '<div class="ag-colL">' +
+          '<div><div class="ag-sec">CONFIG</div>' + cfgHtml + '</div>' +
+          '<div><div class="ag-sec">VERSION HISTORY</div>' + vhHtml + '</div>' +
+        '</div>' +
+        '<div><div class="ag-sec">TEMPLATE</div>' + tmplHtml + '</div>' +
+      '</div>' +
+      '<div><div class="ag-sec">RECENT RUNS · last 8</div>' + runsHtml + '</div>' +
+    '</div>';
+  }
+
   // A byte/line hint for a prompt body (e.g. "1.2 KB · 34 lines"). Bytes are the
   // UTF-8 encoded length; lines are '\n'-split. Pure numeric/derived output.
   _promptHint(content) {
@@ -2352,8 +2698,8 @@ class Component extends DCLogic {
   // Collapsible prompt viewer: a toggle row (chevron + label + byte/line hint) and a
   // scrollable mono <pre> block holding the FULL escaped content. Collapsed by default
   // ([hidden]). content is repo-controlled text — always escaped, rendered as text,
-  // never as markup. withCopy adds a clipboard button (template card only). Click
-  // wiring is attached generically in renderAgentsDetail after innerHTML.
+  // never as markup. withCopy adds a clipboard button. Toggle/copy wiring is attached
+  // generically via the delegated #ag-pane click listener.
   _promptViewerHtml(esc, label, content, withCopy) {
     return '<div class="ad-prompt">' +
       '<div class="ad-prompt-bar">' +
@@ -2366,355 +2712,6 @@ class Component extends DCLogic {
       '</div>' +
       '<pre class="ad-prompt-view" hidden>' + esc(content) + '</pre>' +
     '</div>';
-  }
-  // Hand-rolled line-based diff (LCS via O(N*M) DP; dependency-free, mirroring the
-  // hand-rolled SVG charts). Splits both sides into lines with the SAME single-
-  // trailing-newline discipline as _promptHint (strip one trailing \n, then split on
-  // \n; interior blank lines preserved), then backtracks the LCS into an ordered ops
-  // list of {type:'same'|'add'|'del', line}. HARD CAP: either side over 3000 lines or
-  // 300 KB returns null (caller renders "diff too large") so a pathological template
-  // can never freeze the panel. Empty old -> all adds; empty new -> all dels;
-  // identical -> all 'same' (caller treats added==0 && removed==0 as "no changes").
-  _lineDiff(oldStr, newStr) {
-    const splitLines = (s) => {
-      s = String(s == null ? '' : s);
-      return s.length ? s.replace(/\n$/, '').split('\n') : [];
-    };
-    const bytesOf = (s) => {
-      s = String(s == null ? '' : s);
-      try { return new TextEncoder().encode(s).length; } catch (e) { return s.length; }
-    };
-    const A = splitLines(oldStr);
-    const B = splitLines(newStr);
-    const CAP_LINES = 3000, CAP_BYTES = 300 * 1024;
-    if (A.length > CAP_LINES || B.length > CAP_LINES) return null;
-    if (bytesOf(oldStr) > CAP_BYTES || bytesOf(newStr) > CAP_BYTES) return null;
-    const n = A.length, m = B.length, w = m + 1;
-    // LCS-length table, filled bottom-up as one flat Int32Array (<=~36 MB at the cap).
-    const dp = new Int32Array((n + 1) * w);
-    for (let i = n - 1; i >= 0; i--) {
-      const Ai = A[i];
-      for (let j = m - 1; j >= 0; j--) {
-        dp[i * w + j] = (Ai === B[j]) ? dp[(i + 1) * w + (j + 1)] + 1
-          : Math.max(dp[(i + 1) * w + j], dp[i * w + (j + 1)]);
-      }
-    }
-    const ops = [];
-    let i = 0, j = 0;
-    while (i < n && j < m) {
-      if (A[i] === B[j]) { ops.push({ type: 'same', line: A[i] }); i++; j++; }
-      else if (dp[(i + 1) * w + j] >= dp[i * w + (j + 1)]) { ops.push({ type: 'del', line: A[i] }); i++; }
-      else { ops.push({ type: 'add', line: B[j] }); j++; }
-    }
-    while (i < n) { ops.push({ type: 'del', line: A[i] }); i++; }
-    while (j < m) { ops.push({ type: 'add', line: B[j] }); j++; }
-    return ops;
-  }
-  // Collapsed-by-default "diff" toggle for a version that has a predecessor. Mirrors
-  // _promptViewerHtml's bar/chevron styling; the diff body is filled LAZILY on first
-  // expand (see the .ad-diff wiring in renderAgentsDetail) and cached for the open's
-  // lifetime. prevNum/curNum are display strings; idx is the version's array index (its
-  // predecessor is versions[idx+1]).
-  _diffViewerHtml(esc, prevNum, curNum, idx) {
-    return '<div class="ad-diff" data-diff-idx="' + esc(String(idx)) + '">' +
-      '<div class="ad-prompt-bar">' +
-        '<button type="button" class="ad-prompt-toggle ad-diff-toggle">' +
-          '<span class="ad-prompt-chev ad-diff-chev">▸</span>' +
-          '<span class="ad-prompt-lbl">diff</span>' +
-          '<span class="ad-prompt-hint">v' + esc(prevNum) + ' → v' + esc(curNum) + '</span>' +
-        '</button>' +
-      '</div>' +
-      '<div class="ad-diff-view" hidden></div>' +
-    '</div>';
-  }
-  // Build the unified-diff HTML for one version pair. Every line is escaped BEFORE it is
-  // wrapped in row markup (diff lines are repo-controlled template text, but still flow
-  // through the quote-safe escaper). Unchanged runs LONGER than 6 lines collapse to their
-  // first/last 3 with a centered "⋯ k unchanged lines" separator; short runs render in
-  // full, dimmed. Missing content on either side -> a note (not a bogus all-add/all-del).
-  _renderDiffHtml(esc, prevNum, curNum, prevContent, curContent) {
-    const note = (t) => '<div class="ad-diff-note">' + esc(t) + '</div>';
-    if (!prevContent) return note('no content recorded for v' + prevNum);
-    if (!curContent) return note('no content recorded for v' + curNum);
-    const ops = this._lineDiff(prevContent, curContent);
-    if (ops == null) return note('diff too large');
-    let added = 0, removed = 0;
-    for (let k = 0; k < ops.length; k++) { if (ops[k].type === 'add') added++; else if (ops[k].type === 'del') removed++; }
-    if (added === 0 && removed === 0) return note('no changes between these versions');
-    const rows = ['<div class="ad-diff-hd">v' + esc(prevNum) + ' -> v' + esc(curNum) + ' · +' + added + ' −' + removed + '</div>'];
-    const same = (l) => '<div class="ad-diff-l ad-diff-same">  ' + esc(l) + '</div>';
-    let k = 0;
-    while (k < ops.length) {
-      const op = ops[k];
-      if (op.type === 'add') { rows.push('<div class="ad-diff-l ad-diff-add">+ ' + esc(op.line) + '</div>'); k++; continue; }
-      if (op.type === 'del') { rows.push('<div class="ad-diff-l ad-diff-del">− ' + esc(op.line) + '</div>'); k++; continue; }
-      // gather a maximal run of unchanged lines
-      let j = k; const run = [];
-      while (j < ops.length && ops[j].type === 'same') { run.push(ops[j].line); j++; }
-      if (run.length > 6) {
-        rows.push(same(run[0]), same(run[1]), same(run[2]));
-        const hidden = run.length - 6;
-        rows.push('<div class="ad-diff-sep">⋯ ' + hidden + ' unchanged line' + (hidden === 1 ? '' : 's') + '</div>');
-        rows.push(same(run[run.length - 3]), same(run[run.length - 2]), same(run[run.length - 1]));
-      } else {
-        for (let t = 0; t < run.length; t++) rows.push(same(run[t]));
-      }
-      k = j;
-    }
-    return rows.join('');
-  }
-  // Lazily compute (once) and cache the diff HTML for the version at index idx against
-  // its predecessor versions[idx+1]. The cache lives on the panel instance and is reset
-  // each (re)render, so a re-open always recomputes fresh.
-  _diffHtmlForVersion(idx) {
-    const cache = this._agentsDiffCache || (this._agentsDiffCache = {});
-    if (cache[idx] != null) return cache[idx];
-    const esc = (s) => this._galaxyEsc(s);
-    const versions = this._agentsDetailVersions || [];
-    const cur = versions[idx], prev = versions[idx + 1];
-    let html;
-    if (!cur || !prev) {
-      html = '<div class="ad-diff-note">no predecessor</div>';
-    } else {
-      const prevNum = prev.number != null ? String(prev.number) : '?';
-      const curNum = cur.number != null ? String(cur.number) : '?';
-      html = this._renderDiffHtml(esc, prevNum, curNum, prev.content, cur.content);
-    }
-    cache[idx] = html;
-    return html;
-  }
-  ensureAgentsDetailEl() {
-    if (this._agentsDetailEl && this._agentsDetailEl.parentNode) return this._agentsDetailEl;
-    const el = document.createElement('div');
-    el.className = 'ad-panel';
-    this._agentsRoot.appendChild(el);
-    this._agentsDetailEl = el;
-    return el;
-  }
-  closeAgentsDetail() {
-    this._agentsSelected = null;
-    this._agentsDetailFetchName = null;
-    try { if (this._agentsDetailEl) this._agentsDetailEl.remove(); } catch (e) {}
-    this._agentsDetailEl = null;
-    this.renderAgents(); // clear the selected-card highlight
-    this._navRoute('agents'); // closing the panel returns to /agents
-  }
-  // Fetch once per open (no 12s poll on the panel); a fresh click always refetches so
-  // a re-open never shows stale template/version data. A stale-fetch guard keyed by
-  // agent name ensures only the latest click's response renders.
-  openAgentsDetail(name) {
-    if (!name) { this.closeAgentsDetail(); return; }
-    this._agentsSelected = name;
-    this._navRoute('agents', { agent: name }); // deep-link the open panel: /agents/<name>
-    const summary = (this._agentsData || []).find(a => a.name === name) || { name: name };
-    this.renderAgentsDetail(summary, null, 'loading');
-    this.renderAgents(); // highlight the selected card
-    const fn = (this._agentsDetailFetchName = name);
-    fetch('/api/agent/' + encodeURIComponent(name), { cache: 'no-store' })
-      .then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)))
-      .then(detail => { if (this._agentsDetailFetchName === fn) this.renderAgentsDetail(summary, detail || {}, 'ok'); })
-      .catch(() => { if (this._agentsDetailFetchName === fn) this.renderAgentsDetail(summary, null, 'error'); });
-  }
-
-  renderAgentsDetail(summary, detail, status) {
-    const el = this.ensureAgentsDetailEl();
-    const esc = (s) => this._galaxyEsc(s);
-    const d = detail || {};
-    const s = summary || {};
-    const pick = (k) => (d[k] != null ? d[k] : s[k]);
-    const name = pick('name') || '';
-    const runtime = pick('runtime') || '';
-    const rtCol = this._runtimeColor(runtime);
-    const role = pick('role') || '';
-    const health = pick('health') || '';
-    const healthCol = /ok|healthy|ready|idle|active/i.test(health) ? '#9ece6a' : /busy|running/i.test(health) ? '#7aa2f7' : /err|fail|down|unhealthy|degrad/i.test(health) ? '#f7768e' : '#5a6088';
-    const model = pick('model') || '';
-    const policy = pick('autonomyPolicy') || '';
-    const running = (pick('runningCount') || 0) > 0;
-    const rtBadge = runtime ? '<span class="ad-rt" style="color:' + rtCol + ';background:color-mix(in srgb,' + rtCol + ' 14%, transparent);border:1px solid color-mix(in srgb,' + rtCol + ' 34%, transparent)">' + esc(runtime) + '</span>' : '';
-    const subParts = [];
-    if (rtBadge) subParts.push(rtBadge);
-    if (role) subParts.push('<span>' + esc(role) + '</span>');
-    if (health) subParts.push('<span style="color:' + healthCol + '">' + esc(health) + '</span>');
-
-    const tmpl = d.template || null;
-    const versions = Array.isArray(d.versions) ? d.versions : [];
-    this._agentsDetailVersions = versions; // consumed by the lazy per-version diff viewers
-    this._agentsDiffCache = {};             // reset the diff cache each (re)render — same lifecycle as the prompt viewers
-
-    // Template section (or a quiet note when the agent has none).
-    let tmplHtml;
-    if (tmpl) {
-      const src = [];
-      if (tmpl.sourceRepo) src.push('<span><span class="ad-tk">source</span>' + esc(tmpl.sourceRepo + (tmpl.sourceRef ? '@' + tmpl.sourceRef : '')) + '</span>');
-      if (tmpl.sourcePath) src.push('<span><span class="ad-tk">path</span>' + esc(tmpl.sourcePath) + '</span>');
-      if (tmpl.resolvedCommit) src.push('<span><span class="ad-tk">commit</span>' + esc(String(tmpl.resolvedCommit).slice(0, 10)) + '</span>');
-      tmplHtml = '<div class="ad-tmpl">' +
-        '<div class="ad-tname">' + esc(tmpl.name || tmpl.id || '—') + '</div>' +
-        (tmpl.id ? '<div class="ad-tid">' + esc(tmpl.id) + '</div>' : '') +
-        (tmpl.description ? '<div class="ad-tdesc">' + esc(tmpl.description) + '</div>' : '') +
-        (src.length ? '<div class="ad-trow">' + src.join('') + '</div>' : '') +
-        (tmpl.content ? this._promptViewerHtml(esc, 'view prompt', tmpl.content, true) : '') +
-      '</div>';
-    } else {
-      tmplHtml = '<div class="ad-notmpl">' + (status === 'loading' ? 'loading…' : 'no template') + '</div>';
-    }
-
-    // Version-history timeline, newest first.
-    let versHtml;
-    if (versions.length) {
-      versHtml = '<div class="ad-vers">' + versions.map((v, i) => {
-        const vcol = this._versionStateColor(v.state);
-        const vstate = String(v.state == null ? '' : v.state).toLowerCase() || 'unknown';
-        const sample = +v.canarySample || 0;
-        const badgeText = vstate + ((vstate === 'canary' && sample > 0) ? ' ' + Math.round(sample * 100) + '%' : '');
-        const last = i === versions.length - 1;
-        // Predecessor = the next (newest-first) entry, i.e. the closest lower version.
-        const prev = last ? null : versions[i + 1];
-        const prevNum = prev ? (prev.number != null ? String(prev.number) : '?') : '';
-        const curNum = v.number != null ? String(v.number) : '?';
-        const line = (v.description || v.name) ? '<div class="ad-vname">' + esc(v.description || v.name) + '</div>' : '';
-        const times = [];
-        if (v.createdAt > 0) times.push('created ' + esc(this._relFromMs(v.createdAt)));
-        if (v.promotedAt > 0) times.push('promoted ' + esc(this._relFromMs(v.promotedAt)));
-        return '<div class="ad-ver">' +
-          '<div class="rail"><span class="dot" style="background:' + vcol + ';box-shadow:0 0 6px ' + vcol + '"></span>' + (last ? '' : '<span class="line"></span>') + '</div>' +
-          '<div class="vmain">' +
-            '<div class="ad-vtop">' +
-              '<span class="ad-vnum">v' + (v.number != null ? esc(String(v.number)) : '?') + '</span>' +
-              '<span class="ad-vbadge" style="color:' + vcol + ';background:color-mix(in srgb,' + vcol + ' 14%, transparent);border:1px solid color-mix(in srgb,' + vcol + ' 32%, transparent)">' + esc(badgeText) + '</span>' +
-              (v.current ? '<span class="ad-vcur">current</span>' : '') +
-            '</div>' +
-            line +
-            (times.length ? '<div class="ad-vt">' + times.map(t => '<span>' + t + '</span>').join('') + '</div>' : '') +
-            (v.content ? this._promptViewerHtml(esc, 'prompt', v.content, false) : '') +
-            (prev ? this._diffViewerHtml(esc, prevNum, curNum, i) : '') +
-          '</div>' +
-        '</div>';
-      }).join('') + '</div>';
-    } else {
-      versHtml = '<div class="ad-vempty">' + (status === 'loading' ? 'loading…' : 'no versions recorded') + '</div>';
-    }
-
-    // Config section: the agent's [agents.<name>] section (nil => "no config entry"),
-    // plus a memory-pool line when the agent is enrolled in memory. The pool sizes are
-    // only surfaced once the detail has loaded (status 'ok') so a still-loading panel
-    // never falsely claims an empty pool. Every server value is escaped.
-    const cfg = d.config || null;
-    const enrolled = cfg ? !!cfg.memory : !!pick('memoryEnabled');
-    const memFacts = d.memoryFacts || 0;
-    const memObs = d.memoryObservations || 0;
-    let memLine = '';
-    if (status === 'ok' && enrolled) {
-      const emptyPool = (memFacts === 0 && memObs === 0);
-      memLine = '<div class="ad-cfg-mem' + (emptyPool ? ' empty' : '') + '">' +
-        (emptyPool
-          ? 'memory pool: empty — facts appear as jobs hit qualifying outcomes'
-          : 'memory pool: ' + memFacts + ' facts · ' + memObs + ' observations') +
-      '</div>';
-    }
-    let cfgHtml;
-    if (cfg) {
-      const rows = [];
-      const kv = (k, v) => rows.push('<div class="ad-cfg-k">' + esc(k) + '</div><div class="ad-cfg-v">' + v + '</div>');
-      // memory on/off, highlighted when on.
-      rows.push('<div class="ad-cfg-k">memory</div><div class="ad-cfg-v ' + (cfg.memory ? 'on' : 'off') + '">' + (cfg.memory ? 'on' : 'off') + '</div>');
-      if (cfg.maxBackground) kv('max_background', esc(String(cfg.maxBackground)));
-      if (cfg.idleTimeout) kv('idle_timeout', esc(cfg.idleTimeout));
-      if (cfg.jobTimeout) kv('job_timeout', esc(cfg.jobTimeout));
-      if (cfg.model) kv('model', esc(cfg.model));
-      if (cfg.template) kv('template', esc(cfg.template));
-      const caps = Array.isArray(cfg.capabilities) ? cfg.capabilities : [];
-      if (caps.length) kv('capabilities', caps.map(c => '<span class="ad-cfg-cap">' + esc(c) + '</span>').join(''));
-      cfgHtml = '<div class="ad-cfg">' +
-        '<div class="ad-cfg-grid">' + rows.join('') + '</div>' +
-        '<div class="ad-cfg-note">pool knobs apply to managed instances/temp workers</div>' +
-        memLine +
-      '</div>';
-    } else {
-      cfgHtml = '<div class="ad-cfg">' +
-        '<div class="ad-nocfg">' + (status === 'loading' ? 'loading…' : 'no config entry') + '</div>' +
-        memLine +
-      '</div>';
-    }
-
-    const badges = [];
-    if (model) badges.push('<span class="ad-badge">' + esc(model) + '</span>');
-    if (policy) badges.push('<span class="ad-badge">policy · ' + esc(policy) + '</span>');
-    if (status === 'loading') badges.push('<span class="ad-badge">loading…</span>');
-    if (status === 'error') badges.push('<span class="ad-badge">fetch failed</span>');
-
-    const parts = [
-      '<div class="ad-head">',
-      '  <div class="ad-hrow">',
-      '    <span class="ad-dot" style="background:' + healthCol + ';box-shadow:0 0 10px ' + healthCol + (running ? ';animation:dotpulse 1.4s ease-in-out infinite' : '') + '"></span>',
-      '    <div style="flex:1;min-width:0">',
-      '      <div class="ad-name">' + esc(name || '—') + '</div>',
-      (subParts.length ? '      <div class="ad-sub">' + subParts.join('') + '</div>' : ''),
-      '    </div>',
-      '    <button class="ad-close" title="close">✕</button>',
-      '  </div>',
-      (badges.length ? '  <div class="ad-badges">' + badges.join('') + '</div>' : ''),
-      '</div>',
-      '<div class="ad-body">',
-      '  <div class="ad-stats">',
-      '    ' + this._agentStatCell('jobs', pick('jobCount') || 0, '#c8cce6'),
-      '    ' + this._agentStatCell('running', pick('runningCount') || 0, running ? '#7aa2f7' : '#5a6088', running),
-      '    ' + this._agentStatCell('ok', pick('succeededCount') || 0, '#9ece6a'),
-      '    ' + this._agentStatCell('failed', pick('failedCount') || 0, (pick('failedCount') || 0) > 0 ? '#f7768e' : '#5a6088'),
-      '  </div>',
-      '  <div class="ad-sec">Config</div>',
-      '  ' + cfgHtml,
-      '  <div class="ad-sec">Template</div>',
-      '  ' + tmplHtml,
-      '  <div class="ad-sec">Version history</div>',
-      '  ' + versHtml,
-      '</div>',
-      '<div class="ad-foot"><button class="ad-viewjobs">View jobs →</button></div>'
-    ];
-    el.innerHTML = parts.join('\n');
-    const closeBtn = el.querySelector('.ad-close');
-    if (closeBtn) closeBtn.addEventListener('click', () => this.closeAgentsDetail());
-    const vj = el.querySelector('.ad-viewjobs');
-    if (vj) vj.addEventListener('click', () => this.showJobs(name));
-    // Prompt viewers: each .ad-prompt box has a toggle (show/hide its <pre>) and, on
-    // the template card, a copy button. The panel rebuilds on every open so <pre>
-    // starts [hidden] — re-open always resets to collapsed. Independent toggles.
-    el.querySelectorAll('.ad-prompt').forEach((box) => {
-      const tog = box.querySelector('.ad-prompt-toggle');
-      const view = box.querySelector('.ad-prompt-view');
-      const chev = box.querySelector('.ad-prompt-chev');
-      if (tog && view) tog.addEventListener('click', () => {
-        const willOpen = view.hasAttribute('hidden');
-        view.toggleAttribute('hidden');
-        if (chev) chev.textContent = willOpen ? '▾' : '▸';
-      });
-      const copyBtn = box.querySelector('.gm-copy');
-      if (copyBtn && view) copyBtn.addEventListener('click', (ev) => {
-        ev.stopPropagation();
-        this._gmCopyChip(copyBtn, view.textContent);
-      });
-    });
-    // Diff viewers: independent of the prompt toggles and collapsed by default. The diff
-    // body is computed LAZILY on first expand (never during render) and cached on the
-    // panel for the open's lifetime; a re-open rebuilds the panel and resets the cache,
-    // so every open starts collapsed.
-    el.querySelectorAll('.ad-diff').forEach((box) => {
-      const idx = +box.getAttribute('data-diff-idx');
-      const tog = box.querySelector('.ad-diff-toggle');
-      const view = box.querySelector('.ad-diff-view');
-      const chev = box.querySelector('.ad-diff-chev');
-      if (!tog || !view) return;
-      tog.addEventListener('click', () => {
-        const willOpen = view.hasAttribute('hidden');
-        if (willOpen && !view.hasAttribute('data-filled')) {
-          view.innerHTML = this._diffHtmlForVersion(idx);
-          view.setAttribute('data-filled', '1');
-        }
-        view.toggleAttribute('hidden');
-        if (chev) chev.textContent = willOpen ? '▾' : '▸';
-      });
-    });
   }
 
   // ============================================================
