@@ -749,6 +749,7 @@ class Component extends DCLogic {
     if (v === 'health') {
       const root = this.ensureHealthDom();
       root.style.display = 'block';
+      this._hlOverride = null; // always land on live state (drop any lingering all-clear preview)
       this.startHealthPoll();
       this.fetchHealth(false);
     } else {
@@ -3263,52 +3264,55 @@ class Component extends DCLogic {
     const st = document.createElement('style');
     st.textContent = [
       "#health-root{font-family:Inter,system-ui,sans-serif;color:#c8cce6}",
-      "#health-root .hl-head{display:flex;align-items:baseline;gap:14px;padding:18px 24px 6px}",
-      "#health-root .hl-title{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:20px;color:#eef0ff;letter-spacing:-0.02em}",
-      "#health-root .hl-title .hl-tdot{color:#7aa2f7;margin-left:1px}",
-      "#health-root .hl-updated{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#5a6088}",
-      "#health-root .hl-hero{margin:8px 24px 4px;padding:16px 18px;background-color:#0d0f1c;border:1px solid rgba(160,168,220,0.1);border-radius:13px;display:flex;align-items:center;gap:14px}",
-      "#health-root .hl-bigdot{width:16px;height:16px;border-radius:50%;flex:none}",
-      "#health-root .hl-htext{font-family:'JetBrains Mono',monospace;font-size:14px;color:#eef0ff}",
-      "#health-root .hl-hmut{color:#7f86ad}",
-      "#health-root .hl-upd{margin-left:auto;display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:9px;font-family:'JetBrains Mono',monospace;font-size:11.5px;font-weight:600;color:#e0af68;background:rgba(224,175,104,0.12);border:1px solid rgba(224,175,104,0.34);text-decoration:none;white-space:nowrap}",
+      "#health-root .hl-body{max-width:1080px;margin:0 auto;padding:24px 28px 40px;display:flex;flex-direction:column;gap:20px}",
+      "#health-root .hl-banner{display:flex;align-items:center;gap:16px;padding:18px 22px;border-radius:13px}",
+      "#health-root .hl-bnicon{width:44px;height:44px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex:none;font-size:20px}",
+      "#health-root .hl-bntext{flex:1;min-width:0}",
+      "#health-root .hl-bntitle{font-size:16px;font-weight:600;color:#eef0ff}",
+      "#health-root .hl-bnsub{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#868db5;margin-top:3px}",
+      "#health-root .hl-bnright{display:flex;flex-direction:column;align-items:flex-end;gap:7px;flex:none}",
+      "#health-root .hl-toggle{background:rgba(160,168,220,0.06);border:1px solid rgba(160,168,220,0.14);border-radius:8px;color:#868db5;font-size:11.5px;padding:7px 12px;cursor:pointer;font-family:Inter,system-ui,sans-serif;white-space:nowrap}",
+      "#health-root .hl-toggle:hover{border-color:rgba(160,168,220,0.3);color:#a8aecf}",
+      "#health-root a.hl-upd,#health-root span.hl-upd{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:9px;font-family:'JetBrains Mono',monospace;font-size:11.5px;font-weight:600;color:#e0af68;background:rgba(224,175,104,0.12);border:1px solid rgba(224,175,104,0.34);text-decoration:none;white-space:nowrap}",
       "#health-root a.hl-upd:hover{border-color:rgba(224,175,104,0.6)}",
-      "#health-root .hl-uptodate{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:11px;color:#5a6088;white-space:nowrap}",
-      "#health-root .hl-section{margin:16px 24px 0}",
-      "#health-root .hl-h{font-family:'JetBrains Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:0.13em;color:#868db5;font-weight:600;margin-bottom:10px}",
-      "#health-root .hl-chips{display:flex;flex-wrap:wrap;gap:8px}",
-      "#health-root .hl-chip{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border-radius:9px;font-family:'JetBrains Mono',monospace;font-size:12px;background-color:#0d0f1c;border:1px solid rgba(160,168,220,0.1)}",
-      "#health-root .hl-cdot{width:8px;height:8px;border-radius:50%;flex:none}",
-      "#health-root .hl-chip b{font-weight:600}",
-      "#health-root .hl-list{display:flex;flex-direction:column;gap:8px}",
-      "#health-root .hl-row{display:flex;align-items:flex-start;gap:11px;padding:11px 14px;background-color:#0d0f1c;border:1px solid rgba(160,168,220,0.09);border-radius:11px;cursor:pointer;transition:border-color .14s ease}",
-      "#health-root .hl-row:hover{border-color:rgba(125,207,255,0.28)}",
-      "#health-root .hl-dot{width:9px;height:9px;border-radius:50%;flex:none;margin-top:4px}",
-      "#health-root .hl-rmain{flex:1;min-width:0}",
-      "#health-root .hl-rtitle{font-size:13px;font-weight:600;color:#eef0ff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
-      "#health-root .hl-rmeta{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#7f86ad;margin-top:3px;display:flex;flex-wrap:wrap;gap:8px}",
-      "#health-root .hl-reason{font-family:'JetBrains Mono',monospace;font-size:11px;color:#e0af68;margin-top:6px;line-height:1.45;white-space:pre-wrap;word-break:break-word}",
+      "#health-root .hl-vitals{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}",
+      "#health-root .hl-tile{display:flex;flex-direction:column;gap:4px;padding:18px 20px;background:linear-gradient(180deg,#15182b,#111325);border:1px solid rgba(160,168,220,0.12);border-radius:12px}",
+      "#health-root .hl-tlabel{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:0.1em;color:#868db5;text-transform:uppercase}",
+      "#health-root .hl-tval{font-family:'JetBrains Mono',monospace;font-size:38px;font-weight:600;line-height:1;margin-top:2px}",
+      "#health-root .hl-tsub{font-size:11.5px;color:#5a6088}",
+      "#health-root .hl-second{font-family:'JetBrains Mono',monospace;font-size:11px;color:#5a6088;display:flex;flex-wrap:wrap;gap:2px 4px;align-items:center}",
+      "#health-root .hl-second b{color:#7f86ad;font-weight:600}",
+      "#health-root .hl-h{font-family:'JetBrains Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:0.14em;color:#868db5;font-weight:600;display:flex;align-items:center;gap:8px;margin-bottom:11px}",
+      "#health-root .hl-hc{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0;color:#5a6088;font-weight:400;text-transform:none}",
+      "#health-root .hl-hsub{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0;color:#5a6088;font-weight:400;text-transform:none}",
+      "#health-root .hl-list{display:flex;flex-direction:column;gap:7px}",
+      "#health-root .hl-srow{background:linear-gradient(180deg,#15182b,#111325);border:1px solid rgba(160,168,220,0.1);border-radius:11px;overflow:hidden;transition:border-color .14s ease}",
+      "#health-root .hl-srow:hover{border-color:rgba(125,207,255,0.28)}",
+      "#health-root .hl-sline{display:flex;align-items:center;gap:12px;padding:12px 16px;cursor:pointer}",
+      "#health-root .hl-dot{width:9px;height:9px;border-radius:50%;flex:none}",
+      "#health-root .hl-stitle{font-size:13.5px;font-weight:600;color:#eef0ff;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
+      "#health-root .hl-agchip{font-family:'JetBrains Mono',monospace;font-size:11px;color:#bb9af7;background:rgba(187,154,247,0.1);border:none;border-radius:5px;padding:2px 7px;cursor:pointer;flex:none}",
+      "#health-root .hl-agchip:hover{background:rgba(187,154,247,0.2)}",
+      "#health-root .hl-srepo{font-family:'JetBrains Mono',monospace;font-size:11px;color:#5a6088;flex:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px}",
+      "#health-root .hl-grow{flex:1;min-width:8px}",
+      "#health-root .hl-sage{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#e0af68;flex:none}",
+      "#health-root .hl-why{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;color:#7aa2f7;background:none;border:none;cursor:pointer;flex:none;font-family:Inter,system-ui,sans-serif;padding:0}",
+      "#health-root .hl-why:hover{color:#9db4fb}",
+      "#health-root .hl-chev{font-size:9px}",
+      "#health-root .hl-whybody{padding:12px 16px 14px 44px;font-size:12.5px;color:#a8aecf;line-height:1.55;border-top:1px solid rgba(160,168,220,0.06);white-space:pre-wrap;word-break:break-word}",
+      "#health-root .hl-lrow{display:flex;align-items:center;gap:12px;padding:12px 16px;background:linear-gradient(180deg,#15182b,#111325);border:1px solid rgba(160,168,220,0.1);border-radius:11px;overflow:hidden}",
+      "#health-root .hl-lname{font-family:'JetBrains Mono',monospace;font-size:12.5px;color:#eef0ff;flex:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:340px}",
+      "#health-root .hl-lkind{color:#868db5}",
+      "#health-root .hl-lheld{font-size:11.5px;color:#5a6088;flex:none;white-space:nowrap}",
+      "#health-root .hl-esc{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:0.05em;text-transform:uppercase;border-radius:5px;padding:2px 7px;flex:none}",
+      "#health-root .hl-lage{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:600;flex:none}",
+      "#health-root .hl-cmd{display:flex;align-items:center;gap:8px;padding:6px 8px 6px 11px;background:#0a0b16;border:1px solid rgba(160,168,220,0.14);border-radius:8px;flex:0 1 auto;min-width:96px;max-width:520px;overflow:hidden}",
+      "#health-root .hl-cmd code{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#c5f882;white-space:nowrap;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}",
+      "#health-root .hl-cmd .gm-copy{flex:none}",
+      "#health-root .hl-exppill{display:flex;align-items:center;gap:6px;padding:6px 11px;background:#0a0b16;border:1px solid rgba(160,168,220,0.12);border-radius:8px;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#7f86ad;flex:none}",
       "#health-root .hl-empty{padding:22px 14px;text-align:center;color:#5a6088;font-size:12.5px;background-color:#0b0d18;border:1px dashed rgba(160,168,220,0.12);border-radius:11px}",
       "#health-root .hl-ok{color:#9ece6a}",
-      "#health-root .hl-locks{display:grid;grid-template-columns:1fr 1fr;gap:16px}",
-      "#health-root .hl-lockh{font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:0.1em;color:#5a6088;margin-bottom:6px}",
-      "#health-root .hl-table{width:100%;table-layout:fixed;border-collapse:collapse;font-size:11.5px;background-color:#0d0f1c;border:1px solid rgba(160,168,220,0.09);border-radius:11px;overflow:hidden}",
-      "#health-root .hl-table th{text-align:left;padding:8px 11px;font-family:'JetBrains Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:0.08em;color:#5a6088;font-weight:600;border-bottom:1px solid rgba(160,168,220,0.1);white-space:nowrap}",
-      "#health-root .hl-table td{padding:7px 11px;color:#a8aecf;font-family:'JetBrains Mono',monospace;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-bottom:1px solid rgba(160,168,220,0.05)}",
-      "#health-root .hl-table tbody tr:last-child td{border-bottom:none}",
-      "#health-root .hl-br-repo{width:34%}",
-      "#health-root .hl-br-branch{width:30%}",
-      "#health-root .hl-br-owner{width:22%}",
-      "#health-root .hl-br-age{width:14%}",
-      "#health-root .hl-rl-key{width:40%}",
-      "#health-root .hl-rl-owner{width:24%}",
-      "#health-root .hl-rl-age{width:18%}",
-      "#health-root .hl-rl-exp{width:18%}",
-      "#health-root .hl-tempty{padding:16px 12px;text-align:center;color:#5a6088;font-size:11.5px;font-family:'JetBrains Mono',monospace}",
-      // Mobile: hero wraps, lock tables stack and scroll horizontally (table-layout:fixed
-      // keeps min-widths so columns stay legible), tighter gutters. The chip row already
-      // wraps (.hl-chips flex-wrap:wrap).
-      "@media (max-width:768px){#health-root .hl-hero{flex-wrap:wrap;margin-left:16px;margin-right:16px}#health-root .hl-head{padding-left:16px;padding-right:16px}#health-root .hl-section{margin-left:16px;margin-right:16px}#health-root .hl-locks{grid-template-columns:1fr}#health-root #hl-branchlocks,#health-root #hl-resourcelocks{overflow-x:auto;-webkit-overflow-scrolling:touch}#health-root #hl-branchlocks .hl-table,#health-root #hl-resourcelocks .hl-table{min-width:420px}}"
+      "@media (max-width:768px){#health-root .hl-body{padding:16px 14px 40px}#health-root .hl-banner{flex-wrap:wrap}#health-root .hl-bnright{width:100%;flex-direction:row;justify-content:flex-start;align-items:center}#health-root .hl-vitals{grid-template-columns:1fr 1fr}#health-root .hl-sline{flex-wrap:wrap}#health-root .hl-lrow{flex-wrap:wrap}#health-root .hl-srepo{max-width:120px}#health-root .hl-lname{max-width:200px}#health-root .hl-cmd{width:100%}#health-root .hl-cmd code{white-space:normal;word-break:break-all}}"
     ].join('\n');
     document.head.appendChild(st);
 
@@ -3316,26 +3320,35 @@ class Component extends DCLogic {
     root.id = 'health-root';
     root.style.cssText = 'position:fixed;left:216px;top:54px;right:0;bottom:0;z-index:40;background:#07080f;display:none;overflow-y:auto;font-family:Inter,system-ui,sans-serif;color:#c8cce6';
     root.innerHTML = [
-      '<div class="hl-head"><div class="hl-title">Health<span class="hl-tdot">.</span></div><div class="hl-updated" id="hl-updated"></div></div>',
-      '<div class="hl-hero" id="hl-hero"></div>',
-      '<div class="hl-section"><div class="hl-h">State totals</div><div class="hl-chips" id="hl-totals"></div></div>',
-      '<div class="hl-section"><div class="hl-h">Stuck jobs</div><div id="hl-stuck"></div></div>',
-      '<div class="hl-section"><div class="hl-h">Locks</div><div class="hl-locks"><div><div class="hl-lockh">branch / checkout locks</div><div id="hl-branchlocks"></div></div><div><div class="hl-lockh">resource locks</div><div id="hl-resourcelocks"></div></div></div></div>',
-      '<div class="hl-section" style="padding-bottom:28px"><div class="hl-h">Recent failures</div><div id="hl-failures"></div></div>'
+      '<div class="hl-body">',
+      '<div id="hl-banner"></div>',
+      '<div class="hl-vitals" id="hl-vitals"></div>',
+      '<div class="hl-second" id="hl-second"></div>',
+      '<div id="hl-stuck-sec"><div class="hl-h">STUCK JOBS <span class="hl-hc" id="hl-stuck-c"></span></div><div id="hl-stuck"></div></div>',
+      '<div id="hl-locks-sec"><div class="hl-h">LOCKS <span class="hl-hsub">amber &gt;24h &middot; red &gt;7d</span></div><div id="hl-locks"></div></div>',
+      '</div>' 
     ].join('\n');
     document.body.appendChild(root);
     this._dockOverlay(root); // mobile: left:0 + bottom clears the tab bar
     this._healthRoot = root;
 
-    const wireList = (id) => {
-      const el = root.querySelector('#' + id); if (!el) return;
-      el.addEventListener('click', (e) => {
-        const row = (e.target.closest && e.target.closest('[data-id]')) || null;
-        if (row) this.openHealthDetail(row.getAttribute('data-id'));
-      });
-    };
-    wireList('hl-stuck');
-    wireList('hl-failures');
+    // Delegated click handling for the whole overlay: copy chips, the
+    // preview-all-clear toggle, per-row "why" expanders, agent cross-links, and
+    // stuck-row -> in-place job detail (the last, so a bare row click still opens).
+    root.addEventListener('click', (e) => {
+      const el = (e.target && e.target.closest) ? e.target : (e.target && e.target.parentElement);
+      const q = (sel) => (el && el.closest) ? el.closest(sel) : null;
+      const copy = q('.gm-copy');
+      if (copy) { e.stopPropagation(); this._gmCopyChip(copy); return; }
+      const tog = q('[data-hl-toggle]');
+      if (tog) { e.stopPropagation(); this._hlOverride = this._hlAllClear ? 'live' : 'clear'; this.renderHealth(this._healthData); return; }
+      const why = q('[data-hl-why]');
+      if (why) { e.stopPropagation(); this._hlToggleWhy(why); return; }
+      const ag = q('[data-agent]');
+      if (ag) { e.stopPropagation(); this._hlGotoAgent(ag.getAttribute('data-agent')); return; }
+      const row = q('.hl-srow[data-id]');
+      if (row) this.openHealthDetail(row.getAttribute('data-id'));
+    });
     this._healthKeydown = (e) => { if (e.key === 'Escape' && this.state.view === 'health' && this._healthSelected) this.closeHealthDetail(); };
     document.addEventListener('keydown', this._healthKeydown);
     return root;
@@ -3356,8 +3369,8 @@ class Component extends DCLogic {
       .catch(err => {
         if (isPoll) return; // keep current view on a transient poll failure
         this._healthLoaded = true;
-        const hero = this._healthRoot && this._healthRoot.querySelector('#hl-hero');
-        if (hero) hero.innerHTML = '<span class="hl-bigdot" style="background:#f7768e"></span><span class="hl-htext" style="color:#f7768e">could not load /api/health (' + this._galaxyEsc(err && err.message) + ')</span>';
+        const bn = this._healthRoot && this._healthRoot.querySelector('#hl-banner');
+        if (bn) bn.innerHTML = '<div class="hl-banner" style="border:1px solid rgba(247,118,142,0.3);border-left:3px solid #f7768e"><div class="hl-bnicon" style="background:rgba(247,118,142,0.12);color:#f7768e">!</div><div class="hl-bntext"><div class="hl-bntitle" style="color:#f7768e">could not load /api/health</div><div class="hl-bnsub">' + this._galaxyEsc(err && err.message) + '</div></div></div>';
       });
   }
 
@@ -3367,84 +3380,200 @@ class Component extends DCLogic {
     const esc = (s) => this._galaxyEsc(s);
     const root = this._healthRoot;
     const dm = data.daemon || {};
-    const hero = root.querySelector('#hl-hero');
-    if (hero) {
-      // "· v{version}" — normalize so a store value that already carries a leading
-      // 'v' (e.g. "v0.8.1") is not doubled to "vv0.8.1".
-      const verRaw = dm.version || '';
-      const verHtml = verRaw ? '<span class="hl-hmut"> · ' + esc(/^v/i.test(verRaw) ? verRaw : 'v' + verRaw) + '</span>' : '';
-      // Update badge. Fail-open: render nothing at all when health.update is absent.
-      let updHtml = '';
-      const upd = data.update;
-      if (upd) {
-        if (upd.updateAvailable) {
-          const label = 'update available' + (upd.latest ? ': ' + upd.latest : '');
-          const href = this._galaxySafeUrl(upd.releaseUrl);
-          updHtml = href
-            ? '<a class="hl-upd" href="' + esc(upd.releaseUrl) + '" target="_blank" rel="noopener" title="' + esc(label) + '">↑ ' + esc(label) + ' <span style="color:#c99a4e">↗</span></a>'
-            : '<span class="hl-upd" title="' + esc(label) + '">↑ ' + esc(label) + '</span>';
-        } else {
-          updHtml = '<span class="hl-uptodate">up to date</span>';
-        }
-      }
-      if (dm.running) {
-        hero.innerHTML = '<span class="hl-bigdot" style="background:#9ece6a;box-shadow:0 0 14px rgba(158,206,106,0.55);animation:dotpulse 1.8s ease-in-out infinite"></span>' +
-          '<span class="hl-htext">daemon running' +
-          verHtml +
-          (dm.pid ? '<span class="hl-hmut"> · pid ' + esc(String(dm.pid)) + '</span>' : '') +
-          (dm.startedAt ? '<span class="hl-hmut"> · up </span><span id="hl-uptime" data-started="' + dm.startedAt + '"></span>' : '') +
-          '</span>' + updHtml;
-      } else {
-        hero.innerHTML = '<span class="hl-bigdot" style="background:#f7768e;box-shadow:0 0 14px rgba(247,118,142,0.55)"></span>' +
-          '<span class="hl-htext" style="color:#f7768e">daemon stopped' + verHtml + '</span>' + updHtml;
-      }
-    }
     const t = data.totals || {};
-    const TOT = [['queued', '#5a6088'], ['running', '#7aa2f7'], ['blocked', '#e0af68'], ['succeeded', '#9ece6a'], ['failed', '#f7768e'], ['cancelled', '#5a6088']];
-    const tel = root.querySelector('#hl-totals');
-    if (tel) tel.innerHTML = TOT.map(g => '<span class="hl-chip"><span class="hl-cdot" style="background:' + g[1] + '"></span>' + g[0] + ' <b style="color:' + g[1] + '">' + (t[g[0]] || 0) + '</b></span>').join('');
     const stuck = Array.isArray(data.stuck) ? data.stuck : [];
-    const sel = root.querySelector('#hl-stuck');
-    if (sel) sel.innerHTML = stuck.length ? '<div class="hl-list">' + stuck.map(j => this._healthJobRow(j, true)).join('') + '</div>' : '<div class="hl-empty">nothing stuck <span class="hl-ok">✓</span></div>';
-    const bl = Array.isArray(data.locks) ? data.locks : [];
-    const blEl = root.querySelector('#hl-branchlocks');
-    if (blEl) blEl.innerHTML = bl.length
-      ? '<table class="hl-table"><thead><tr><th class="hl-br-repo">repo</th><th class="hl-br-branch">branch</th><th class="hl-br-owner">owner</th><th class="hl-br-age">age</th></tr></thead><tbody>' +
-        bl.map(l => '<tr><td title="' + esc(l.repo) + '">' + esc(l.repo || '—') + '</td><td title="' + esc(l.branch) + '">' + esc(l.branch || '—') + '</td><td title="' + esc(l.owner) + '">' + esc(l.owner || '—') + '</td><td><span class="hl-age" data-since="' + (l.acquiredAt || 0) + '">—</span></td></tr>').join('') +
-        '</tbody></table>'
-      : '<div class="hl-tempty">no branch locks</div>';
-    const rl = Array.isArray(data.resourceLocks) ? data.resourceLocks : [];
-    const rlEl = root.querySelector('#hl-resourcelocks');
-    if (rlEl) rlEl.innerHTML = rl.length
-      ? '<table class="hl-table"><thead><tr><th class="hl-rl-key">key</th><th class="hl-rl-owner">owner</th><th class="hl-rl-age">age</th><th class="hl-rl-exp">expires</th></tr></thead><tbody>' +
-        rl.map(l => '<tr><td title="' + esc(l.key) + '">' + esc(l.key || '—') + '</td><td title="' + esc(l.owner) + '">' + esc(l.owner || '—') + '</td><td><span class="hl-age" data-since="' + (l.acquiredAt || 0) + '">—</span></td><td><span class="hl-exp" data-exp="' + (l.expiresAt || 0) + '">—</span></td></tr>').join('') +
-        '</tbody></table>'
-      : '<div class="hl-tempty">no resource locks</div>';
-    const rf = Array.isArray(data.recentFailures) ? data.recentFailures : [];
-    const rfEl = root.querySelector('#hl-failures');
-    if (rfEl) rfEl.innerHTML = rf.length ? '<div class="hl-list">' + rf.map(j => this._healthJobRow(j, false)).join('') + '</div>' : '<div class="hl-empty">no recent failures <span class="hl-ok">✓</span></div>';
-    const up = root.querySelector('#hl-updated'); if (up) up.textContent = 'updated ' + new Date().toLocaleTimeString();
+    const branchLocks = Array.isArray(data.locks) ? data.locks : [];
+    const resLocks = Array.isArray(data.resourceLocks) ? data.resourceLocks : [];
+    const failures = Array.isArray(data.recentFailures) ? data.recentFailures : [];
+    const now = Date.now();
+    const DAY = 86400000;
+
+    // Unified lock model: branch/checkout locks (carry the real release command)
+    // plus non-branch resource locks (TTL'd runtime sessions etc. — shown with an
+    // expiry countdown instead of a release command). Aged past 24h -> AGING, 7d -> CRITICAL.
+    const allLocks = branchLocks.map(l => ({
+      kind: 'branch', name: (l.branch || '?') + ' @ ' + (l.repo || '?'), owner: l.owner || '—',
+      since: l.acquiredAt || 0, exp: 0,
+      cmd: 'gitmoot lock release ' + (l.repo || '') + ' ' + (l.branch || '') + ' --owner ' + (l.owner || '')
+    })).concat(resLocks.map(l => {
+      const key = l.key || ''; const ci = key.indexOf(':');
+      return { kind: ci > 0 ? key.slice(0, ci) : 'lock', name: ci > 0 ? key.slice(ci + 1) : (key || '?'),
+        owner: l.owner || '—', since: l.acquiredAt || 0, exp: l.expiresAt || 0, cmd: '' };
+    }));
+    const agingLocks = allLocks.filter(l => l.since > 0 && (now - l.since) > DAY);
+
+    // Vitals (computed client-side).
+    const activeN = t.running || 0;
+    const blockedStuckN = (t.blocked || 0) + stuck.length;
+    const lockN = allLocks.length;
+    const oldestLock = allLocks.reduce((m, l) => (l.since > 0 && (m === 0 || l.since < m)) ? l.since : m, 0);
+    const oldestAge = oldestLock > 0 ? (now - oldestLock) : 0;
+    const totalJobs = (t.queued || 0) + (t.running || 0) + (t.blocked || 0) + (t.succeeded || 0) + (t.failed || 0) + (t.cancelled || 0);
+    const failN = failures.length;
+    const failRate = totalJobs > 0 ? ((t.failed || 0) / totalJobs) * 100 : 0;
+    const failTone = failRate >= 10 ? '#f7768e' : failRate >= 3 ? '#e0af68' : '#9ece6a';
+    const lockTone = lockN === 0 ? '#9ece6a' : oldestAge > 7 * DAY ? '#f7768e' : oldestAge > DAY ? '#e0af68' : '#7aa2f7';
+
+    // State: down / all-clear / attention, with a manual preview override.
+    const running = !!dm.running;
+    const realAllClear = running && stuck.length === 0 && agingLocks.length === 0 && failRate < 3;
+    const ov = this._hlOverride;
+    const allClear = running && (ov === 'clear' ? true : ov === 'live' ? false : realAllClear);
+    this._hlAllClear = allClear;
+
+    const bn = root.querySelector('#hl-banner');
+    if (bn) bn.innerHTML = this._hlBannerHtml(dm, {
+      running: running, allClear: allClear, update: data.update,
+      blocked: t.blocked || 0, stuckWorkers: stuck.filter(s => s.state !== 'blocked').length,
+      aging: agingLocks.length, failures: failN, count: stuck.length + agingLocks.length
+    });
+
+    const vitals = [
+      { label: 'ACTIVE', val: activeN, sub: 'jobs running', tone: '#7aa2f7' },
+      { label: 'BLOCKED + STUCK', val: blockedStuckN, sub: blockedStuckN > 0 ? 'need triage' : 'all moving', tone: blockedStuckN > 0 ? '#e0af68' : '#9ece6a' },
+      { label: 'LOCKS', val: lockN, sub: lockN > 0 ? ('oldest ' + this._hlAgeShort(oldestAge)) : 'none held', tone: lockTone },
+      { label: 'FAILURES · 24h', val: failN, sub: failRate.toFixed(1) + '% overall rate', tone: failN === 0 ? '#9ece6a' : failTone }
+    ];
+    const vel = root.querySelector('#hl-vitals');
+    if (vel) vel.innerHTML = vitals.map(v => '<div class="hl-tile" style="border-left:3px solid ' + v.tone + '"><span class="hl-tlabel">' + esc(v.label) + '</span><span class="hl-tval" style="color:' + v.tone + '">' + esc(String(v.val)) + '</span><span class="hl-tsub">' + esc(v.sub) + '</span></div>').join('');
+
+    // De-emphasized secondary totals (succeeded / cancelled / queued / running + version).
+    const sec = root.querySelector('#hl-second');
+    if (sec) {
+      const verRaw = dm.version || '';
+      const ver = verRaw ? (/^v/i.test(verRaw) ? verRaw : 'v' + verRaw) : '';
+      const parts = [];
+      if (ver) parts.push(esc(ver));
+      parts.push('<b>' + (t.succeeded || 0) + '</b> succeeded');
+      parts.push('<b>' + (t.cancelled || 0) + '</b> cancelled');
+      parts.push('<b>' + (t.queued || 0) + '</b> queued');
+      parts.push('<b>' + (t.running || 0) + '</b> running');
+      sec.innerHTML = parts.join('<span style="color:#3a3f5a">&nbsp;·&nbsp;</span>');
+    }
+
+    // Detail sections collapse in the all-clear state.
+    const stuckSec = root.querySelector('#hl-stuck-sec');
+    const locksSec = root.querySelector('#hl-locks-sec');
+    if (stuckSec) stuckSec.style.display = allClear ? 'none' : 'block';
+    if (locksSec) locksSec.style.display = allClear ? 'none' : 'block';
+
+    const sc = root.querySelector('#hl-stuck-c'); if (sc) sc.textContent = '(' + stuck.length + ')';
+    const sEl = root.querySelector('#hl-stuck');
+    if (sEl) sEl.innerHTML = stuck.length ? '<div class="hl-list">' + stuck.map(j => this._hlStuckRow(j)).join('') + '</div>' : '<div class="hl-empty">nothing stuck <span class="hl-ok">✓</span></div>';
+    const lEl = root.querySelector('#hl-locks');
+    if (lEl) lEl.innerHTML = allLocks.length
+      ? '<div class="hl-list">' + allLocks.map(l => { const age = l.since > 0 ? (now - l.since) : 0; const tone = age > 7 * DAY ? '#f7768e' : age > DAY ? '#e0af68' : '#5a6088'; const lvl = age > 7 * DAY ? 'critical' : age > DAY ? 'aging' : ''; return this._hlLockRow(l, tone, lvl); }).join('') + '</div>'
+      : '<div class="hl-empty">no locks held <span class="hl-ok">✓</span></div>';
+
     this._updateHealthLiveCells();
   }
 
-  _healthJobRow(j, isStuck) {
+  // "11d" / "3h" / "8m" — a compact age label from a duration in ms.
+  _hlAgeShort(ms) {
+    if (!ms || ms <= 0) return '0m';
+    let s = Math.floor(ms / 1000);
+    const d = Math.floor(s / 86400); if (d > 0) return d + 'd';
+    const h = Math.floor(s / 3600); if (h > 0) return h + 'h';
+    return Math.max(1, Math.floor(s / 60)) + 'm';
+  }
+
+  // #rrggbb -> rgba(r,g,b,a) for chip tints (avoids color-mix for older engines).
+  _hlTint(hex, a) {
+    const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(String(hex));
+    if (!m) return 'rgba(160,168,220,' + a + ')';
+    return 'rgba(' + parseInt(m[1], 16) + ',' + parseInt(m[2], 16) + ',' + parseInt(m[3], 16) + ',' + a + ')';
+  }
+
+  _hlBannerHtml(dm, s) {
+    const esc = (x) => this._galaxyEsc(x);
+    const running = !!s.running;
+    const upSpan = (running && dm.startedAt > 0) ? '<span id="hl-uptime" data-started="' + dm.startedAt + '"></span>' : '';
+    const upSeg = upSpan ? ('up ' + upSpan) : 'running';
+    const verSeg = dm.version ? (' · ' + esc(/^v/i.test(dm.version) ? dm.version : 'v' + dm.version)) : '';
+    // Update badge (fail-open: nothing when health.update is absent / up to date).
+    let updHtml = '';
+    const upd = s.update;
+    if (upd && upd.updateAvailable) {
+      const label = '↑ update' + (upd.latest ? ' ' + upd.latest : ' available');
+      const href = this._galaxySafeUrl(upd.releaseUrl);
+      updHtml = href
+        ? '<a class="hl-upd" href="' + esc(upd.releaseUrl) + '" target="_blank" rel="noopener" title="update available">' + esc(label) + ' <span style="color:#c99a4e">↗</span></a>'
+        : '<span class="hl-upd" title="update available">' + esc(label) + '</span>';
+    }
+    if (!running) {
+      return '<div class="hl-banner" style="background:linear-gradient(180deg,#1b1420,#111325);border:1px solid rgba(247,118,142,0.3);border-left:3px solid #f7768e">' +
+        '<div class="hl-bnicon" style="background:rgba(247,118,142,0.12);color:#f7768e">✕</div>' +
+        '<div class="hl-bntext"><div class="hl-bntitle">Daemon stopped — orchestration paused</div>' +
+        '<div class="hl-bnsub">no heartbeat · workers idle' + verSeg + '</div></div>' +
+        (updHtml ? '<div class="hl-bnright">' + updHtml + '</div>' : '') + '</div>';
+    }
+    if (s.allClear) {
+      return '<div class="hl-banner" style="background:linear-gradient(180deg,rgba(158,206,106,0.08),#111325);border:1px solid rgba(158,206,106,0.3);border-left:3px solid #9ece6a">' +
+        '<div class="hl-bnicon" style="background:rgba(158,206,106,0.14);color:#9ece6a">✓</div>' +
+        '<div class="hl-bntext"><div class="hl-bntitle">All clear — daemon healthy</div>' +
+        '<div class="hl-bnsub">' + upSeg + ' · no stuck jobs · no aging locks · failures within threshold</div></div>' +
+        '<div class="hl-bnright">' + updHtml + '<button class="hl-toggle" data-hl-toggle="1" type="button">view live state ▸</button></div></div>';
+    }
+    const n = s.count;
+    const noun = n === 1 ? 'item needs' : 'items need';
+    const sub = upSeg + ' · ' + s.blocked + ' blocked · ' + s.stuckWorkers + ' stuck · ' + s.aging + ' locks aging · ' + s.failures + ' failures / 24h';
+    return '<div class="hl-banner" style="background:linear-gradient(180deg,#15182b,#111325);border:1px solid rgba(224,175,104,0.28);border-left:3px solid #e0af68">' +
+      '<div class="hl-bnicon" style="background:rgba(224,175,104,0.12);color:#e0af68">⚠</div>' +
+      '<div class="hl-bntext"><div class="hl-bntitle">Daemon healthy — ' + n + ' ' + noun + ' your attention</div>' +
+      '<div class="hl-bnsub">' + sub + '</div></div>' +
+      '<div class="hl-bnright">' + updHtml + '<button class="hl-toggle" data-hl-toggle="1" type="button">preview all-clear ▸</button></div></div>';
+  }
+
+  // Compact one-line stuck-job row: dot . bold title . agent chip . repo . age . why >.
+  // The row (minus the agent chip / why button) opens the in-place job detail.
+  _hlStuckRow(j) {
     const esc = (s) => this._galaxyEsc(s);
-    const state = j.state || (isStuck ? 'blocked' : 'failed');
+    const state = j.state || 'blocked';
     const col = this._galaxyStateColor(state);
-    const since = isStuck ? (j.since || 0) : (j.at || 0);
-    const meta = [];
-    if (j.agent) meta.push('<span>' + esc(j.agent) + '</span>');
-    if (j.repo) meta.push('<span>' + esc(j.repo) + '</span>');
-    meta.push('<span style="color:' + col + '">' + esc(state) + '</span>');
-    meta.push('<span class="hl-age" data-since="' + since + '">—</span>');
-    return '<div class="hl-row" data-id="' + esc(j.id) + '">' +
-      '<span class="hl-dot" style="background:' + col + (state === 'running' ? ';animation:dotpulse 1.4s ease-in-out infinite' : '') + '"></span>' +
-      '<div class="hl-rmain">' +
-        '<div class="hl-rtitle">' + esc(j.title || j.id) + '</div>' +
-        '<div class="hl-rmeta">' + meta.join('') + '</div>' +
-        ((isStuck && j.reason) ? '<div class="hl-reason">' + esc(j.reason) + '</div>' : '') +
-      '</div>' +
-    '</div>';
+    const dot = '<span class="hl-dot" style="background:' + col + ';box-shadow:0 0 8px ' + col + (state === 'running' ? ';animation:dotpulse 1.4s ease-in-out infinite' : '') + '"></span>';
+    const ag = j.agent ? '<button class="hl-agchip" data-agent="' + esc(j.agent) + '" type="button" title="View ' + esc(j.agent) + '">' + esc(j.agent) + '</button>' : '';
+    const repo = j.repo ? '<span class="hl-srepo">' + esc(j.repo) + '</span>' : '';
+    const why = j.reason ? '<button class="hl-why" data-hl-why="1" type="button">why <span class="hl-chev">▸</span></button>' : '';
+    const body = j.reason ? '<div class="hl-whybody" hidden>' + esc(j.reason) + '</div>' : '';
+    return '<div class="hl-srow" data-id="' + esc(j.id) + '">' +
+      '<div class="hl-sline">' + dot +
+        '<span class="hl-stitle">' + esc(j.title || j.id) + '</span>' + ag + repo +
+        '<span class="hl-grow"></span>' +
+        '<span class="hl-sage hl-age" data-since="' + (j.since || 0) + '">—</span>' + why +
+      '</div>' + body + '</div>';
+  }
+
+  // Lock row: dot . kind.name . held by X . AGING/CRITICAL chip . age . release cmd
+  // (branch locks) or an expiry countdown (TTL'd resource locks).
+  _hlLockRow(l, tone, lvl) {
+    const esc = (s) => this._galaxyEsc(s);
+    const dot = '<span class="hl-dot" style="background:' + tone + ';box-shadow:0 0 8px ' + tone + '"></span>';
+    const chip = lvl ? '<span class="hl-esc" style="color:' + tone + ';background:' + this._hlTint(tone, 0.12) + ';border:1px solid ' + this._hlTint(tone, 0.28) + '">' + lvl + '</span>' : '';
+    const age = '<span class="hl-lage hl-age" data-since="' + (l.since || 0) + '" style="color:' + tone + '">—</span>';
+    const tail = l.cmd
+      ? '<div class="hl-cmd"><code>' + esc(l.cmd) + '</code><button class="gm-copy" data-cmd="' + esc(l.cmd) + '" type="button">copy</button></div>'
+      : '<div class="hl-exppill">ttl <span class="hl-exp" data-exp="' + (l.exp || 0) + '">—</span></div>';
+    return '<div class="hl-lrow">' + dot +
+      '<span class="hl-lname"><span class="hl-lkind">' + esc(l.kind) + '</span> · ' + esc(l.name) + '</span>' +
+      '<span class="hl-lheld">held by ' + esc(l.owner) + '</span>' + chip +
+      '<span class="hl-grow"></span>' + age + tail + '</div>';
+  }
+
+  // Toggle a stuck row's "why" reason body + chevron.
+  _hlToggleWhy(btn) {
+    const row = btn.closest('.hl-srow'); if (!row) return;
+    const body = row.querySelector('.hl-whybody'); if (!body) return;
+    const chev = btn.querySelector('.hl-chev');
+    if (body.hasAttribute('hidden')) { body.removeAttribute('hidden'); if (chev) chev.textContent = '▾'; }
+    else { body.setAttribute('hidden', ''); if (chev) chev.textContent = '▸'; }
+  }
+
+  // Navigate to /agents/<name> and open that agent's detail panel (house cross-link law).
+  _hlGotoAgent(name) {
+    if (!name) return;
+    this._pendingAgentDetail = name;
+    this.setState({ view: 'agents' });
+    this._navRoute('agents', { agent: name });
   }
 
   _updateHealthLiveCells() {
