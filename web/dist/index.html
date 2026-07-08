@@ -26,30 +26,44 @@
  ::-webkit-scrollbar{width:9px;height:9px}
  ::-webkit-scrollbar-thumb{background:rgba(160,168,220,0.16);border-radius:6px}
  ::-webkit-scrollbar-track{background:transparent}
+ .gm-copy{display:inline-flex;align-items:center;gap:5px;border:none;border-radius:6px;font-family:'JetBrains Mono',monospace;font-size:10.5px;font-weight:600;line-height:1;cursor:pointer;padding:4px 9px;transition:background .15s ease,color .15s ease;background:rgba(160,168,220,0.1);color:#a8aecf}
+ .gm-copy:hover{background:rgba(160,168,220,0.16);color:#c7c9e5}
+ .gm-copy.done{background:rgba(158,206,106,0.16);color:#c5f882}
 </style>
 </helmet>
-<div style="display:flex;height:100vh;width:100vw;overflow:hidden;background:#07080f;color:#a8aecf;font-family:Inter,system-ui,sans-serif;font-size:14px">
+<div style="display:flex;flex-direction:column;height:100vh;width:100vw;overflow:hidden;background:#07080f;color:#a8aecf;font-family:Inter,system-ui,sans-serif;font-size:14px">
+
+  <header style="height:54px;flex:none;display:flex;align-items:center;gap:14px;padding:0 18px;border-bottom:1px solid rgba(160,168,220,0.08);background:rgba(10,11,22,0.62);backdrop-filter:blur(10px);position:relative;z-index:50">
+    <div style="display:flex;align-items:center;gap:9px;flex:none">
+      <img src="/logo.svg" width="22" height="22" alt="gitmoot" style="display:block;box-shadow:0 0 20px rgba(158,206,106,0.18);border-radius:6px">
+      <span style="font-family:'Space Grotesk';font-weight:700;font-size:18px;color:#eef0ff;letter-spacing:-0.02em">gitmoot<span style="color:#9ece6a">.</span></span>
+    </div>
+    <div style="width:1px;height:20px;background:rgba(160,168,220,0.14);flex:none"></div>
+    <div style="display:flex;align-items:center;gap:9px;min-width:0">
+      <span style="{{ crumbRepoStyle }}">{{ crumbRepo }}</span>
+      <span style="{{ crumbSepStyle }}">›</span>
+      <span style="{{ crumbDotStyle }}"></span>
+      <span style="font-family:'JetBrains Mono';font-size:12.5px;color:#eef0ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ crumbTitle }}</span>
+    </div>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:14px;flex:none">
+      <span style="{{ daemonTextStyle }}">{{ daemonText }}</span>
+      <div style="{{ liveBadgeStyle }}">
+        <span style="{{ liveDotStyle }}"></span>
+        <span style="{{ liveTextStyle }}">{{ liveWord }}</span>
+      </div>
+    </div>
+  </header>
+
+  <div style="display:flex;flex:1;min-height:0;width:100%;overflow:hidden">
 
   <aside style="{{ railStyle }}">
-    <div style="display:flex;align-items:center;gap:9px;padding:2px 8px 18px">
-      <img src="/logo.svg" width="26" height="26" alt="gitmoot" style="display:block;flex:none;box-shadow:0 0 20px rgba(158,206,106,0.18);border-radius:7px">
-      <span style="font-family:'Space Grotesk';font-weight:700;font-size:16px;color:#eef0ff;letter-spacing:-0.02em">gitmoot</span>
-    </div>
-    <div style="font-family:'JetBrains Mono';font-size:9.5px;letter-spacing:0.14em;color:#5a6088;padding:0 10px 8px">ORCHESTRATION</div>
 
+    <div style="font-family:'JetBrains Mono';font-size:9.5px;letter-spacing:0.15em;color:#5a6088;padding:4px 10px 7px">RUN</div>
     <div onClick="{{ showGraph }}" title="Per-run delegation graph" style="{{ graphNavStyle }}">
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="5" cy="12" r="2.4"/><circle cx="18" cy="6" r="2.4"/><circle cx="18" cy="18" r="2.4"/><path d="M7 11l9-4M7 13l9 4"/></svg>
       <span style="flex:1">Graph</span>
       <span style="{{ graphNavDotStyle }}"></span>
     </div>
-
-    <div onClick="{{ showGalaxy }}" title="Cross-run galaxy view" style="{{ galaxyNavStyle }}">
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="5" cy="6" r="1.7" fill="currentColor" stroke="none"/><circle cx="12.5" cy="12.5" r="1.7" fill="currentColor" stroke="none"/><circle cx="18.5" cy="7" r="1.7" fill="currentColor" stroke="none"/><circle cx="16.5" cy="17.5" r="1.7" fill="currentColor" stroke="none"/><circle cx="6.5" cy="17" r="1.7" fill="currentColor" stroke="none"/><path d="M5 6l7.5 6.5M12.5 12.5l6-5.5M12.5 12.5l4 5M12.5 12.5l-6 4.5" opacity="0.5"/></svg>
-      <span style="flex:1">Galaxy</span>
-      <span style="{{ galaxyNavDotStyle }}"></span>
-    </div>
-
-
     <div onClick="{{ showJobs }}" title="All jobs across every run" style="{{ jobsNavStyle }}">
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8 6h11M8 12h11M8 18h11"/><circle cx="4" cy="6" r="1.1"/><circle cx="4" cy="12" r="1.1"/><circle cx="4" cy="18" r="1.1"/></svg>
       <span style="flex:1">Jobs</span>
@@ -60,36 +74,46 @@
       <span style="flex:1">Pipelines</span>
       <span style="{{ pipelinesNavDotStyle }}"></span>
     </div>
-    <div onClick="{{ showLearning }}" title="SkillOpt evolution + the memory brain graph" style="{{ learningNavStyle }}">
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M12 3l8 4.5-8 4.5-8-4.5L12 3z"/><path d="M4 12l8 4.5 8-4.5"/><path d="M4 16.5l8 4.5 8-4.5"/></svg>
-      <span style="flex:1">Learning</span>
-      <span style="{{ learningNavDotStyle }}"></span>
+
+    <div style="font-family:'JetBrains Mono';font-size:9.5px;letter-spacing:0.15em;color:#5a6088;padding:14px 10px 7px">FLEET</div>
+    <div onClick="{{ showAgents }}" title="Registered agents + ephemeral workers" style="{{ agentsNavStyle }}">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="8" width="14" height="11" rx="2.5"/><path d="M12 8V5"/><circle cx="12" cy="3.6" r="1"/><path d="M9.6 13h.01"/><path d="M14.4 13h.01"/></svg>
+      <span style="flex:1">Agents</span>
+      <span style="{{ agentsNavDotStyle }}"></span>
     </div>
     <div onClick="{{ showChat }}" title="Agent chat threads, mentions + job promotions" style="{{ chatNavStyle }}">
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M4 5h13a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H9l-4 3v-3H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/></svg>
       <span style="flex:1">Chat</span>
-      <span style="{{ chatNavAttnStyle }}"></span>
       <span style="{{ chatNavDotStyle }}"></span>
     </div>
-    <div onClick="{{ showAgents }}" title="Registered agents + ephemeral workers" style="{{ agentsNavStyle }}">
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="7" y="7" width="10" height="10" rx="2"/><path d="M10 2.5v3M14 2.5v3M10 18.5v3M14 18.5v3M2.5 10h3M2.5 14h3M18.5 10h3M18.5 14h3"/></svg>
-      <span style="flex:1">Agents</span>
-      <span style="{{ agentsNavDotStyle }}"></span>
+
+    <div style="font-family:'JetBrains Mono';font-size:9.5px;letter-spacing:0.15em;color:#5a6088;padding:14px 10px 7px">INSIGHT</div>
+    <div onClick="{{ showGalaxy }}" title="Cross-run galaxy view" style="{{ galaxyNavStyle }}">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.7 4.5L18 9l-4.3 1.5L12 15l-1.7-4.5L6 9l4.3-1.5z"/><circle cx="18.5" cy="17.5" r="1"/></svg>
+      <span style="flex:1">Galaxy</span>
+      <span style="{{ galaxyNavDotStyle }}"></span>
     </div>
     <div onClick="{{ showCharts }}" title="Charts across every run" style="{{ chartsNavStyle }}">
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="4" y="12" width="3.2" height="8" rx="1" fill="currentColor"/><rect x="10.4" y="7" width="3.2" height="13" rx="1" fill="currentColor"/><rect x="16.8" y="4" width="3.2" height="16" rx="1" fill="currentColor"/></svg>
       <span style="flex:1">Charts</span>
       <span style="{{ chartsNavDotStyle }}"></span>
     </div>
-    <div onClick="{{ showHealth }}" title="Daemon health, locks, stuck jobs" style="{{ healthNavStyle }}">
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M3 12h4l2-6 4 12 2-6h6"/></svg>
-      <span style="flex:1">Health</span>
-      <span style="{{ healthNavDotStyle }}"></span>
+    <div onClick="{{ showLearning }}" title="SkillOpt evolution + the memory brain graph" style="{{ learningNavStyle }}">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.4.9 1 .9 1.6v.5h5.2v-.5c0-.6.3-1.2.9-1.6A6 6 0 0 0 12 3z"/><path d="M9.6 20h4.8"/><path d="M10.6 22h2.8"/></svg>
+      <span style="flex:1">Learning</span>
+      <span style="{{ learningNavDotStyle }}"></span>
     </div>
+
+    <div style="font-family:'JetBrains Mono';font-size:9.5px;letter-spacing:0.15em;color:#5a6088;padding:14px 10px 7px">SYSTEM</div>
     <div onClick="{{ showAttention }}" title="Needs a human — blocked gates, pending approvals, candidates awaiting promotion" style="{{ attentionNavStyle }}">
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
       <span style="flex:1">Needs a human</span>
       <span style="{{ attentionNavDotStyle }}"></span>
+    </div>
+    <div onClick="{{ showHealth }}" title="Daemon health, locks, stuck jobs" style="{{ healthNavStyle }}">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M3 12h4l2-6 4 12 2-6h6"/></svg>
+      <span style="flex:1">Health</span>
+      <span style="{{ healthNavDotStyle }}"></span>
     </div>
 
     <div style="margin-top:auto;padding:10px;border-top:1px solid rgba(160,168,220,0.08);display:flex;align-items:center;gap:8px">
@@ -101,23 +125,6 @@
   {{ runsColumnEl }}
 
   <div style="flex:1;display:flex;flex-direction:column;min-width:0">
-
-    <header style="height:58px;flex:none;display:flex;align-items:center;gap:16px;padding:0 20px;border-bottom:1px solid rgba(160,168,220,0.08);background:rgba(10,11,22,0.55);backdrop-filter:blur(10px);z-index:20">
-      <div style="font-family:'Space Grotesk';font-weight:700;font-size:19px;color:#eef0ff;letter-spacing:-0.02em;display:flex;align-items:baseline">gitmoot<span style="color:#9ece6a">.</span></div>
-      <div style="width:1px;height:22px;background:rgba(160,168,220,0.12)"></div>
-
-      <div style="display:flex;align-items:center;gap:9px;min-width:0">
-        <span style="{{ crumbRepoStyle }}">{{ crumbRepo }}</span>
-        <span style="{{ crumbSepStyle }}">›</span>
-        <span style="{{ crumbDotStyle }}"></span>
-        <span style="font-family:'JetBrains Mono';font-size:12px;color:#eef0ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ crumbTitle }}</span>
-      </div>
-
-      <div style="margin-left:auto;display:flex;align-items:center;gap:8px;padding:6px 12px;border-radius:20px;background:rgba(158,206,106,0.1);border:1px solid rgba(158,206,106,0.22)">
-        <span style="width:7px;height:7px;border-radius:50%;background:#9ece6a;box-shadow:0 0 10px rgba(158,206,106,0.7);animation:livedot 1.6s ease-in-out infinite"></span>
-        <span style="{{ liveTextStyle }}">LIVE</span>
-      </div>
-    </header>
 
     <div style="flex:1;position:relative;min-height:0">
       <div ref="{{ canvasRef }}" onPointerDown="{{ onDown }}" onPointerMove="{{ onMove }}" onPointerUp="{{ onUp }}" onPointerLeave="{{ onUp }}" onWheel="{{ onWheel }}" style="position:absolute;inset:0;overflow:hidden;cursor:grab;background:#050609;background-image:radial-gradient(rgba(160,168,220,0.09) 1px,transparent 1px);background-size:26px 26px;touch-action:none">
@@ -232,14 +239,33 @@
     </footer>
   </div>
 
+  </div>
+
+  <sc-if value="{{ moreSheetVisible }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closeMoreSheet }}" style="position:fixed;inset:0;z-index:65;background:rgba(4,5,10,0.55);backdrop-filter:blur(2px)"></div>
+    <div style="position:fixed;left:0;right:0;bottom:calc(60px + env(safe-area-inset-bottom));z-index:66;background:#0e1020;border-top:1px solid rgba(160,168,220,0.14);border-radius:16px 16px 0 0;padding:8px 12px calc(16px + env(safe-area-inset-bottom));box-shadow:0 -18px 40px rgba(0,0,0,0.55)">
+      <div style="width:36px;height:4px;border-radius:2px;background:rgba(160,168,220,0.2);margin:4px auto 10px"></div>
+      <div style="font-family:'JetBrains Mono';font-size:9.5px;letter-spacing:0.15em;color:#5a6088;padding:2px 8px 8px">MORE</div>
+      <div onClick="{{ showGalaxyFromMore }}" style="display:flex;align-items:center;gap:13px;padding:12px 10px;border-radius:10px;color:#c8cce6;cursor:pointer;font-size:14px;font-weight:500">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.7 4.5L18 9l-4.3 1.5L12 15l-1.7-4.5L6 9l4.3-1.5z"/><circle cx="18.5" cy="17.5" r="1"/></svg>
+        <span style="flex:1">Galaxy</span>
+      </div>
+      <div onClick="{{ showChartsFromMore }}" style="display:flex;align-items:center;gap:13px;padding:12px 10px;border-radius:10px;color:#c8cce6;cursor:pointer;font-size:14px;font-weight:500">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="4" y="12" width="3.2" height="8" rx="1" fill="currentColor"/><rect x="10.4" y="7" width="3.2" height="13" rx="1" fill="currentColor"/><rect x="16.8" y="4" width="3.2" height="16" rx="1" fill="currentColor"/></svg>
+        <span style="flex:1">Charts</span>
+      </div>
+      <div onClick="{{ showLearningFromMore }}" style="display:flex;align-items:center;gap:13px;padding:12px 10px;border-radius:10px;color:#c8cce6;cursor:pointer;font-size:14px;font-weight:500">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.4.9 1 .9 1.6v.5h5.2v-.5c0-.6.3-1.2.9-1.6A6 6 0 0 0 12 3z"/><path d="M9.6 20h4.8"/><path d="M10.6 22h2.8"/></svg>
+        <span style="flex:1">Learning</span>
+        <span style="{{ moreLearnDotStyle }}"></span>
+      </div>
+    </div>
+  </sc-if>
+
   <nav style="{{ tabBarStyle }}">
     <div onClick="{{ showGraph }}" title="Graph" style="{{ tabGraphStyle }}">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="5" cy="12" r="2.4"/><circle cx="18" cy="6" r="2.4"/><circle cx="18" cy="18" r="2.4"/><path d="M7 11l9-4M7 13l9 4"/></svg>
       <span style="{{ tabLabelStyle }}">Graph</span>
-    </div>
-    <div onClick="{{ showGalaxy }}" title="Galaxy" style="{{ tabGalaxyStyle }}">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="5" cy="6" r="1.7" fill="currentColor" stroke="none"/><circle cx="12.5" cy="12.5" r="1.7" fill="currentColor" stroke="none"/><circle cx="18.5" cy="7" r="1.7" fill="currentColor" stroke="none"/><circle cx="16.5" cy="17.5" r="1.7" fill="currentColor" stroke="none"/><circle cx="6.5" cy="17" r="1.7" fill="currentColor" stroke="none"/><path d="M5 6l7.5 6.5M12.5 12.5l6-5.5M12.5 12.5l4 5M12.5 12.5l-6 4.5" opacity="0.5"/></svg>
-      <span style="{{ tabLabelStyle }}">Galaxy</span>
     </div>
     <div onClick="{{ showJobs }}" title="Jobs" style="{{ tabJobsStyle }}">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8 6h11M8 12h11M8 18h11"/><circle cx="4" cy="6" r="1.1"/><circle cx="4" cy="12" r="1.1"/><circle cx="4" cy="18" r="1.1"/></svg>
@@ -248,10 +274,7 @@
     <div onClick="{{ showPipelines }}" title="Pipelines" style="{{ tabPipelinesStyle }}">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><circle cx="5" cy="6" r="2"/><circle cx="5" cy="18" r="2"/><circle cx="18" cy="12" r="2"/><path d="M7 7l9 4M7 17l9-4"/></svg>
       <span style="{{ tabLabelStyle }}">Pipes</span>
-    </div>
-    <div onClick="{{ showLearning }}" title="Learning" style="{{ tabLearningStyle }}">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M12 3l8 4.5-8 4.5-8-4.5L12 3z"/><path d="M4 12l8 4.5 8-4.5"/><path d="M4 16.5l8 4.5 8-4.5"/></svg>
-      <span style="{{ tabLabelStyle }}">Learn</span>
+      <span style="{{ tabPipesAttnStyle }}"></span>
     </div>
     <div onClick="{{ showChat }}" title="Chat" style="{{ tabChatStyle }}">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M4 5h13a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H9l-4 3v-3H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/></svg>
@@ -259,20 +282,23 @@
       <span style="{{ chatTabAttnStyle }}"></span>
     </div>
     <div onClick="{{ showAgents }}" title="Agents" style="{{ tabAgentsStyle }}">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="7" y="7" width="10" height="10" rx="2"/><path d="M10 2.5v3M14 2.5v3M10 18.5v3M14 18.5v3M2.5 10h3M2.5 14h3M18.5 10h3M18.5 14h3"/></svg>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="8" width="14" height="11" rx="2.5"/><path d="M12 8V5"/><circle cx="12" cy="3.6" r="1"/><path d="M9.6 13h.01"/><path d="M14.4 13h.01"/></svg>
       <span style="{{ tabLabelStyle }}">Agents</span>
     </div>
-    <div onClick="{{ showCharts }}" title="Charts" style="{{ tabChartsStyle }}">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="4" y="12" width="3.2" height="8" rx="1" fill="currentColor"/><rect x="10.4" y="7" width="3.2" height="13" rx="1" fill="currentColor"/><rect x="16.8" y="4" width="3.2" height="16" rx="1" fill="currentColor"/></svg>
-      <span style="{{ tabLabelStyle }}">Charts</span>
+    <div onClick="{{ showAttention }}" title="Needs a human" style="{{ tabAttentionStyle }}">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+      <span style="{{ tabLabelStyle }}">Attn</span>
+      <span style="{{ tabAttnAttnStyle }}"></span>
     </div>
     <div onClick="{{ showHealth }}" title="Health" style="{{ tabHealthStyle }}">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M3 12h4l2-6 4 12 2-6h6"/></svg>
       <span style="{{ tabLabelStyle }}">Health</span>
+      <span style="{{ tabHealthAttnStyle }}"></span>
     </div>
-    <div onClick="{{ showAttention }}" title="Needs a human" style="{{ tabAttentionStyle }}">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
-      <span style="{{ tabLabelStyle }}">Human</span>
+    <div onClick="{{ showMore }}" title="More — Galaxy, Charts, Learning" style="{{ tabMoreStyle }}">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
+      <span style="{{ tabLabelStyle }}">More</span>
+      <span style="{{ tabMoreAttnStyle }}"></span>
     </div>
   </nav>
 </div>
@@ -492,6 +518,16 @@ class Component extends DCLogic {
     // attention dot). Seeded by a light fetch in componentDidMount and kept live
     // by the Chat view's poll.
     chatAttn: false,
+    // Persistent top bar: daemon liveness for the "daemon · up … · ● LIVE" chip.
+    // daemonUp starts true because this page is served over HTTP by a live process;
+    // the seed fetch (_navSeed) corrects it within the first cycle and keeps it live.
+    daemonUp: true, daemonStartedAt: 0,
+    // Nav "needs you" amber dots (repurposed from the old you-are-here dot). Each is
+    // seeded once on load (_navSeed), piggybacks the matching view's poll while open,
+    // and re-seeds every 60s. chatAttn (above) is the Chat item's flag.
+    healthAttn: false, learningAttn: false, pipelinesAttn: false, attnAttn: false,
+    // Mobile: the "More" bottom sheet (Galaxy/Charts/Learning). Transient, not persisted.
+    moreOpen: false,
     // Mobile responsiveness: seeded from matchMedia so the very first render is
     // correct; kept live by a matchMedia('(max-width:768px)') listener wired in
     // componentDidMount. Every mobile branch in the UI is gated behind this flag
@@ -590,10 +626,16 @@ class Component extends DCLogic {
     // Seed the Chat nav attention dot from a one-off /api/chat/threads fetch so it
     // reflects unread mentions before the user first opens the Chat view.
     this.loadChatAttn();
+    // Seed the persistent top bar (daemon liveness) + the needs-you nav dots
+    // (health/pipelines/learning/attention) from a light batch fetch, then re-seed
+    // every 60s so the background stays live without adding per-view polls.
+    this._navSeed();
+    this._navSeedTimer = setInterval(() => this._navSeed(), 60000);
   }
   componentWillUnmount() {
     clearInterval(this._t);
     clearInterval(this._runsPoll);
+    clearInterval(this._navSeedTimer);
     clearTimeout(this._loadTO);
     this.stopGalaxyPoll();
     this.stopJobsPoll();
@@ -862,7 +904,7 @@ class Component extends DCLogic {
     root.id = 'galaxy-root';
     // fill the content area (right of the 216px nav rail); opaque so it fully
     // covers the per-run canvas / minimap / detail panel underneath.
-    root.style.cssText = 'position:fixed;left:216px;top:0;right:0;bottom:0;z-index:40;background:#07080f;display:none';
+    root.style.cssText = 'position:fixed;left:216px;top:54px;right:0;bottom:0;z-index:40;background:#07080f;display:none';
     root.innerHTML = [
       '<div id="g-graph"></div>',
       '<div id="g-loading">summoning the galaxy…</div>',
@@ -1782,7 +1824,7 @@ class Component extends DCLogic {
 
     const root = document.createElement('div');
     root.id = 'jobs-root';
-    root.style.cssText = 'position:fixed;left:216px;top:0;right:0;bottom:0;z-index:40;background:#07080f;display:none;flex-direction:column;overflow:hidden;font-family:Inter,system-ui,sans-serif;color:#c8cce6';
+    root.style.cssText = 'position:fixed;left:216px;top:54px;right:0;bottom:0;z-index:40;background:#07080f;display:none;flex-direction:column;overflow:hidden;font-family:Inter,system-ui,sans-serif;color:#c8cce6';
     root.innerHTML = [
       '<div class="jb-head">',
       '  <div class="jb-title">Jobs<span class="jb-tdot">.</span></div>',
@@ -2111,7 +2153,7 @@ class Component extends DCLogic {
       // detail. #agents-root scrolls (overflow-y:auto), so the panel is position:fixed
       // (pinned to the viewport, which coincides with the overlay's right edge) rather
       // than absolute — an absolute panel would scroll out of view with the card grid.
-      "#agents-root .ad-panel{position:fixed;right:0;top:0;bottom:0;width:360px;z-index:45;background:rgba(15,17,32,0.94);border-left:1px solid rgba(160,168,220,0.14);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:-30px 0 60px rgba(0,0,0,0.5);display:flex;flex-direction:column;animation:panelin .28s cubic-bezier(.2,.8,.2,1)}",
+      "#agents-root .ad-panel{position:absolute;right:0;top:0;bottom:0;width:360px;z-index:45;background:rgba(15,17,32,0.94);border-left:1px solid rgba(160,168,220,0.14);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:-30px 0 60px rgba(0,0,0,0.5);display:flex;flex-direction:column;animation:panelin .28s cubic-bezier(.2,.8,.2,1)}",
       "#agents-root .ad-head{padding:18px 20px 14px;border-bottom:1px solid rgba(160,168,220,0.08)}",
       "#agents-root .ad-hrow{display:flex;align-items:flex-start;gap:10px}",
       "#agents-root .ad-dot{width:11px;height:11px;border-radius:50%;flex:none;margin-top:4px}",
@@ -2170,9 +2212,6 @@ class Component extends DCLogic {
       "#agents-root .ad-prompt-chev{display:inline-block;width:9px;flex:none;color:#7f86ad}",
       "#agents-root .ad-prompt-lbl{flex:none}",
       "#agents-root .ad-prompt-hint{color:#5a6088;font-size:9.5px;margin-left:2px;white-space:nowrap}",
-      "#agents-root .ad-prompt-copy{flex:none;background:rgba(160,168,220,0.08);border:1px solid rgba(160,168,220,0.12);border-radius:6px;color:#868db5;font-family:'JetBrains Mono',monospace;font-size:9.5px;padding:3px 8px;cursor:pointer;line-height:1}",
-      "#agents-root .ad-prompt-copy:hover{color:#c7c9e5;background:rgba(160,168,220,0.14)}",
-      "#agents-root .ad-prompt-copy.ok{color:#9ece6a;border-color:rgba(158,206,106,0.4);background:rgba(158,206,106,0.12)}",
       "#agents-root .ad-prompt-view{margin-top:8px;max-height:40vh;overflow:auto;background:#07080f;border:1px solid rgba(160,168,220,0.14);border-radius:8px;padding:10px 12px;font-family:'JetBrains Mono',monospace;font-size:11px;line-height:1.5;color:#c7c9e5;white-space:pre-wrap;word-break:break-word}",
       "#agents-root .ad-prompt-view[hidden]{display:none}",
       "#agents-root .ad-diff{margin-top:8px}",
@@ -2196,7 +2235,7 @@ class Component extends DCLogic {
 
     const root = document.createElement('div');
     root.id = 'agents-root';
-    root.style.cssText = 'position:fixed;left:216px;top:0;right:0;bottom:0;z-index:40;background:#07080f;display:none;overflow-y:auto;font-family:Inter,system-ui,sans-serif;color:#c8cce6';
+    root.style.cssText = 'position:fixed;left:216px;top:54px;right:0;bottom:0;z-index:40;background:#07080f;display:none;overflow-y:auto;font-family:Inter,system-ui,sans-serif;color:#c8cce6';
     root.innerHTML = [
       '<div class="ag-head">',
       '  <div class="ag-title">Agents<span class="ag-tdot">.</span></div>',
@@ -2319,7 +2358,7 @@ class Component extends DCLogic {
           '<span class="ad-prompt-lbl">' + esc(label) + '</span>' +
           '<span class="ad-prompt-hint">' + esc(this._promptHint(content)) + '</span>' +
         '</button>' +
-        (withCopy ? '<button type="button" class="ad-prompt-copy" title="copy prompt">copy</button>' : '') +
+        (withCopy ? '<button type="button" class="gm-copy" title="copy prompt">copy</button>' : '') +
       '</div>' +
       '<pre class="ad-prompt-view" hidden>' + esc(content) + '</pre>' +
     '</div>';
@@ -2646,15 +2685,10 @@ class Component extends DCLogic {
         view.toggleAttribute('hidden');
         if (chev) chev.textContent = willOpen ? '▾' : '▸';
       });
-      const copyBtn = box.querySelector('.ad-prompt-copy');
-      if (copyBtn && view) copyBtn.addEventListener('click', async (ev) => {
+      const copyBtn = box.querySelector('.gm-copy');
+      if (copyBtn && view) copyBtn.addEventListener('click', (ev) => {
         ev.stopPropagation();
-        try {
-          await navigator.clipboard.writeText(view.textContent);
-          copyBtn.textContent = 'copied';
-          copyBtn.classList.add('ok');
-          setTimeout(() => { copyBtn.textContent = 'copy'; copyBtn.classList.remove('ok'); }, 1200);
-        } catch (e) {}
+        this._gmCopyChip(copyBtn, view.textContent);
       });
     });
     // Diff viewers: independent of the prompt toggles and collapsed by default. The diff
@@ -2732,7 +2766,7 @@ class Component extends DCLogic {
 
     const root = document.createElement('div');
     root.id = 'charts-root';
-    root.style.cssText = 'position:fixed;left:216px;top:0;right:0;bottom:0;z-index:40;background:#07080f;display:none;overflow-y:auto;font-family:Inter,system-ui,sans-serif;color:#c8cce6';
+    root.style.cssText = 'position:fixed;left:216px;top:54px;right:0;bottom:0;z-index:40;background:#07080f;display:none;overflow-y:auto;font-family:Inter,system-ui,sans-serif;color:#c8cce6';
     root.innerHTML = [
       '<div class="ch-head">',
       '  <div class="ch-title">Charts<span class="ch-tdot">.</span></div>',
@@ -3056,7 +3090,7 @@ class Component extends DCLogic {
 
     const root = document.createElement('div');
     root.id = 'attention-root';
-    root.style.cssText = 'position:fixed;left:216px;top:0;right:0;bottom:0;z-index:40;background:#07080f;display:none;overflow-y:auto;font-family:Inter,system-ui,sans-serif;color:#c8cce6';
+    root.style.cssText = 'position:fixed;left:216px;top:54px;right:0;bottom:0;z-index:40;background:#07080f;display:none;overflow-y:auto;font-family:Inter,system-ui,sans-serif;color:#c8cce6';
     root.innerHTML = [
       '<div class="at-head"><div class="at-title">Needs a human<span class="at-tdot">.</span></div><div class="at-updated" id="at-updated"></div></div>',
       '<div class="at-sub">Everything parked on an explicit human decision — retry, approve, reject, continue or escalate.</div>',
@@ -3092,6 +3126,7 @@ class Component extends DCLogic {
         this._attentionSig = txt;
         let json = null; try { json = JSON.parse(txt); } catch (e) { json = null; }
         this._attentionData = json || {};
+        this._navApplyAttention(this._attentionData);
         this.renderAttention(this._attentionData);
       })
       .catch(err => {
@@ -3276,7 +3311,7 @@ class Component extends DCLogic {
 
     const root = document.createElement('div');
     root.id = 'health-root';
-    root.style.cssText = 'position:fixed;left:216px;top:0;right:0;bottom:0;z-index:40;background:#07080f;display:none;overflow-y:auto;font-family:Inter,system-ui,sans-serif;color:#c8cce6';
+    root.style.cssText = 'position:fixed;left:216px;top:54px;right:0;bottom:0;z-index:40;background:#07080f;display:none;overflow-y:auto;font-family:Inter,system-ui,sans-serif;color:#c8cce6';
     root.innerHTML = [
       '<div class="hl-head"><div class="hl-title">Health<span class="hl-tdot">.</span></div><div class="hl-updated" id="hl-updated"></div></div>',
       '<div class="hl-hero" id="hl-hero"></div>',
@@ -3311,6 +3346,7 @@ class Component extends DCLogic {
         this._healthSig = txt;
         let json = null; try { json = JSON.parse(txt); } catch (e) { json = null; }
         this._healthData = json || {};
+        this._tbApplyHealth(this._healthData);
         this._healthLoaded = true;
         this.renderHealth(this._healthData);
       })
@@ -3664,8 +3700,6 @@ class Component extends DCLogic {
       "#learning-root .lr-cand .ca{font-family:'JetBrains Mono',monospace;font-size:10px;color:#5a6088}",
       "#learning-root .lr-cmd{display:flex;align-items:center;gap:8px;margin-left:auto;flex-wrap:wrap}",
       "#learning-root .lr-cmd code{font-family:'JetBrains Mono',monospace;font-size:11px;color:#c7c9e5;background:#0a0b16;border:1px solid rgba(160,168,220,0.14);border-radius:7px;padding:6px 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:340px}",
-      "#learning-root .lr-copy{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#7aa2f7;background:rgba(122,162,247,0.1);border:1px solid rgba(122,162,247,0.28);border-radius:7px;padding:6px 11px;cursor:pointer}",
-      "#learning-root .lr-copy.done{color:#9ece6a;border-color:rgba(158,206,106,0.4);background:rgba(158,206,106,0.12)}",
       "#learning-root .lr-empty-tbl{padding:60px 20px;text-align:center;color:#5a6088;font-size:13px}",
       "#learning-root #lr-know-graph{position:absolute;inset:0}",
       "#learning-root .lr-kchip{position:absolute;z-index:10;background:rgba(14,16,30,.72);border:1px solid rgba(187,154,247,.2);border-radius:12px;backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px);box-shadow:0 6px 30px rgba(0,0,0,.55)}",
@@ -3705,7 +3739,7 @@ class Component extends DCLogic {
 
     const root = document.createElement('div');
     root.id = 'learning-root';
-    root.style.cssText = 'position:fixed;left:216px;top:0;right:0;bottom:0;z-index:40;background:#07080f;display:none';
+    root.style.cssText = 'position:fixed;left:216px;top:54px;right:0;bottom:0;z-index:40;background:#07080f;display:none';
     root.innerHTML = [
       '<div class="lr-head">',
       '  <div class="lr-title">Learning<span class="lr-tdot">.</span></div>',
@@ -3748,8 +3782,8 @@ class Component extends DCLogic {
     // Skills table delegation: copy button > needs expander > row-nav-to-agent.
     const sbody = root.querySelector('#lr-skills-body');
     sbody.addEventListener('click', (e) => {
-      const copy = (e.target.closest && e.target.closest('.lr-copy')) || null;
-      if (copy) { e.stopPropagation(); this._copySkillCmd(copy); return; }
+      const copy = (e.target.closest && e.target.closest('.gm-copy')) || null;
+      if (copy) { e.stopPropagation(); this._gmCopyChip(copy); return; }
       const needs = (e.target.closest && e.target.closest('.lr-needs-btn')) || null;
       if (needs) { e.stopPropagation(); this._toggleSkillExpand(needs); return; }
       const row = (e.target.closest && e.target.closest('tr.lr-row')) || null;
@@ -3781,6 +3815,7 @@ class Component extends DCLogic {
         this._skillsSig = txt;
         let json = null; try { json = JSON.parse(txt); } catch (e) { json = null; }
         this._skillsData = json || { templates: [], activeCanaries: 0, pendingTotal: 0 };
+        this._navApplySkills(this._skillsData);
         this._skillsLoaded = true;
         this.renderSkills();
       })
@@ -3877,7 +3912,7 @@ class Component extends DCLogic {
         '<span class="cv">v' + esc(c.number != null ? c.number : '?') + '</span>' +
         (c.score ? '<span class="cs">score ' + esc(c.score) + '</span>' : '') +
         (c.createdAt ? '<span class="ca">' + esc(this._relFromMs(c.createdAt)) + '</span>' : '') +
-        '<span class="lr-cmd"><code>' + esc(cmd) + '</code><button class="lr-copy" data-cmd="' + esc(cmd) + '">copy</button></span>' +
+        '<span class="lr-cmd"><code>' + esc(cmd) + '</code><button class="gm-copy" data-cmd="' + esc(cmd) + '">copy</button></span>' +
       '</div>';
     });
     out += '<tr class="lr-exp" data-exp="' + i + '"' + (expanded ? '' : ' hidden') + '><td colspan="4">' + cand + '</td></tr>';
@@ -3897,14 +3932,6 @@ class Component extends DCLogic {
     if (tpl) set[tpl] = open; // persist across re-renders
   }
 
-  _copySkillCmd(btn) {
-    const cmd = btn.getAttribute('data-cmd') || '';
-    const flash = () => { btn.classList.add('done'); btn.textContent = 'copied'; setTimeout(() => { btn.classList.remove('done'); btn.textContent = 'copy'; }, 1500); };
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(cmd).then(flash, () => { this._copyFallback(cmd); flash(); });
-      else { this._copyFallback(cmd); flash(); }
-    } catch (e) { this._copyFallback(cmd); flash(); }
-  }
   _copyFallback(text) {
     try { const ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.focus(); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); } catch (e) {}
   }
@@ -4697,7 +4724,7 @@ class Component extends DCLogic {
       "#pipelines-root .pl-history-wrap{margin-top:20px}",
       "#pipelines-root .pl-history-lbl{font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:0.12em;color:#5a6088;margin-bottom:8px}",
       "#pipelines-root .pl-history{display:flex;align-items:center;gap:8px;flex-wrap:wrap}",
-      "#pipelines-root .pl-runchip{display:inline-flex;align-items:center;gap:7px;background:#0f1120;border:1px solid rgba(160,168,220,0.12);border-radius:9px;padding:6px 11px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#a8aecf}",
+      "#pipelines-root .pl-runchip{display:inline-flex;align-items:center;gap:7px;background:#0f1120;border:1px solid rgba(160,168,220,0.12);border-radius:9px;padding:4px 9px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#a8aecf}",
       "#pipelines-root .pl-runchip:hover{border-color:rgba(160,168,220,0.3)}",
       "#pipelines-root .pl-runchip.sel{border-color:var(--rc);background:color-mix(in srgb,var(--rc) 12%, #0f1120)}",
       "#pipelines-root .pl-runchip-dot{width:8px;height:8px;border-radius:50%;flex:none}",
@@ -4718,8 +4745,6 @@ class Component extends DCLogic {
       "#pipelines-root .pl-needs li{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#e0af68;line-height:1.7}",
       "#pipelines-root .pl-cmd{display:flex;align-items:center;gap:9px;margin-top:12px;flex-wrap:wrap}",
       "#pipelines-root .pl-cmd code{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#c7c9e5;background:#0a0b16;border:1px solid rgba(160,168,220,0.14);border-radius:7px;padding:7px 11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}",
-      "#pipelines-root .pl-copy{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#7aa2f7;background:rgba(122,162,247,0.1);border:1px solid rgba(122,162,247,0.28);border-radius:7px;padding:7px 12px;cursor:pointer;flex:none}",
-      "#pipelines-root .pl-copy.done{color:#9ece6a;border-color:rgba(158,206,106,0.4);background:rgba(158,206,106,0.12)}",
       // ---- stage DAG ----
       "#pipelines-root .pl-dagwrap{overflow-x:auto;padding-bottom:10px}",
       "#pipelines-root .pl-dag{display:block}",
@@ -4786,7 +4811,7 @@ class Component extends DCLogic {
 
     const root = document.createElement('div');
     root.id = 'pipelines-root';
-    root.style.cssText = 'position:fixed;left:216px;top:0;right:0;bottom:0;z-index:40;background:#07080f;display:none';
+    root.style.cssText = 'position:fixed;left:216px;top:54px;right:0;bottom:0;z-index:40;background:#07080f;display:none';
     root.innerHTML = [
       '<div id="pl-list">',
       '  <div class="pl-head"><div class="pl-title">Pipelines<span class="pl-tdot">.</span></div><div class="pl-sub" id="pl-sub"></div></div>',
@@ -4808,8 +4833,8 @@ class Component extends DCLogic {
 
     // One delegated click listener: copy button > back link > run chip > stage node > list row.
     root.addEventListener('click', (e) => {
-      const copy = (e.target.closest && e.target.closest('.pl-copy')) || null;
-      if (copy) { e.stopPropagation(); this._copySkillCmd(copy); return; }
+      const copy = (e.target.closest && e.target.closest('.gm-copy')) || null;
+      if (copy) { e.stopPropagation(); this._gmCopyChip(copy); return; }
       const back = (e.target.closest && e.target.closest('#pl-back')) || null;
       if (back) { this.closePipelineDetail(); this._navRoute('pipelines'); return; }
       const chip = (e.target.closest && e.target.closest('.pl-runchip')) || null;
@@ -4844,6 +4869,7 @@ class Component extends DCLogic {
         this._pipelinesData = Array.isArray(json) ? json : [];
         this._pipelinesByName = {};
         this._pipelinesData.forEach(p => { if (p && p.name) this._pipelinesByName[p.name] = p; });
+        this._navApplyPipelines(this._pipelinesData);
         this._pipelinesLoaded = true;
         this.renderPipelines();
         // an open detail: refresh its header/history strip from the new summary.
@@ -5060,7 +5086,7 @@ class Component extends DCLogic {
         '<div class="pl-banner-head"><span class="pl-banner-ic">⚠</span><span class="pl-banner-title">blocked at <b>' + esc(run.haltStage || '?') + '</b>' + parkedTag + '</span></div>' +
         (run.haltReason ? '<div class="pl-banner-reason">' + esc(run.haltReason) + '</div>' : '') +
         (needs.length ? '<ul class="pl-needs">' + needs.map(n => '<li>' + esc(n) + '</li>').join('') + '</ul>' : '') +
-        '<div class="pl-cmd"><code>' + esc(cmd) + '</code><button class="pl-copy" data-cmd="' + esc(cmd) + '">copy</button></div>' +
+        '<div class="pl-cmd"><code>' + esc(cmd) + '</code><button class="gm-copy" data-cmd="' + esc(cmd) + '">copy</button></div>' +
       '</div>';
     } else if (run.state === 'failed') {
       const stages = Array.isArray(run.stages) ? run.stages : [];
@@ -5070,7 +5096,7 @@ class Component extends DCLogic {
       banner = '<div class="pl-banner failed">' +
         '<div class="pl-banner-head"><span class="pl-banner-ic">✕</span><span class="pl-banner-title">failed at <b>' + esc(run.haltStage || (halt && halt.id) || '?') + '</b>' + parkedTag + '</span></div>' +
         (run.haltReason ? '<div class="pl-banner-reason">' + esc(run.haltReason) + '</div>' : '') +
-        (cmd ? '<div class="pl-cmd"><code>' + esc(cmd) + '</code><button class="pl-copy" data-cmd="' + esc(cmd) + '">copy</button></div>' : '') +
+        (cmd ? '<div class="pl-cmd"><code>' + esc(cmd) + '</code><button class="gm-copy" data-cmd="' + esc(cmd) + '">copy</button></div>' : '') +
       '</div>';
     }
     area.innerHTML = sumBar + banner + this._pipelineStageDag(run.stages);
@@ -5370,7 +5396,7 @@ class Component extends DCLogic {
     if (!rawInterval) {
       const cmd = 'gitmoot pipeline run ' + (summary.name || '');
       return lbl + '<div class="pl-upcoming"><div class="pl-up-note">manual-only — run with</div>' +
-        '<div class="pl-cmd"><code>' + esc(cmd) + '</code><button class="pl-copy" data-cmd="' + esc(cmd) + '">copy</button></div></div>';
+        '<div class="pl-cmd"><code>' + esc(cmd) + '</code><button class="gm-copy" data-cmd="' + esc(cmd) + '">copy</button></div></div>';
     }
     if (!summary.enabled) {
       return lbl + '<div class="pl-upcoming"><div class="pl-up-note">schedule paused (disabled)</div></div>';
@@ -5470,7 +5496,7 @@ class Component extends DCLogic {
     const name = detail.name || this._plDetailName || '';
     const cmd = 'gitmoot pipeline run ' + name;
     const note = '<div class="pl-declared-note">never run yet — <code>' + esc(cmd) + '</code>' +
-      '<button class="pl-copy" data-cmd="' + esc(cmd) + '">copy</button></div>';
+      '<button class="gm-copy" data-cmd="' + esc(cmd) + '">copy</button></div>';
     return note + this._pipelineStageDag(declared);
   }
 
@@ -5542,6 +5568,69 @@ class Component extends DCLogic {
   _updateChatAttn(threads) {
     const attn = (Array.isArray(threads) ? threads : []).some(t => t && t.state === 'open' && (t.unreadMentions || 0) > 0);
     if (attn !== this.state.chatAttn) this.setState({ chatAttn: attn });
+  }
+
+  // ---- Persistent top bar + nav "needs you" dots ----------------------------
+  // One light batch fetch that feeds the always-visible signals (daemon liveness
+  // for the top bar; amber needs-you dots for Health/Pipelines/Learning/Attention).
+  // Runs once on load and every 60s; the per-view fetches also call the same
+  // _*Apply* updaters so an open view keeps its own dot live between seeds.
+  _navSeed() {
+    fetch('/api/health', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(j => { if (j) this._tbApplyHealth(j); }).catch(() => {});
+    fetch('/api/pipelines', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(j => { if (Array.isArray(j)) this._navApplyPipelines(j); }).catch(() => {});
+    fetch('/api/learning/skills', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(j => { if (j) this._navApplySkills(j); }).catch(() => {});
+    fetch('/api/attention', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(j => { if (j) this._navApplyAttention(j); }).catch(() => {});
+  }
+  _tbApplyHealth(data) {
+    data = data || {};
+    const dm = data.daemon || {};
+    const totals = data.totals || {};
+    const stuck = Array.isArray(data.stuck) ? data.stuck : [];
+    const upd = data.update;
+    const attn = ((totals.blocked || 0) > 0) || stuck.length > 0 || !!(upd && upd.updateAvailable);
+    const up = !!dm.running;
+    const st = dm.startedAt || 0;
+    const patch = {};
+    if (up !== this.state.daemonUp) patch.daemonUp = up;
+    if (st !== this.state.daemonStartedAt) patch.daemonStartedAt = st;
+    if (attn !== this.state.healthAttn) patch.healthAttn = attn;
+    if (Object.keys(patch).length) this.setState(patch);
+  }
+  _navApplyPipelines(arr) {
+    const bad = (Array.isArray(arr) ? arr : []).some(p => p && (p.lastStatus === 'failed' || p.lastStatus === 'blocked'));
+    if (bad !== this.state.pipelinesAttn) this.setState({ pipelinesAttn: bad });
+  }
+  _navApplySkills(data) {
+    const on = !!(data && (data.pendingTotal || 0) > 0);
+    if (on !== this.state.learningAttn) this.setState({ learningAttn: on });
+  }
+  _navApplyAttention(data) {
+    data = data || {};
+    const total = (typeof data.total === 'number') ? data.total
+      : ((Array.isArray(data.gates) ? data.gates.length : 0) + (Array.isArray(data.synthItems) ? data.synthItems.length : 0) + (Array.isArray(data.candidates) ? data.candidates.length : 0));
+    const on = total > 0;
+    if (on !== this.state.attnAttn) this.setState({ attnAttn: on });
+  }
+
+  // ---- Mobile "More" bottom sheet (Galaxy / Charts / Learning) --------------
+  _navOpenMore = () => { this.setState({ moreOpen: true }); };
+  _navCloseMore = () => { this.setState({ moreOpen: false }); };
+  _navMoreGalaxy = () => { this.setState({ moreOpen: false }); this.showGalaxy(); };
+  _navMoreCharts = () => { this.setState({ moreOpen: false }); this.showCharts(); };
+  _navMoreLearning = () => { this.setState({ moreOpen: false }); this.showLearning(); };
+
+  // ---- Shared copy chip -----------------------------------------------------
+  // Unified copy affordance (Learning / Agents / Pipelines). Reads the command from
+  // data-cmd, or takes an explicit text override (Agents copies a prompt's text),
+  // writes to the clipboard, and flashes "✓ copied" via the global .gm-copy.done class.
+  _gmCopyChip(btn, textOverride) {
+    if (!btn) return;
+    const cmd = (typeof textOverride === 'string') ? textOverride : (btn.getAttribute('data-cmd') || '');
+    const flash = () => { btn.classList.add('done'); btn.textContent = '✓ copied'; setTimeout(() => { btn.classList.remove('done'); btn.textContent = 'copy'; }, 1500); };
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(cmd).then(flash, () => { this._copyFallback(cmd); flash(); });
+      else { this._copyFallback(cmd); flash(); }
+    } catch (e) { this._copyFallback(cmd); flash(); }
   }
 
   _chatFilterLabel() {
@@ -5640,7 +5729,7 @@ class Component extends DCLogic {
 
     const root = document.createElement('div');
     root.id = 'chat-root';
-    root.style.cssText = 'position:fixed;left:216px;top:0;right:0;bottom:0;z-index:40;background:#07080f;display:none;flex-direction:column;overflow:hidden;font-family:Inter,system-ui,sans-serif;color:#c8cce6';
+    root.style.cssText = 'position:fixed;left:216px;top:54px;right:0;bottom:0;z-index:40;background:#07080f;display:none;flex-direction:column;overflow:hidden;font-family:Inter,system-ui,sans-serif;color:#c8cce6';
     root.innerHTML = [
       '<div class="ch-head">',
       '  <div class="ch-title">Chat<span class="ch-tdot">.</span></div>',
@@ -6453,7 +6542,7 @@ class Component extends DCLogic {
     // graph that clears the bottom tab bar; its header collapse button (toggleRuns)
     // closes it, and the floating "Runs" tab (runsTabVisible) reopens it.
     const colStyle = this.state.isMobile
-      ? { position: 'fixed', left: 0, right: 0, top: 0, bottom: 'calc(60px + env(safe-area-inset-bottom))', zIndex: 55, background: '#0a0b16', display: 'flex', flexDirection: 'column', overflow: 'hidden' }
+      ? { position: 'fixed', left: 0, right: 0, top: 54, bottom: 'calc(60px + env(safe-area-inset-bottom))', zIndex: 55, background: '#0a0b16', display: 'flex', flexDirection: 'column', overflow: 'hidden' }
       : { width: '320px', flex: 'none', background: '#0a0b16', borderRight: '1px solid rgba(160,168,220,0.08)', display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' };
 
     return R('div', { key: 'runscol', style: colStyle }, [header, search, facetBar, list]);
@@ -6709,15 +6798,30 @@ class Component extends DCLogic {
     const healthNavStyle = { ...navActive(isHealth), position: 'relative' };
     const attentionNavStyle = { ...navActive(isAttention), position: 'relative' };
     const learningNavStyle = { ...navActive(isLearning), position: 'relative' };
-    const navDot = (on) => ({ width: '5px', height: '5px', borderRadius: '50%', background: on ? '#9ece6a' : 'transparent', boxShadow: on ? '0 0 8px rgba(158,206,106,0.7)' : 'none' });
-    // Chat unread-attention dot: an amber pip pinned top-right of the Chat nav item
-    // when any open thread has unread @mentions (transparent = invisible otherwise).
+    // Nav "needs you" dot: the right-aligned rail dot is now an amber pip that lights
+    // when a section needs a human (NOT a you-are-here marker — the active pill shows that).
+    const needsDot = (on) => ({ width: '6px', height: '6px', borderRadius: '50%', flex: 'none', background: on ? '#e0af68' : 'transparent', boxShadow: on ? '0 0 8px rgba(224,175,104,0.7)' : 'none' });
     const chatAttn = !!this.state.chatAttn;
-    const chatNavAttnStyle = { position: 'absolute', top: '7px', right: '9px', width: '6px', height: '6px', borderRadius: '50%', background: chatAttn ? '#e0af68' : 'transparent', boxShadow: chatAttn ? '0 0 8px rgba(224,175,104,0.9)' : 'none' };
+    const healthAttn = !!this.state.healthAttn;
+    const learningAttn = !!this.state.learningAttn;
+    const pipelinesAttn = !!this.state.pipelinesAttn;
+    const attnAttn = !!this.state.attnAttn;
 
     // ---- responsive shell styling (all gated on isMobile; desktop untouched) ----
     const isMobile = this.state.isMobile;
     const hideOnMobile = isMobile ? { display: 'none' } : {};
+    // ---- persistent top bar: daemon liveness chip ("daemon · up … · ● LIVE") ----
+    const dUp = !!this.state.daemonUp;
+    const dStart = this.state.daemonStartedAt || 0;
+    const uptime = (dUp && dStart > 0) ? this._fmtUptime(Date.now() - dStart) : '';
+    const daemonText = dUp ? ('daemon' + (uptime ? ' · up ' + uptime : '')) : '';
+    const daemonTextStyle = { fontFamily: "'JetBrains Mono'", fontSize: '10.5px', color: '#5a6088', whiteSpace: 'nowrap', ...hideOnMobile };
+    const liveWord = dUp ? 'LIVE' : 'daemon down';
+    const liveBadgeStyle = { display: 'flex', alignItems: 'center', gap: '7px', padding: '5px 11px', borderRadius: '20px', flex: 'none', background: dUp ? 'rgba(158,206,106,0.1)' : 'rgba(90,96,136,0.12)', border: '1px solid ' + (dUp ? 'rgba(158,206,106,0.24)' : 'rgba(90,96,136,0.32)') };
+    const liveDotStyle = { width: '7px', height: '7px', borderRadius: '50%', flex: 'none', background: dUp ? '#9ece6a' : '#5a6088', boxShadow: dUp ? '0 0 10px rgba(158,206,106,0.7)' : 'none', animation: dUp ? 'livedot 1.6s ease-in-out infinite' : 'none' };
+    // Mobile "More" sheet visibility + the shared tab-pip style (needs-you pip on a tab).
+    const moreSheetVisible = isMobile && !!this.state.moreOpen;
+    const tabPip = (on) => ({ position: 'absolute', top: '7px', right: 'calc(50% - 18px)', width: '6px', height: '6px', borderRadius: '50%', background: on ? '#e0af68' : 'transparent', boxShadow: on ? '0 0 8px rgba(224,175,104,0.9)' : 'none' });
     // Nav rail: desktop unchanged (flex column); mobile hidden (bottom tab bar replaces it).
     const railStyle = { width: '216px', flex: 'none', borderRight: '1px solid rgba(160,168,220,0.08)', background: '#0a0b16', display: isMobile ? 'none' : 'flex', flexDirection: 'column', padding: '18px 12px 14px' };
     // Bottom tab bar: mobile-only fixed bar; desktop display:none (never shown).
@@ -6725,11 +6829,11 @@ class Component extends DCLogic {
     const tabBase = { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '3px', minWidth: 0, minHeight: '44px', cursor: 'pointer', padding: '6px 0', WebkitTapHighlightColor: 'transparent' };
     const tabStyle = (on) => ({ ...tabBase, color: on ? '#c5f882' : '#7c83a8', background: on ? 'rgba(158,206,106,0.10)' : 'transparent' });
     const tabLabelStyle = { fontSize: '9px', fontFamily: 'Inter,system-ui,sans-serif', fontWeight: 500, lineHeight: 1, letterSpacing: '0.02em' };
-    // Graph header breadcrumb: on mobile drop the repo crumb + separator + the "LIVE"
-    // word (the animated dot stays) so the run title fits the narrow header.
-    const crumbRepoStyle = { fontFamily: "'JetBrains Mono'", fontSize: '12px', color: '#868db5', whiteSpace: 'nowrap', ...hideOnMobile };
-    const crumbSepStyle = { color: '#5a6088', fontSize: '12px', ...hideOnMobile };
-    const liveTextStyle = { fontFamily: "'JetBrains Mono'", fontSize: '11px', letterSpacing: '0.08em', color: '#c5f882', fontWeight: 600, ...hideOnMobile };
+    // Top bar breadcrumb: on mobile drop the root crumb + separator (the leaf/title +
+    // any run-state dot stay) so the entity fits the narrow bar; the LIVE chip stays.
+    const crumbRepoStyle = { fontFamily: "'JetBrains Mono'", fontSize: '12.5px', color: '#868db5', whiteSpace: 'nowrap', ...hideOnMobile };
+    const crumbSepStyle = { color: '#5a6088', fontSize: '12.5px', ...hideOnMobile };
+    const liveTextStyle = { fontFamily: "'JetBrains Mono'", fontSize: '11px', letterSpacing: '0.08em', color: dUp ? '#c5f882' : '#868db5', fontWeight: 600 };
     // Graph node detail aside: mobile full-width sheet; desktop 360px pinned right.
     const detailAsideStyle = { position: 'absolute', right: 0, top: 0, bottom: 0, width: isMobile ? '100%' : '360px', background: 'rgba(15,17,32,0.9)', borderLeft: isMobile ? 'none' : '1px solid rgba(160,168,220,0.14)', backdropFilter: 'blur(16px)', zIndex: 15, display: 'flex', flexDirection: 'column', boxShadow: '-30px 0 60px rgba(0,0,0,0.5)', animation: 'panelin .28s cubic-bezier(.2,.8,.2,1)' };
     // Graph zoom controls: lift above the 60px tab bar on mobile.
@@ -6737,6 +6841,25 @@ class Component extends DCLogic {
     // Graph stat footer: hidden on mobile — it is bottom-anchored (z-index 20) and
     // would otherwise render behind the fixed bottom tab bar (z-index 60).
     const footerStyle = { height: '42px', flex: 'none', display: 'flex', alignItems: 'center', gap: '20px', padding: '0 22px', borderTop: '1px solid rgba(160,168,220,0.08)', background: '#0a0b16', fontSize: '11.5px', color: '#5a6088', zIndex: 20, ...hideOnMobile };
+
+    // ---- top-bar breadcrumb: "section › entity", or "group › section" when no entity ----
+    // Graph keeps its repo › run-title (and the run-state dot); every other view shows
+    // its section + a cheaply-available selected entity (chat thread / pipeline / agent),
+    // falling back to its nav group + section name.
+    const NAV_GROUP = { graph: 'run', jobs: 'run', pipelines: 'run', agents: 'fleet', chat: 'fleet', galaxy: 'insight', charts: 'insight', learning: 'insight', attention: 'system', health: 'system' };
+    const SECT = { graph: 'graph', jobs: 'jobs', pipelines: 'pipelines', agents: 'agents', chat: 'chat', galaxy: 'galaxy', charts: 'charts', learning: 'learning', attention: 'attention', health: 'health' };
+    let crumbRoot, crumbLeaf, crumbShowDot = false;
+    if (isGraph) {
+      crumbRoot = activeRun.repo || 'graph'; crumbLeaf = activeRun.title || 'run'; crumbShowDot = true;
+    } else {
+      let entity = '';
+      if (isChat && this._chatSelected) { const th = this._chatByID && this._chatByID[this._chatSelected]; entity = (th && th.name) || this._chatSelected; }
+      else if (isPipelines && this._plDetailName) entity = this._plDetailName;
+      else if (isAgents && this._agentsSelected) entity = this._agentsSelected;
+      else if (isJobs && this._jobsFacetAgent) entity = this._jobsFacetAgent;
+      if (entity) { crumbRoot = SECT[view] || view; crumbLeaf = entity; }
+      else { crumbRoot = NAV_GROUP[view] || 'gitmoot'; crumbLeaf = SECT[view] || view; }
+    }
 
     return {
       edgesEl, nodesEl, minimapEl, stat, detail, runsColumnEl,
@@ -6750,23 +6873,29 @@ class Component extends DCLogic {
       showCharts: this.showCharts, showHealth: this.showHealth, showLearning: this.showLearning,
       showPipelines: this.showPipelines, showChat: this.showChat, showAttention: this.showAttention,
       graphNavStyle, galaxyNavStyle, jobsNavStyle, pipelinesNavStyle, chatNavStyle, agentsNavStyle, chartsNavStyle, healthNavStyle, attentionNavStyle, learningNavStyle,
-      graphNavDotStyle: navDot(isGraph), galaxyNavDotStyle: navDot(isGalaxy),
-      jobsNavDotStyle: navDot(isJobs), agentsNavDotStyle: navDot(isAgents),
-      chartsNavDotStyle: navDot(isCharts), healthNavDotStyle: navDot(isHealth),
-      attentionNavDotStyle: navDot(isAttention),
-      learningNavDotStyle: navDot(isLearning), pipelinesNavDotStyle: navDot(isPipelines),
-      chatNavDotStyle: navDot(isChat), chatNavAttnStyle,
-      chatTabAttnStyle: { position: 'absolute', top: '7px', right: 'calc(50% - 18px)', width: '6px', height: '6px', borderRadius: '50%', background: chatAttn ? '#e0af68' : 'transparent', boxShadow: chatAttn ? '0 0 8px rgba(224,175,104,0.9)' : 'none' },
+      graphNavDotStyle: needsDot(false), galaxyNavDotStyle: needsDot(false),
+      jobsNavDotStyle: needsDot(false), agentsNavDotStyle: needsDot(false),
+      chartsNavDotStyle: needsDot(false), healthNavDotStyle: needsDot(healthAttn),
+      attentionNavDotStyle: needsDot(attnAttn),
+      learningNavDotStyle: needsDot(learningAttn), pipelinesNavDotStyle: needsDot(pipelinesAttn),
+      chatNavDotStyle: needsDot(chatAttn),
+      chatTabAttnStyle: tabPip(chatAttn),
+      tabPipesAttnStyle: tabPip(pipelinesAttn), tabHealthAttnStyle: tabPip(healthAttn),
+      tabAttnAttnStyle: tabPip(attnAttn), tabMoreAttnStyle: tabPip(learningAttn),
+      moreSheetVisible, closeMoreSheet: this._navCloseMore, showMore: this._navOpenMore,
+      showGalaxyFromMore: this._navMoreGalaxy, showChartsFromMore: this._navMoreCharts, showLearningFromMore: this._navMoreLearning,
+      moreLearnDotStyle: needsDot(learningAttn),
+      daemonText, daemonTextStyle, liveWord, liveBadgeStyle, liveDotStyle,
       railStyle, tabBarStyle, tabLabelStyle,
-      tabGraphStyle: tabStyle(isGraph), tabGalaxyStyle: tabStyle(isGalaxy),
-      tabJobsStyle: tabStyle(isJobs), tabAgentsStyle: tabStyle(isAgents),
-      tabChartsStyle: tabStyle(isCharts), tabHealthStyle: tabStyle(isHealth),
-      tabAttentionStyle: tabStyle(isAttention),
-      tabLearningStyle: tabStyle(isLearning), tabPipelinesStyle: tabStyle(isPipelines),
+      tabGraphStyle: tabStyle(isGraph),       tabJobsStyle: tabStyle(isJobs), tabAgentsStyle: tabStyle(isAgents),
+            tabHealthStyle: { ...tabStyle(isHealth), position: 'relative' },
+      tabAttentionStyle: { ...tabStyle(isAttention), position: 'relative' },
+            tabPipelinesStyle: { ...tabStyle(isPipelines), position: 'relative' },
       tabChatStyle: { ...tabStyle(isChat), position: 'relative' },
+      tabMoreStyle: { ...tabStyle(isGalaxy || isCharts || isLearning), position: 'relative' },
       crumbRepoStyle, crumbSepStyle, liveTextStyle, detailAsideStyle, zoomCtrlStyle, footerStyle,
-      crumbRepo: activeRun.repo, crumbTitle: activeRun.title,
-      crumbDotStyle: { width: '8px', height: '8px', borderRadius: '50%', flex: 'none', background: crumbCol.c, boxShadow: activeRun.state === 'running' ? '0 0 8px ' + crumbCol.g : 'none', animation: activeRun.state === 'running' ? 'dotpulse 1.4s ease-in-out infinite' : 'none' },
+      crumbRepo: crumbRoot, crumbTitle: crumbLeaf,
+      crumbDotStyle: crumbShowDot ? { width: '8px', height: '8px', borderRadius: '50%', flex: 'none', background: crumbCol.c, boxShadow: activeRun.state === 'running' ? '0 0 8px ' + crumbCol.g : 'none', animation: activeRun.state === 'running' ? 'dotpulse 1.4s ease-in-out infinite' : 'none' } : { display: 'none' },
       hasSelected: !!sel && isGraph,
       closePanel: this.closePanel,
       togglePrompt: this.togglePrompt, toggleOutput: this.toggleOutput,
