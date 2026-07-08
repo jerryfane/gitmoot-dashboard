@@ -2743,10 +2743,41 @@ class Component extends DCLogic {
       "#charts-root .ch-chip:hover{color:#c8cce6}",
       "#charts-root .ch-chip.on{background:rgba(158,206,106,0.14);color:#c5f882}",
       "#charts-root .ch-count{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:11px;color:#7f86ad}",
-      "#charts-root .ch-totals{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;padding:0 24px 18px}",
-      "#charts-root .ch-stat{background-color:#0d0f1c;border:1px solid rgba(160,168,220,0.1);border-radius:12px;padding:13px 15px;text-align:center;overflow:hidden}",
-      "#charts-root .ch-sv{font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
-      "#charts-root .ch-sl{font-size:9.5px;color:#5a6088;text-transform:uppercase;letter-spacing:0.06em;margin-top:4px}",
+      // Headline rate tiles (success / failure / total jobs) — replace the old 6-stat grid.
+      "#charts-root .ch-tiles{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;padding:0 24px 20px}",
+      "#charts-root .ch-tile{padding:16px 18px;border:1px solid rgba(160,168,220,0.12);border-radius:12px;overflow:hidden}",
+      "#charts-root .ch-tile.ok{background:linear-gradient(180deg,rgba(158,206,106,0.08),#0d0f1c);border-left:3px solid #9ece6a}",
+      "#charts-root .ch-tile.bad{background:linear-gradient(180deg,rgba(247,118,142,0.06),#0d0f1c);border-left:3px solid #f7768e}",
+      "#charts-root .ch-tile.tot{background:linear-gradient(180deg,#15182b,#0d0f1c);border-left:3px solid #7aa2f7}",
+      "#charts-root .ch-tk{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:0.1em;color:#868db5;text-transform:uppercase}",
+      "#charts-root .ch-tv{font-family:'JetBrains Mono',monospace;font-size:40px;font-weight:600;line-height:1;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
+      "#charts-root .ch-ts{font-size:11.5px;color:#5a6088;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
+      // Card header row: title + optional legend / token total / scale toggle.
+      "#charts-root .ch-chead{display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap}",
+      "#charts-root .ch-chead .ch-ct{margin-bottom:0}",
+      "#charts-root .ch-leg{display:flex;gap:13px;margin-left:auto;flex-wrap:wrap}",
+      "#charts-root .ch-lgi{display:flex;align-items:center;gap:6px;font-size:11px;color:#868db5}",
+      "#charts-root .ch-lgi .sw{width:9px;height:9px;border-radius:3px;flex:none}",
+      "#charts-root .ch-toktot{font-family:'JetBrains Mono',monospace;font-size:11px;color:#7aa2f7}",
+      "#charts-root .ch-scale{display:flex;background:#0f1120;border:1px solid rgba(160,168,220,0.14);border-radius:8px;padding:2px;gap:2px;margin-left:auto}",
+      "#charts-root .ch-sbtn{background:none;border:none;border-radius:6px;padding:4px 11px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:11px;color:#868db5}",
+      "#charts-root .ch-sbtn:hover{color:#c8cce6}",
+      "#charts-root .ch-sbtn.on{background:rgba(158,206,106,0.14);color:#c5f882}",
+      "#charts-root .ch-foot{display:flex;align-items:center;gap:8px;margin-top:12px;padding-top:11px;border-top:1px solid rgba(160,168,220,0.07)}",
+      "#charts-root .ch-foot .ico{font-size:13px;color:#5a6088;flex:none}",
+      "#charts-root .ch-foot .txt{font-size:11.5px;color:#5a6088;font-style:italic}",
+      // Top agents / repos: clickable rows (name + track/bar + count).
+      "#charts-root .ch-rows{display:flex;flex-direction:column;gap:11px}",
+      "#charts-root .ch-row{display:flex;align-items:center;gap:12px;cursor:pointer;border-radius:6px;padding:3px 5px;margin:-3px -5px}",
+      "#charts-root .ch-row:hover{background:rgba(160,168,220,0.05)}",
+      "#charts-root .ch-row:focus-visible{outline:2px solid rgba(122,162,247,0.6);outline-offset:1px}",
+      "#charts-root .ch-rn{width:132px;flex:none;font-family:'JetBrains Mono',monospace;font-size:12px;color:#e7e9f7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
+      "#charts-root .ch-rn2{width:120px;flex:none;display:flex;flex-direction:column;min-width:0}",
+      "#charts-root .ch-rn2 .nm{font-family:'JetBrains Mono',monospace;font-size:12px;color:#e7e9f7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
+      "#charts-root .ch-rn2 .ow{font-family:'JetBrains Mono',monospace;font-size:9px;color:#5a6088;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
+      "#charts-root .ch-rt{flex:1;height:20px;min-width:20px;background:rgba(160,168,220,0.06);border-radius:4px;overflow:hidden}",
+      "#charts-root .ch-rf{height:100%;border-radius:0 4px 4px 0}",
+      "#charts-root .ch-rv{width:46px;flex:none;text-align:right;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#a8aecf}",
       "#charts-root .ch-card{background-color:#0b0d18;border:1px solid rgba(160,168,220,0.09);border-radius:13px;margin:0 24px 16px;padding:14px 16px 10px}",
       "#charts-root .ch-ct{font-family:'JetBrains Mono',monospace;font-size:10.5px;text-transform:uppercase;letter-spacing:0.12em;color:#7f86ad;margin-bottom:6px}",
       "#charts-root .ch-plot{width:100%}",
@@ -2761,13 +2792,19 @@ class Component extends DCLogic {
       // Mobile: totals collapse to 2 columns, the two-up cards stack, tighter gutters.
       // The day-bar SVGs measure their container width, so a breakpoint flip re-renders
       // them (renderCharts) from componentDidMount's matchMedia listener.
-      "@media (max-width:768px){#charts-root .ch-totals{grid-template-columns:repeat(2,1fr);padding-left:14px;padding-right:14px}#charts-root .ch-two{grid-template-columns:1fr;padding-left:14px;padding-right:14px}#charts-root .ch-card{margin-left:14px;margin-right:14px}#charts-root .ch-head{padding-left:16px;padding-right:16px}}"
+      "@media (max-width:768px){#charts-root .ch-tiles{grid-template-columns:1fr;padding-left:14px;padding-right:14px}#charts-root .ch-two{grid-template-columns:1fr;padding-left:14px;padding-right:14px}#charts-root .ch-card{margin-left:14px;margin-right:14px}#charts-root .ch-head{padding-left:16px;padding-right:16px}#charts-root .ch-rn{width:104px}#charts-root .ch-rn2{width:104px}}"
     ].join('\n');
     document.head.appendChild(st);
 
     const root = document.createElement('div');
     root.id = 'charts-root';
     root.style.cssText = 'position:fixed;left:216px;top:54px;right:0;bottom:0;z-index:40;background:#07080f;display:none;overflow-y:auto;font-family:Inter,system-ui,sans-serif;color:#c8cce6';
+    // Legends + scale toggle are static (colors are fixed / from the runtime map),
+    // so build them once here; renderCharts only fills the data slots.
+    const legItem = (label, col) => '<span class="ch-lgi"><span class="sw" style="background:' + col + '"></span>' + label + '</span>';
+    const jobsLegend = '<div class="ch-leg">' + legItem('succeeded', '#9ece6a') + legItem('failed', '#f7768e') + legItem('blocked', '#e0af68') + legItem('running', '#7aa2f7') + '</div>';
+    const rtLegend = '<div class="ch-leg">' + ['codex', 'claude', 'kimi'].map(rt => legItem(rt, this._runtimeColor(rt))).join('') + '</div>';
+    const scaleToggle = '<div class="ch-scale" id="ch-scale"><button class="ch-sbtn" data-scale="linear" type="button">linear</button><button class="ch-sbtn" data-scale="log" type="button">log</button></div>';
     root.innerHTML = [
       '<div class="ch-head">',
       '  <div class="ch-title">Charts<span class="ch-tdot">.</span></div>',
@@ -2779,12 +2816,19 @@ class Component extends DCLogic {
       '  </div>',
       '  <div class="ch-count" id="ch-status">loading…</div>',
       '</div>',
-      '<div class="ch-totals" id="ch-totals"></div>',
-      '<div class="ch-card"><div class="ch-ct">Jobs per day</div><div class="ch-plot" id="ch-jobs"></div></div>',
-      '<div class="ch-card"><div class="ch-ct">Tokens per day</div><div class="ch-plot" id="ch-tokens"></div></div>',
+      '<div class="ch-tiles" id="ch-tiles"></div>',
+      '<div class="ch-card">',
+      '  <div class="ch-chead"><span class="ch-ct">Jobs / day</span>' + jobsLegend + '</div>',
+      '  <div class="ch-plot" id="ch-jobs"></div>',
+      '</div>',
+      '<div class="ch-card">',
+      '  <div class="ch-chead"><span class="ch-ct">Tokens / day</span><span class="ch-toktot" id="ch-tok-total"></span>' + scaleToggle + '</div>',
+      '  <div class="ch-plot" id="ch-tokens"></div>',
+      '  <div class="ch-foot"><span class="ico">ⓘ</span><span class="txt">codex &amp; kimi token usage not yet captured — claude only</span></div>',
+      '</div>',
       '<div class="ch-two">',
-      '  <div class="ch-card"><div class="ch-ct">Top agents</div><div class="ch-plot" id="ch-agents"></div></div>',
-      '  <div class="ch-card"><div class="ch-ct">Top repos</div><div class="ch-plot" id="ch-repos"></div></div>',
+      '  <div class="ch-card"><div class="ch-chead"><span class="ch-ct">Top agents</span>' + rtLegend + '</div><div class="ch-plot" id="ch-agents"></div></div>',
+      '  <div class="ch-card"><div class="ch-chead"><span class="ch-ct">Top repos</span></div><div class="ch-plot" id="ch-repos"></div></div>',
       '</div>',
       '<div class="ch-tooltip" id="ch-tip" style="display:none"></div>'
     ].join('\n');
@@ -2809,6 +2853,29 @@ class Component extends DCLogic {
     };
     wireHover('ch-jobs', 'jobs');
     wireHover('ch-tokens', 'tokens');
+    // Tokens scale toggle (linear|log). Flips this._chartScale and re-renders (no
+    // refetch); default is linear. Log transforms bar heights by log(1+v) so a
+    // spike day stays comparable to quiet days.
+    this._chartScale = this._chartScale || 'linear';
+    root.querySelector('#ch-scale').addEventListener('click', (e) => {
+      const b = (e.target.closest && e.target.closest('.ch-sbtn')) || null;
+      if (!b) return;
+      const s = b.getAttribute('data-scale') === 'log' ? 'log' : 'linear';
+      if (this._chartScale === s) return;
+      this._chartScale = s;
+      if (this._chartsLoaded) this.renderCharts(false);
+    });
+    // Row click-throughs: Top agents -> Jobs filtered by that agent (?agent= facet);
+    // Top repos -> Jobs scoped by the repo facet the Jobs page already supports.
+    // Delegated (rows are rebuilt each render) + keyboard-activatable (role=button).
+    const gotoAgent = (row) => { const nm = row.getAttribute('data-agent'); if (!nm) return; this._jobsFacetRepo = ''; this.showJobs(nm); };
+    const gotoRepo = (row) => { const rp = row.getAttribute('data-repo'); if (!rp) return; this._jobsFacetRepo = rp; this._jobsFacetAgent = ''; this.showJobs(); };
+    const apEl = root.querySelector('#ch-agents');
+    apEl.addEventListener('click', (e) => { const row = e.target.closest && e.target.closest('[data-agent]'); if (row) gotoAgent(row); });
+    apEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { const row = e.target.closest && e.target.closest('[data-agent]'); if (row) { e.preventDefault(); gotoAgent(row); } } });
+    const rpEl = root.querySelector('#ch-repos');
+    rpEl.addEventListener('click', (e) => { const row = e.target.closest && e.target.closest('[data-repo]'); if (row) gotoRepo(row); });
+    rpEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { const row = e.target.closest && e.target.closest('[data-repo]'); if (row) { e.preventDefault(); gotoRepo(row); } } });
     // Re-render on resize so the measured-pixel SVG layout tracks the container.
     this._chartsResize = () => { if (this.state.view === 'charts' && this._chartsLoaded) this.renderCharts(false); };
     window.addEventListener('resize', this._chartsResize);
@@ -2837,14 +2904,22 @@ class Component extends DCLogic {
       });
   }
 
-  _chartsTotalsHtml(t) {
-    const cell = (label, val, col) => '<div class="ch-stat"><div class="ch-sv" style="color:' + col + '">' + val + '</div><div class="ch-sl">' + label + '</div></div>';
-    return cell('jobs', t.jobs || 0, '#c8cce6') +
-      cell('succeeded', t.succeeded || 0, '#9ece6a') +
-      cell('failed', t.failed || 0, (t.failed > 0) ? '#f7768e' : '#5a6088') +
-      cell('tokens in', this._fmtCompact(t.tokensIn || 0), '#7dcfff') +
-      cell('tokens out', this._fmtCompact(t.tokensOut || 0), '#bb9af7') +
-      cell('active agents', t.activeAgents || 0, '#eef0ff');
+  // Three headline rate tiles. Rates are derived from the range totals with the
+  // divide-by-zero guarded (empty range -> '—'). repos count is the top-repos
+  // breakdown length (capped at 12 server-side); activeAgents is exact.
+  _chartsTilesHtml(t, data, range) {
+    const jobs = t.jobs || 0, ok = t.succeeded || 0, fail = t.failed || 0;
+    const fi = (n) => (n || 0).toLocaleString('en-US');
+    const pct = (num) => jobs > 0 ? (num / jobs * 100).toFixed(1) + '%' : '—';
+    const nAgents = t.activeAgents || 0, nRepos = ((data && data.repos) || []).length;
+    const rl = range ? (range + 'd') : 'all';
+    const tile = (cls, label, val, valCol, sub) =>
+      '<div class="ch-tile ' + cls + '"><div class="ch-tk">' + label + '</div>' +
+      '<div class="ch-tv" style="color:' + valCol + '">' + val + '</div>' +
+      '<div class="ch-ts">' + sub + '</div></div>';
+    return tile('ok', 'SUCCESS RATE', pct(ok), '#9ece6a', fi(ok) + ' succeeded / ' + fi(jobs) + ' jobs') +
+      tile('bad', 'FAILURE RATE', pct(fail), '#f7768e', fi(fail) + ' failed') +
+      tile('tot', 'TOTAL JOBS · ' + rl, fi(jobs), '#eef0ff', 'across ' + nAgents + ' agent' + (nAgents === 1 ? '' : 's') + ' · ' + nRepos + ' repo' + (nRepos === 1 ? '' : 's'));
   }
 
   renderCharts(isPoll) {
@@ -2856,120 +2931,152 @@ class Component extends DCLogic {
     const totals = data.totals || {};
     const sEl = root.querySelector('#ch-status');
     if (sEl) sEl.textContent = (totals.jobs || 0) + ' jobs · ' + (range ? ('last ' + range + 'd') : 'all time');
-    const tot = root.querySelector('#ch-totals'); if (tot) tot.innerHTML = this._chartsTotalsHtml(totals);
+    const tt = root.querySelector('#ch-tiles'); if (tt) tt.innerHTML = this._chartsTilesHtml(totals, data, range);
     const days = Array.isArray(data.days) ? data.days : [];
+    // Tokens card header: total + active scale toggle state.
+    const tokTot = root.querySelector('#ch-tok-total');
+    if (tokTot) tokTot.textContent = this._fmtCompact((totals.tokensIn || 0) + (totals.tokensOut || 0)) + ' total';
+    const scaleWrap = root.querySelector('#ch-scale');
+    if (scaleWrap) scaleWrap.querySelectorAll('.ch-sbtn').forEach(b => b.classList.toggle('on', b.getAttribute('data-scale') === (this._chartScale || 'linear')));
     const jp = root.querySelector('#ch-jobs'); if (jp) jp.innerHTML = days.length ? this._chartStacked(jp, days) : '<div class="ch-empty">no jobs in range</div>';
     const tp = root.querySelector('#ch-tokens'); if (tp) tp.innerHTML = days.length ? this._chartTokens(tp, days) : '<div class="ch-empty">no tokens in range</div>';
     const ap = root.querySelector('#ch-agents');
     if (ap) {
-      const rows = (data.agents || []).map(a => ({ label: a.name || '—', value: a.jobs || 0, color: this._runtimeColor(a.runtime || ''), sub: a.tokensOut ? this._fmtCompact(a.tokensOut) : '' }));
-      ap.innerHTML = this._chartHBars(ap, rows);
+      const rows = (data.agents || []).map(a => ({ name: a.name || '—', value: a.jobs || 0, color: this._runtimeColor(a.runtime || '') }));
+      ap.innerHTML = rows.length ? '<div class="ch-rows">' + this._chartsAgentRows(rows) + '</div>' : this._chartsAgentRows(rows);
     }
     const rp = root.querySelector('#ch-repos');
     if (rp) {
-      const rows = (data.repos || []).map(r => ({ label: r.repo || '—', value: r.jobs || 0, color: '#7dcfff', sub: '' }));
-      rp.innerHTML = this._chartHBars(rp, rows);
+      const rows = (data.repos || []).map(r => ({ repo: r.repo || '—', value: r.jobs || 0 }));
+      rp.innerHTML = rows.length ? '<div class="ch-rows">' + this._chartsRepoRows(rows) + '</div>' : this._chartsRepoRows(rows);
     }
   }
 
-  // Stacked vertical bars, one column per day, segments colored by state. Measured
-  // in real pixels (svg width:100% == container width) so axis text stays crisp;
-  // guards the all-zero range so no segment divides by 0.
+  // Single source of truth for the jobs-per-day stack segments (bottom->top draw
+  // order), shared by the stacked-bar builder, the hover tooltip and — for the
+  // first four — the header legend. queued vs cancelled get distinct greys.
+  _jobSegs() {
+    return [['succeeded', '#9ece6a'], ['running', '#7aa2f7'], ['blocked', '#e0af68'], ['queued', '#565f89'], ['cancelled', '#414868'], ['failed', '#f7768e']];
+  }
+
+  // SVG path for a bar with rounded TOP corners and a square base. Used for the
+  // topmost stack segment and the token bars so columns read as the design's
+  // rounded-top bars. r is clamped so tiny bars never invert.
+  _barPath(x, y, w, h, r) {
+    r = Math.max(0, Math.min(r, w / 2, h));
+    const f = (v) => v.toFixed(1);
+    return 'M' + f(x) + ',' + f(y + r) +
+      ' a' + f(r) + ',' + f(r) + ' 0 0 1 ' + f(r) + ',' + f(-r) +
+      ' h' + f(w - 2 * r) +
+      ' a' + f(r) + ',' + f(r) + ' 0 0 1 ' + f(r) + ',' + f(r) +
+      ' v' + f(h - r) + ' h' + f(-w) + ' Z';
+  }
+
+  // Top-agents rows (clickable -> Jobs?agent=). Bars colored by runtime so the
+  // header runtime legend matches. rows: {name, value, color}.
+  _chartsAgentRows(rows) {
+    const esc = (s) => this._galaxyEsc(s);
+    if (!rows.length) return '<div class="ch-empty">no agents in range</div>';
+    let maxV = 0; rows.forEach(r => { if (r.value > maxV) maxV = r.value; });
+    return rows.map(r => {
+      const w = maxV > 0 ? Math.max(2, (r.value / maxV) * 100) : 0;
+      const col = r.color || '#7aa2f7';
+      return '<div class="ch-row" role="button" tabindex="0" data-agent="' + esc(r.name) + '" title="View ' + esc(r.name) + ' jobs">' +
+        '<span class="ch-rn">' + esc(r.name) + '</span>' +
+        '<div class="ch-rt"><div class="ch-rf" style="width:' + w.toFixed(1) + '%;background:' + col + ';box-shadow:0 0 12px color-mix(in srgb,' + col + ' 45%, transparent)"></div></div>' +
+        '<span class="ch-rv">' + (r.value || 0).toLocaleString('en-US') + '</span></div>';
+    }).join('');
+  }
+
+  // Top-repos rows (clickable -> Jobs scoped by the repo facet). The owner prefix
+  // is split off into a small grey line above the repo name. rows: {repo, value}.
+  _chartsRepoRows(rows) {
+    const esc = (s) => this._galaxyEsc(s);
+    if (!rows.length) return '<div class="ch-empty">no repos in range</div>';
+    let maxV = 0; rows.forEach(r => { if (r.value > maxV) maxV = r.value; });
+    return rows.map(r => {
+      const w = maxV > 0 ? Math.max(2, (r.value / maxV) * 100) : 0;
+      const repo = r.repo || '';
+      const slash = repo.indexOf('/');
+      const name = slash >= 0 ? repo.slice(slash + 1) : repo;
+      const owner = slash >= 0 ? repo.slice(0, slash) + '/' : '';
+      return '<div class="ch-row" role="button" tabindex="0" data-repo="' + esc(repo) + '" title="Scope jobs to ' + esc(repo) + '">' +
+        '<span class="ch-rn2"><span class="nm">' + esc(name) + '</span>' + (owner ? '<span class="ow">' + esc(owner) + '</span>' : '') + '</span>' +
+        '<div class="ch-rt"><div class="ch-rf" style="width:' + w.toFixed(1) + '%;background:linear-gradient(90deg,#5a6088,#868db5)"></div></div>' +
+        '<span class="ch-rv">' + (r.value || 0).toLocaleString('en-US') + '</span></div>';
+    }).join('');
+  }
+
+  // Stacked vertical bars, one column per day, segments colored by state (via
+  // _jobSegs). Axis-less to match the design; the header legend + hover carry the
+  // key. Measured in real pixels (svg width:100% == container width). The topmost
+  // segment gets a rounded top; guards the all-zero range so nothing divides by 0.
   _chartStacked(plotEl, days) {
     const esc = (s) => this._galaxyEsc(s);
-    const W = Math.max(320, (plotEl && plotEl.clientWidth) || 900), H = 240;
-    const mL = 46, mR = 12, mT = 12, mB = 26;
+    const W = Math.max(320, (plotEl && plotEl.clientWidth) || 900), H = 180;
+    const mL = 4, mR = 4, mT = 8, mB = 22;
     const plotW = W - mL - mR, plotH = H - mT - mB, n = days.length;
-    if (!n) return '<div class="ch-empty">no data in range</div>';
-    const SEG = [['succeeded', '#9ece6a'], ['running', '#7aa2f7'], ['blocked', '#e0af68'], ['queued', '#5a6088'], ['cancelled', '#5a6088'], ['failed', '#f7768e']];
+    if (!n) return '<div class="ch-empty">no jobs in range</div>';
+    const SEG = this._jobSegs();
     let maxTotal = 0;
     days.forEach(d => { let s = 0; SEG.forEach(g => { s += (d[g[0]] || 0); }); if (s > maxTotal) maxTotal = s; });
-    const niceMax = maxTotal > 0 ? maxTotal : 1;
     const slot = plotW / n;
-    const barW = Math.max(1, Math.min(slot * 0.62, 22));
+    const barW = Math.max(2, Math.min(slot * 0.7, 40));
+    const R = Math.min(4, barW / 2);
     const labelStep = Math.max(1, Math.ceil(n / Math.max(4, Math.floor(plotW / 64))));
     const parts = ['<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" height="' + H + '" data-ml="' + mL + '" data-slot="' + slot + '" data-n="' + n + '" data-w="' + W + '" style="display:block">'];
-    const TICKS = 4;
-    for (let i = 0; i <= TICKS; i++) {
-      const y = mT + plotH * (1 - i / TICKS), val = Math.round(niceMax * i / TICKS);
-      parts.push('<line x1="' + mL + '" y1="' + y.toFixed(1) + '" x2="' + (W - mR) + '" y2="' + y.toFixed(1) + '" stroke="rgba(160,168,220,0.06)" stroke-width="1"/>');
-      parts.push('<text x="' + (mL - 6) + '" y="' + (y + 3).toFixed(1) + '" text-anchor="end" font-family="JetBrains Mono,monospace" font-size="9" fill="#5a6088">' + val + '</text>');
-    }
     for (let i = 0; i < n; i++) {
       const d = days[i];
       const sx = mL + slot * i + (slot - barW) / 2;
+      let topIdx = -1;
+      for (let k = 0; k < SEG.length; k++) { if ((d[SEG[k][0]] || 0) > 0) topIdx = k; }
       let yBase = mT + plotH;
       if (maxTotal > 0) {
-        SEG.forEach(g => {
-          const c = d[g[0]] || 0; if (c <= 0) return;
+        for (let k = 0; k < SEG.length; k++) {
+          const c = d[SEG[k][0]] || 0; if (c <= 0) continue;
           const h = (c / maxTotal) * plotH; yBase -= h;
-          parts.push('<rect x="' + sx.toFixed(1) + '" y="' + yBase.toFixed(1) + '" width="' + barW.toFixed(1) + '" height="' + h.toFixed(1) + '" fill="' + g[1] + '" rx="1"/>');
-        });
+          if (k === topIdx) parts.push('<path d="' + this._barPath(sx, yBase, barW, h, R) + '" fill="' + SEG[k][1] + '"/>');
+          else parts.push('<rect x="' + sx.toFixed(1) + '" y="' + yBase.toFixed(1) + '" width="' + barW.toFixed(1) + '" height="' + h.toFixed(1) + '" fill="' + SEG[k][1] + '"/>');
+        }
       }
-      if (i % labelStep === 0) parts.push('<text x="' + (mL + slot * i + slot / 2).toFixed(1) + '" y="' + (H - 8) + '" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#5a6088">' + esc((d.date || '').slice(5)) + '</text>');
+      if (i % labelStep === 0) parts.push('<text x="' + (mL + slot * i + slot / 2).toFixed(1) + '" y="' + (H - 7) + '" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="8.5" fill="#5a6088">' + esc((d.date || '').slice(5)) + '</text>');
       parts.push('<rect class="ch-hit" x="' + (mL + slot * i).toFixed(1) + '" y="' + mT + '" width="' + slot.toFixed(1) + '" height="' + plotH + '" fill="transparent"/>');
     }
     parts.push('</svg>');
     return parts.join('');
   }
 
-  // Dual bars per day: tokens in (cyan) vs out (purple), mono k/M axis.
+  // One gradient bar per day = that day's total tokens (in+out). Scale is
+  // linear|log (this._chartScale); log transforms heights by log(1+v)/log(1+max)
+  // so a spike stays comparable to quiet days. Axis-less to match the design and
+  // keep the log view honest — the hover gives exact in/out/total.
   _chartTokens(plotEl, days) {
     const esc = (s) => this._galaxyEsc(s);
-    const W = Math.max(320, (plotEl && plotEl.clientWidth) || 900), H = 240;
-    const mL = 46, mR = 12, mT = 22, mB = 26;
+    const W = Math.max(320, (plotEl && plotEl.clientWidth) || 900), H = 180;
+    const mL = 4, mR = 4, mT = 8, mB = 22;
     const plotW = W - mL - mR, plotH = H - mT - mB, n = days.length;
-    if (!n) return '<div class="ch-empty">no data in range</div>';
-    let maxTok = 0; days.forEach(d => { maxTok = Math.max(maxTok, d.tokensIn || 0, d.tokensOut || 0); });
-    const niceMax = maxTok > 0 ? maxTok : 1;
-    const IN = '#7dcfff', OUT = '#bb9af7';
+    if (!n) return '<div class="ch-empty">no tokens in range</div>';
+    const log = (this._chartScale || 'linear') === 'log';
+    const val = (d) => (d.tokensIn || 0) + (d.tokensOut || 0);
+    let maxTok = 0; days.forEach(d => { maxTok = Math.max(maxTok, val(d)); });
+    const denom = log ? Math.log(maxTok + 1) : maxTok;
     const slot = plotW / n;
-    const gW = Math.max(2, Math.min(slot * 0.62, 20));
-    const bW = Math.max(1, (gW / 2) - 1);
+    const barW = Math.max(2, Math.min(slot * 0.7, 40));
+    const R = Math.min(4, barW / 2);
     const labelStep = Math.max(1, Math.ceil(n / Math.max(4, Math.floor(plotW / 64))));
     const parts = ['<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" height="' + H + '" data-ml="' + mL + '" data-slot="' + slot + '" data-n="' + n + '" data-w="' + W + '" style="display:block">'];
-    const TICKS = 4;
-    for (let i = 0; i <= TICKS; i++) {
-      const y = mT + plotH * (1 - i / TICKS), val = this._fmtCompact(Math.round(niceMax * i / TICKS));
-      parts.push('<line x1="' + mL + '" y1="' + y.toFixed(1) + '" x2="' + (W - mR) + '" y2="' + y.toFixed(1) + '" stroke="rgba(160,168,220,0.06)" stroke-width="1"/>');
-      parts.push('<text x="' + (mL - 6) + '" y="' + (y + 3).toFixed(1) + '" text-anchor="end" font-family="JetBrains Mono,monospace" font-size="9" fill="#5a6088">' + esc(val) + '</text>');
-    }
-    parts.push('<rect x="' + mL + '" y="6" width="9" height="9" rx="2" fill="' + IN + '"/><text x="' + (mL + 13) + '" y="14" font-family="JetBrains Mono,monospace" font-size="9" fill="#7f86ad">in</text>');
-    parts.push('<rect x="' + (mL + 40) + '" y="6" width="9" height="9" rx="2" fill="' + OUT + '"/><text x="' + (mL + 53) + '" y="14" font-family="JetBrains Mono,monospace" font-size="9" fill="#7f86ad">out</text>');
+    parts.push('<defs><linearGradient id="ch-tokgrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7aa2f7"/><stop offset="1" stop-color="#4d6fc4"/></linearGradient></defs>');
     for (let i = 0; i < n; i++) {
-      const d = days[i], cx = mL + slot * i + slot / 2;
-      if (maxTok > 0) {
-        const hi = ((d.tokensIn || 0) / maxTok) * plotH, ho = ((d.tokensOut || 0) / maxTok) * plotH;
-        parts.push('<rect x="' + (cx - bW - 0.5).toFixed(1) + '" y="' + (mT + plotH - hi).toFixed(1) + '" width="' + bW.toFixed(1) + '" height="' + hi.toFixed(1) + '" fill="' + IN + '" rx="1"/>');
-        parts.push('<rect x="' + (cx + 0.5).toFixed(1) + '" y="' + (mT + plotH - ho).toFixed(1) + '" width="' + bW.toFixed(1) + '" height="' + ho.toFixed(1) + '" fill="' + OUT + '" rx="1"/>');
+      const d = days[i], v = val(d);
+      const sx = mL + slot * i + (slot - barW) / 2;
+      if (denom > 0 && v > 0) {
+        const frac = log ? (Math.log(v + 1) / denom) : (v / denom);
+        const h = Math.max(0, frac * plotH);
+        parts.push('<path d="' + this._barPath(sx, mT + plotH - h, barW, h, R) + '" fill="url(#ch-tokgrad)"/>');
       }
-      if (i % labelStep === 0) parts.push('<text x="' + cx.toFixed(1) + '" y="' + (H - 8) + '" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#5a6088">' + esc((d.date || '').slice(5)) + '</text>');
+      if (i % labelStep === 0) parts.push('<text x="' + (mL + slot * i + slot / 2).toFixed(1) + '" y="' + (H - 7) + '" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="8.5" fill="#5a6088">' + esc((d.date || '').slice(5)) + '</text>');
       parts.push('<rect class="ch-hit" x="' + (mL + slot * i).toFixed(1) + '" y="' + mT + '" width="' + slot.toFixed(1) + '" height="' + plotH + '" fill="transparent"/>');
     }
-    parts.push('</svg>');
-    return parts.join('');
-  }
-
-  // Horizontal bars (top agents / top repos). rows: {label,value,color,sub}.
-  _chartHBars(plotEl, rows) {
-    const esc = (s) => this._galaxyEsc(s);
-    const W = Math.max(320, (plotEl && plotEl.clientWidth) || 900);
-    if (!rows.length) return '<div class="ch-empty">no data in range</div>';
-    const rowH = 26, top = 8, H = rows.length * rowH + top + 4;
-    const labelW = Math.min(150, Math.max(90, W * 0.26));
-    const valW = 56, barX = labelW + 10, barMax = Math.max(10, W - barX - valW);
-    let maxV = 0; rows.forEach(r => { if (r.value > maxV) maxV = r.value; });
-    const maxChars = Math.max(6, Math.floor(labelW / 6.2));
-    const parts = ['<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" height="' + H + '" style="display:block">'];
-    rows.forEach((r, i) => {
-      const cy = top + i * rowH + rowH / 2;
-      let lbl = r.label || '';
-      if (lbl.length > maxChars) lbl = lbl.slice(0, maxChars - 1) + '…';
-      const bw = Math.max(2, maxV > 0 ? (r.value / maxV) * barMax : 0);
-      parts.push('<text x="' + labelW + '" y="' + (cy + 3).toFixed(1) + '" text-anchor="end" font-family="Inter,sans-serif" font-size="11.5" fill="#c7c9e5">' + esc(lbl) + '</text>');
-      parts.push('<rect x="' + barX + '" y="' + (cy - 6).toFixed(1) + '" width="' + bw.toFixed(1) + '" height="12" rx="3" fill="' + (r.color || '#7aa2f7') + '" opacity="0.9"/>');
-      parts.push('<text x="' + (barX + bw + 6).toFixed(1) + '" y="' + (cy + 3).toFixed(1) + '" font-family="JetBrains Mono,monospace" font-size="10.5" fill="#868db5">' + r.value + (r.sub ? ('  ' + esc(r.sub)) : '') + '</text>');
-    });
     parts.push('</svg>');
     return parts.join('');
   }
@@ -2988,13 +3095,15 @@ class Component extends DCLogic {
     const esc = (s) => this._galaxyEsc(s);
     let html = '<div class="ch-tip-t">' + esc(d.date || '') + '</div>';
     if (kind === 'jobs') {
-      const SEG = [['succeeded', '#9ece6a'], ['running', '#7aa2f7'], ['blocked', '#e0af68'], ['queued', '#5a6088'], ['cancelled', '#5a6088'], ['failed', '#f7768e']];
+      const SEG = this._jobSegs();
       let tot = 0; SEG.forEach(g => tot += (d[g[0]] || 0));
       SEG.forEach(g => { const c = d[g[0]] || 0; if (c > 0) html += '<div class="ch-tip-r"><span class="ch-tip-sw" style="background:' + g[1] + '"></span>' + g[0] + ' <b>' + c + '</b></div>'; });
       html += '<div class="ch-tip-r" style="color:#c8cce6">total <b>' + tot + '</b></div>';
     } else {
-      html += '<div class="ch-tip-r"><span class="ch-tip-sw" style="background:#7dcfff"></span>in <b>' + this._fmtCompact(d.tokensIn || 0) + '</b></div>';
-      html += '<div class="ch-tip-r"><span class="ch-tip-sw" style="background:#bb9af7"></span>out <b>' + this._fmtCompact(d.tokensOut || 0) + '</b></div>';
+      const tin = d.tokensIn || 0, tout = d.tokensOut || 0;
+      html += '<div class="ch-tip-r"><span class="ch-tip-sw" style="background:#7dcfff"></span>in <b>' + this._fmtCompact(tin) + '</b></div>';
+      html += '<div class="ch-tip-r"><span class="ch-tip-sw" style="background:#bb9af7"></span>out <b>' + this._fmtCompact(tout) + '</b></div>';
+      html += '<div class="ch-tip-r" style="color:#c8cce6">total <b>' + this._fmtCompact(tin + tout) + '</b></div>';
     }
     tip.innerHTML = html;
     tip.style.display = 'block';
