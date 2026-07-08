@@ -3799,39 +3799,49 @@ class Component extends DCLogic {
       "#learning-root .lr-body{flex:1;position:relative;min-height:0}",
       "#learning-root #lr-skills{position:absolute;inset:0;overflow-y:auto}",
       "#learning-root #lr-knowledge{position:absolute;inset:0;background:#080a14}",
-      "#learning-root .lr-stats{display:flex;gap:22px;align-items:center;padding:0 24px 16px;font-family:'JetBrains Mono',monospace;font-size:12px;color:#7f86ad;flex-wrap:wrap}",
-      "#learning-root .lr-stat b{color:#eef0ff;font-weight:600;font-size:15px;margin-right:5px}",
-      "#learning-root .lr-stat b.cn{color:#7aa2f7}",
-      "#learning-root .lr-stat b.pd{color:#e0af68}",
-      "#learning-root .lr-tablewrap{padding:0 24px 30px}",
-      "#learning-root .lr-table{width:100%;table-layout:fixed;border-collapse:collapse;font-size:13px}",
-      "#learning-root .lr-table th:nth-child(2){width:180px}",
-      "#learning-root .lr-table th:nth-child(3){width:240px}",
-      "#learning-root .lr-table th:nth-child(4){width:130px}",
-      "#learning-root .lr-table thead th{text-align:left;padding:9px 12px;font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:0.1em;color:#5a6088;font-weight:600;border-bottom:1px solid rgba(160,168,220,0.1);white-space:nowrap}",
-      "#learning-root .lr-table tbody tr.lr-row{border-bottom:1px solid rgba(160,168,220,0.05)}",
-      "#learning-root .lr-table tbody tr.lr-row[data-agent]{cursor:pointer}",
-      "#learning-root .lr-table tbody tr.lr-row[data-agent]:hover{background:rgba(160,168,220,0.04)}",
-      "#learning-root .lr-table td{padding:11px 12px;vertical-align:middle;color:#a8aecf;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
-      "#learning-root .lr-tname{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:14px;color:#eef0ff;overflow:hidden;text-overflow:ellipsis}",
-      "#learning-root .lr-tagents{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#5a6088;margin-top:2px;overflow:hidden;text-overflow:ellipsis}",
-      "#learning-root .lr-sparkwrap{display:flex;align-items:center;gap:8px}",
-      "#learning-root .lr-spark{flex:none}",
-      "#learning-root .lr-sparkval{font-family:'JetBrains Mono',monospace;font-size:12px;color:#9ece6a;font-weight:600}",
-      "#learning-root .lr-nosl{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#5a6088}",
-      "#learning-root .lr-live{display:inline-flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:10.5px;font-weight:600;padding:4px 9px;border-radius:7px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
-      "#learning-root .lr-live.current{color:#9ece6a;background:rgba(158,206,106,0.1);border:1px solid rgba(158,206,106,0.26)}",
-      "#learning-root .lr-live.canary{color:#7aa2f7;background:rgba(122,162,247,0.12);border:1px solid rgba(122,162,247,0.3)}",
-      "#learning-root .lr-needs-btn{display:inline-flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;padding:4px 9px;border-radius:7px;border:1px solid rgba(224,175,104,0.3);background:rgba(224,175,104,0.1);color:#e0af68;cursor:pointer}",
-      "#learning-root .lr-needs-btn .chev{color:#e0af68}",
-      "#learning-root .lr-needs-none{font-family:'JetBrains Mono',monospace;font-size:11px;color:#5a6088}",
-      "#learning-root tr.lr-exp>td{padding:0 12px 12px;background:rgba(10,11,22,0.4)}",
-      "#learning-root .lr-cand{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:11px 12px;border:1px solid rgba(224,175,104,0.18);border-radius:9px;margin-top:10px;background:rgba(224,175,104,0.04)}",
-      "#learning-root .lr-cand .cv{font-family:'JetBrains Mono',monospace;font-size:12px;color:#e0af68;font-weight:600}",
-      "#learning-root .lr-cand .cs{font-family:'JetBrains Mono',monospace;font-size:11px;color:#a8aecf}",
-      "#learning-root .lr-cand .ca{font-family:'JetBrains Mono',monospace;font-size:10px;color:#5a6088}",
-      "#learning-root .lr-cmd{display:flex;align-items:center;gap:8px;margin-left:auto;flex-wrap:wrap}",
-      "#learning-root .lr-cmd code{font-family:'JetBrains Mono',monospace;font-size:11px;color:#c7c9e5;background:#0a0b16;border:1px solid rgba(160,168,220,0.14);border-radius:7px;padding:6px 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:340px}",
+      "#learning-root .lr-skbody{padding:22px 24px 40px}",
+      "#learning-root .lr-skcol{max-width:1000px;margin:0 auto;display:flex;flex-direction:column;gap:20px}",
+      "#learning-root .lr-needs{background:linear-gradient(180deg,rgba(224,175,104,0.07),#111325);border:1px solid rgba(224,175,104,0.26);border-left:3px solid #e0af68;border-radius:12px;overflow:hidden}",
+      "#learning-root .lr-ndhead{display:flex;align-items:center;gap:9px;padding:13px 16px}",
+      "#learning-root .lr-nd{width:7px;height:7px;border-radius:50%;background:#e0af68;box-shadow:0 0 8px rgba(224,175,104,0.7);flex:none}",
+      "#learning-root .lr-ndlabel{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:0.13em;color:#e6c07f;font-weight:600}",
+      "#learning-root .lr-ndcount{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#a98c52}",
+      "#learning-root .lr-ndok{font-family:'JetBrains Mono',monospace;font-size:12px;color:#9ece6a}",
+      "#learning-root .lr-nsp{flex:1}",
+      "#learning-root .lr-ndbody{padding:0 12px 12px;display:flex;flex-direction:column;gap:7px}",
+      "#learning-root .lr-nrow{display:flex;align-items:center;gap:12px;padding:11px 13px;background:#0f1120;border:1px solid rgba(160,168,220,0.12);border-radius:10px;flex-wrap:wrap}",
+      "#learning-root .lr-nname{font-family:'JetBrains Mono',monospace;font-size:12.5px;color:#eef0ff;font-weight:600}",
+      "#learning-root .lr-nprom{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#7dcfff;background:rgba(125,207,255,0.1);border-radius:5px;padding:1px 7px}",
+      "#learning-root .lr-nsc{font-family:'JetBrains Mono',monospace;font-size:11px;color:#9ece6a}",
+      "#learning-root .lr-nage{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#5a6088}",
+      "#learning-root .lr-needs-empty{display:flex;align-items:center;gap:9px;padding:11px 16px;background:#0d0f1c;border:1px solid rgba(160,168,220,0.1);border-radius:12px}",
+      "#learning-root .lr-needs-empty .lr-nd{background:#5a6088;box-shadow:none}",
+      "#learning-root .lr-needs-empty .lr-ndlabel{color:#7f86ad}",
+      "#learning-root .lr-needs-empty .lr-ndcount{color:#5a6088}",
+      "#learning-root .lr-cmd{display:flex;align-items:center;gap:8px;padding:6px 8px 6px 11px;background:#0a0b16;border:1px solid rgba(160,168,220,0.14);border-radius:8px;flex:0 1 auto;min-width:0;max-width:100%;overflow:hidden}",
+      "#learning-root .lr-cmd code{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#c5f882;white-space:nowrap;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}",
+      "#learning-root .lr-cmd .gm-copy{flex:none}",
+      "#learning-root .lr-sech{display:flex;align-items:center;gap:8px;margin-bottom:11px}",
+      "#learning-root .lr-sech-tog{cursor:pointer}",
+      "#learning-root .lr-secchev{font-size:10px;color:#5a6088;width:10px}",
+      "#learning-root .lr-sect{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.14em;color:#868db5;font-weight:600}",
+      "#learning-root .lr-secn{font-family:'JetBrains Mono',monospace;font-size:10px;color:#5a6088}",
+      "#learning-root .lr-secmute{font-family:'JetBrains Mono',monospace;font-size:11px;color:#5a6088;padding:2px 2px 6px}",
+      "#learning-root .lr-ttbl{border:1px solid rgba(160,168,220,0.1);border-radius:11px;overflow:hidden}",
+      "#learning-root .lr-trow{display:flex;align-items:center;padding:11px 16px;border-bottom:1px solid rgba(160,168,220,0.05)}",
+      "#learning-root .lr-trow:last-child{border-bottom:none}",
+      "#learning-root .lr-thead{padding:9px 16px;background:#0f1120;border-bottom:1px solid rgba(160,168,220,0.1);font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:0.08em;color:#5a6088}",
+      "#learning-root .lr-tdata[data-agent]{cursor:pointer}",
+      "#learning-root .lr-tdata[data-agent]:hover{background:rgba(160,168,220,0.04)}",
+      "#learning-root .lr-c-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
+      "#learning-root .lr-c-ver{width:70px;flex:none}",
+      "#learning-root .lr-c-score{width:150px;flex:none;display:flex;align-items:center;gap:9px}",
+      "#learning-root .lr-c-changed{width:110px;flex:none;font-family:'JetBrains Mono',monospace;font-size:11px;color:#5a6088}",
+      "#learning-root .lr-tn{font-family:'JetBrains Mono',monospace;font-size:12.5px;color:#eef0ff}",
+      "#learning-root .lr-vchip{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#a8aecf;background:rgba(160,168,220,0.08);border-radius:5px;padding:2px 7px}",
+      "#learning-root .lr-bar{width:64px;height:5px;background:rgba(160,168,220,0.12);border-radius:3px;overflow:hidden;flex:none}",
+      "#learning-root .lr-barfill{display:block;height:100%;border-radius:3px}",
+      "#learning-root .lr-scv{font-family:'JetBrains Mono',monospace;font-size:11.5px}",
       "#learning-root .lr-empty-tbl{padding:60px 20px;text-align:center;color:#5a6088;font-size:13px}",
       "#learning-root #lr-know-graph{position:absolute;inset:0}",
       "#learning-root .lr-kchip{position:absolute;z-index:10;background:rgba(14,16,30,.72);border:1px solid rgba(187,154,247,.2);border-radius:12px;backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px);box-shadow:0 6px 30px rgba(0,0,0,.55)}",
@@ -3864,7 +3874,7 @@ class Component extends DCLogic {
       "#learning-root .lr-dv.hi{color:#eef0ff}",
       "#learning-root .lr-dsec{font-size:10.5px;color:#5a6088;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:10px}",
       "#learning-root .lr-dlink{display:flex;align-items:center;gap:10px;padding:11px 14px;background:rgba(187,154,247,0.1);border:1px solid rgba(187,154,247,0.26);border-radius:10px;color:#d7c4ff;text-decoration:none;font-size:13px;font-weight:500;cursor:pointer}",
-      "@media (max-width:768px){#learning-root .lr-head{padding-left:16px;padding-right:16px}#learning-root .lr-stats{padding-left:16px;padding-right:16px;gap:16px}#learning-root .lr-tablewrap{padding-left:14px;padding-right:14px}#learning-root .lr-table,#learning-root .lr-table tbody{display:block}#learning-root .lr-table thead{display:none}#learning-root .lr-table tr.lr-row{display:block;background:#0d0f1c;border:1px solid rgba(160,168,220,0.1);border-radius:11px;padding:11px 13px;margin-bottom:8px}#learning-root .lr-table tr.lr-row td{display:block;width:auto;padding:5px 0;border:none;white-space:normal;overflow:visible;text-overflow:clip}#learning-root .lr-table tr.lr-row td .lr-live{max-width:none;white-space:normal}#learning-root .lr-table tr.lr-exp{display:block}#learning-root .lr-table tr.lr-exp[hidden]{display:none}#learning-root .lr-table tr.lr-exp>td{display:block;padding:0 0 11px}#learning-root .lr-detail{width:100%;left:0;border-left:none}#learning-root .lr-cmd code{max-width:180px}}",
+      "@media (max-width:768px){#learning-root .lr-head{padding-left:16px;padding-right:16px}#learning-root .lr-skbody{padding-left:14px;padding-right:14px}#learning-root .lr-thead{display:none}#learning-root .lr-trow{flex-wrap:wrap;gap:6px 10px}#learning-root .lr-c-name{flex:1 1 100%;white-space:normal}#learning-root .lr-c-ver,#learning-root .lr-c-changed{width:auto;flex:none}#learning-root .lr-c-score{width:auto;flex:1}#learning-root .lr-nrow{gap:8px}#learning-root .lr-cmd{width:100%;max-width:none}#learning-root .lr-cmd code{white-space:normal;word-break:break-all}#learning-root .lr-detail{width:100%;left:0;border-left:none}}",
       "@media (pointer:coarse){#learning-root .lr-dclose{width:44px;height:44px;font-size:17px}}"
     ].join('\n');
     document.head.appendChild(st);
@@ -3882,8 +3892,7 @@ class Component extends DCLogic {
       '</div>',
       '<div class="lr-body">',
       '  <div id="lr-skills">',
-      '    <div class="lr-stats" id="lr-stats"></div>',
-      '    <div class="lr-tablewrap" id="lr-skills-body"></div>',
+      '    <div class="lr-skbody" id="lr-skills-body"></div>',
       '  </div>',
       '  <div id="lr-knowledge" style="display:none">',
       '    <div id="lr-know-graph"></div>',
@@ -3911,14 +3920,14 @@ class Component extends DCLogic {
       const b = (e.target.closest && e.target.closest('.lr-chip')) || null;
       if (b) this.switchLearningTab(b.getAttribute('data-tab'));
     });
-    // Skills table delegation: copy button > needs expander > row-nav-to-agent.
+    // Skills delegation: copy chip > section disclosure toggle > row-nav-to-agent.
     const sbody = root.querySelector('#lr-skills-body');
     sbody.addEventListener('click', (e) => {
       const copy = (e.target.closest && e.target.closest('.gm-copy')) || null;
       if (copy) { e.stopPropagation(); this._gmCopyChip(copy); return; }
-      const needs = (e.target.closest && e.target.closest('.lr-needs-btn')) || null;
-      if (needs) { e.stopPropagation(); this._toggleSkillExpand(needs); return; }
-      const row = (e.target.closest && e.target.closest('tr.lr-row')) || null;
+      const tog = (e.target.closest && e.target.closest('[data-tog]')) || null;
+      if (tog) { e.stopPropagation(); this._lrToggleSection(tog.getAttribute('data-tog')); return; }
+      const row = (e.target.closest && e.target.closest('.lr-tdata')) || null;
       if (row && row.getAttribute('data-agent')) this._learningGotoAgent(row.getAttribute('data-agent'));
     });
     // Knowledge: escape closes the node-detail panel; resize re-fits the graph.
@@ -3963,105 +3972,117 @@ class Component extends DCLogic {
     if (!this._learningRoot) return;
     const data = this._skillsData || { templates: [], activeCanaries: 0, pendingTotal: 0 };
     const tpls = Array.isArray(data.templates) ? data.templates : [];
-    const nc = data.activeCanaries || 0, np = data.pendingTotal || 0;
-    const stats = this._learningRoot.querySelector('#lr-stats');
-    if (stats) {
-      stats.innerHTML =
-        '<span class="lr-stat"><b>' + tpls.length + '</b>template' + (tpls.length === 1 ? '' : 's') + '</span>' +
-        '<span class="lr-stat"><b class="cn">' + nc + '</b>canar' + (nc === 1 ? 'y' : 'ies') + '</span>' +
-        '<span class="lr-stat"><b class="pd">' + np + '</b>pending</span>';
-    }
     const body = this._learningRoot.querySelector('#lr-skills-body');
     if (!body) return;
-    if (!tpls.length) { body.innerHTML = '<div class="lr-empty-tbl">' + (this._skillsLoaded ? 'no templates tracked yet' : 'loading…') + '</div>'; return; }
-    const rows = tpls.map((t, i) => this._skillRowHtml(t, i)).join('');
-    body.innerHTML = '<table class="lr-table"><thead><tr><th>template</th><th>score trend</th><th>live now</th><th>needs you</th></tr></thead><tbody>' + rows + '</tbody></table>';
-  }
+    if (!tpls.length) { body.innerHTML = '<div class="lr-skcol"><div class="lr-empty-tbl">' + (this._skillsLoaded ? 'no templates tracked yet' : 'loading…') + '</div></div>'; return; }
 
-  // Inline SVG sparkline (~110x24) of a template's SCORED versions in Number
-  // order, with the last (newest) value printed. A flat run centers; a single
-  // point shows just the dot. Only versions with hasScore are plotted.
-  _skillSparkline(versions) {
-    const esc = (s) => this._galaxyEsc(s);
-    const scored = (Array.isArray(versions) ? versions : []).filter(v => v && v.hasScore).slice().sort((a, b) => (a.number || 0) - (b.number || 0));
-    if (!scored.length) return '<span class="lr-nosl">no scores yet</span>';
-    const W = 110, H = 24, pad = 3, n = scored.length;
-    const vals = scored.map(v => v.score || 0);
-    const min = Math.min.apply(null, vals), max = Math.max.apply(null, vals);
-    const flat = (max === min), span = flat ? 1 : (max - min);
-    const x = (i) => n === 1 ? W / 2 : (pad + i * (W - 2 * pad) / (n - 1));
-    const y = (v) => flat ? H / 2 : (H - pad - ((v - min) / span) * (H - 2 * pad));
-    let svg = '<svg class="lr-spark" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '">';
-    if (n > 1) {
-      const pts = scored.map((v, i) => x(i).toFixed(1) + ',' + y(v.score || 0).toFixed(1)).join(' ');
-      svg += '<polyline points="' + pts + '" fill="none" stroke="#9ece6a" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>';
-    }
-    const last = scored[n - 1];
-    svg += '<circle cx="' + x(n - 1).toFixed(1) + '" cy="' + y(last.score || 0).toFixed(1) + '" r="2.4" fill="#c5f882"/>';
-    svg += '</svg>';
-    const lastStr = (last.score != null) ? (last.score).toFixed(2) : '';
-    return '<div class="lr-sparkwrap">' + svg + '<span class="lr-sparkval">' + esc(lastStr) + '</span></div>';
-  }
+    // NEEDS YOU: a FLAT list of every pending candidate across every template
+    // (newest first), each carrying its own copyable promote command.
+    const needs = [];
+    tpls.forEach(t => { (Array.isArray(t.pending) ? t.pending : []).forEach(c => needs.push({ t: t, c: c })); });
+    needs.sort((a, b) => (b.c.createdAt || 0) - (a.c.createdAt || 0));
 
-  // LIVE NOW chip. An in-flight canary (canarySample > 0) tints blue and shows
-  // the canary version + sample% + elapsed-since-start; otherwise the current
-  // (live) version + age since it was promoted.
-  _skillLiveHtml(t) {
-    const esc = (s) => this._galaxyEsc(s);
-    if ((t.canarySample || 0) > 0) {
-      let cv = t.currentVersion || 0;
-      (t.versions || []).forEach(v => { if (String(v.state || '').toLowerCase() === 'canary') cv = v.number; });
-      const pct = Math.round((t.canarySample || 0) * 100);
-      const el = t.canaryStartedAt ? this._relFromMs(t.canaryStartedAt) : '—';
-      return '<span class="lr-live canary" title="canary sampling ' + pct + '%">CANARY v' + esc(cv) + ' · ' + pct + '% · ' + esc(el) + '</span>';
-    }
-    const age = t.lastPromotedAt ? this._relFromMs(t.lastPromotedAt) : '—';
-    return '<span class="lr-live current" title="' + esc(t.currentState || 'current') + '">current v' + esc(t.currentVersion || '?') + ' · ' + esc(age) + '</span>';
-  }
+    // CHANGED RECENTLY = a pending candidate OR a version event in the last 7d;
+    // everything else lands in the collapsed ALL TEMPLATES disclosure.
+    const now = Date.now(), WEEK = 7 * 24 * 3600 * 1000;
+    const meta = tpls.map(t => this._lrTplMeta(t));
+    const changed = meta.filter(m => m.pendingCount > 0 || (m.changedMs && (now - m.changedMs) <= WEEK));
+    const allOpen = !!this._lrAllOpen;
 
-  _skillRowHtml(t, i) {
-    const esc = (s) => this._galaxyEsc(s);
-    const agents = Array.isArray(t.agents) ? t.agents : [];
-    const firstAgent = agents.length ? agents[0] : '';
-    const pending = Array.isArray(t.pending) ? t.pending : [];
-    const np = pending.length;
-    const set = this._skillsExpanded || {};
-    const expanded = !!set[t.templateId];
-    const needsCell = np > 0
-      ? '<button class="lr-needs-btn' + (expanded ? ' open' : '') + '">' + np + ' pending <span class="chev">' + (expanded ? '▾' : '▸') + '</span></button>'
-      : '<span class="lr-needs-none">—</span>';
-    const rowAttr = firstAgent ? ' data-agent="' + esc(firstAgent) + '" title="view ' + esc(firstAgent) + '"' : '';
-    let out = '<tr class="lr-row" data-tpl="' + esc(t.templateId) + '"' + rowAttr + '>' +
-      '<td><div class="lr-tname">' + esc(t.name || t.templateId) + '</div><div class="lr-tagents">' + (agents.length ? esc(agents.join(' · ')) : 'no registered agents') + '</div></td>' +
-      '<td>' + this._skillSparkline(t.versions || []) + '</td>' +
-      '<td>' + this._skillLiveHtml(t) + '</td>' +
-      '<td>' + needsCell + '</td>' +
-    '</tr>';
-    let cand = '';
-    pending.forEach(c => {
-      const cmd = 'gitmoot skillopt promote ' + (c.versionId || '');
-      cand += '<div class="lr-cand">' +
-        '<span class="cv">v' + esc(c.number != null ? c.number : '?') + '</span>' +
-        (c.score ? '<span class="cs">score ' + esc(c.score) + '</span>' : '') +
-        (c.createdAt ? '<span class="ca">' + esc(this._relFromMs(c.createdAt)) + '</span>' : '') +
-        '<span class="lr-cmd"><code>' + esc(cmd) + '</code><button class="gm-copy" data-cmd="' + esc(cmd) + '">copy</button></span>' +
+    const changedSec =
+      '<div>' +
+        '<div class="lr-sech"><span class="lr-sect">CHANGED RECENTLY</span><span class="lr-secn">(' + changed.length + ')</span></div>' +
+        (changed.length
+          ? '<div class="lr-ttbl">' + this._lrTableHead() + changed.map(m => this._lrTplRow(m)).join('') + '</div>'
+          : '<div class="lr-secmute">nothing changed in the last 7 days</div>') +
       '</div>';
-    });
-    out += '<tr class="lr-exp" data-exp="' + i + '"' + (expanded ? '' : ' hidden') + '><td colspan="4">' + cand + '</td></tr>';
-    return out;
+
+    const allSec =
+      '<div>' +
+        '<div class="lr-sech lr-sech-tog" data-tog="all"><span class="lr-secchev">' + (allOpen ? '▾' : '▸') + '</span><span class="lr-sect">ALL TEMPLATES</span><span class="lr-secn">(' + meta.length + ')</span></div>' +
+        (allOpen ? '<div class="lr-ttbl">' + this._lrTableHead() + meta.map(m => this._lrTplRow(m)).join('') + '</div>' : '') +
+      '</div>';
+
+    body.innerHTML = '<div class="lr-skcol">' + this._lrNeedsPanel(needs) + changedSec + allSec + '</div>';
   }
 
-  _toggleSkillExpand(btn) {
-    const row = btn.closest && btn.closest('tr'); if (!row) return;
-    const exp = row.nextElementSibling;
-    if (!exp || !exp.classList.contains('lr-exp')) return;
-    const open = exp.hasAttribute('hidden');
-    if (open) exp.removeAttribute('hidden'); else exp.setAttribute('hidden', '');
-    btn.classList.toggle('open', open);
-    const chev = btn.querySelector('.chev'); if (chev) chev.textContent = open ? '▾' : '▸';
-    const tpl = row.getAttribute('data-tpl');
-    const set = this._skillsExpanded || (this._skillsExpanded = {});
-    if (tpl) set[tpl] = open; // persist across re-renders
+  // The pinned amber NEEDS-YOU queue: every pending candidate listed flat, each
+  // with the exact `gitmoot skillopt promote <versionId>` command + a copy chip.
+  // Collapses to a single muted line when the queue is empty.
+  _lrNeedsPanel(needs) {
+    const esc = (s) => this._galaxyEsc(s);
+    const n = needs.length;
+    if (n === 0) {
+      return '<div class="lr-needs-empty"><span class="lr-nd"></span><span class="lr-ndlabel">NEEDS YOU</span><span class="lr-ndcount">(0)</span><span class="lr-nsp"></span><span class="lr-ndok">✓ nothing pending</span></div>';
+    }
+    const rows = needs.map(x => {
+      const t = x.t, c = x.c;
+      const cmd = 'gitmoot skillopt promote ' + (c.versionId || '');
+      const scoreHtml = (c.score != null && String(c.score) !== '') ? '<span class="lr-nsc">score ' + esc(c.score) + '</span>' : '';
+      const ageHtml = c.createdAt ? '<span class="lr-nage">' + esc(this._relFromMs(c.createdAt)) + '</span>' : '';
+      return '<div class="lr-nrow">' +
+        '<span class="lr-nname">' + esc(t.name || t.templateId) + '</span>' +
+        '<span class="lr-nprom">promote → v' + esc(c.number != null ? c.number : '?') + '</span>' +
+        scoreHtml + ageHtml +
+        '<span class="lr-nsp"></span>' +
+        '<div class="lr-cmd"><code>' + esc(cmd) + '</code><button class="gm-copy" data-cmd="' + esc(cmd) + '" type="button">copy</button></div>' +
+      '</div>';
+    }).join('');
+    return '<div class="lr-needs">' +
+      '<div class="lr-ndhead"><span class="lr-nd"></span><span class="lr-ndlabel">NEEDS YOU</span><span class="lr-ndcount">(' + n + ')</span></div>' +
+      '<div class="lr-ndbody">' + rows + '</div>' +
+    '</div>';
+  }
+
+  // Per-template row model for the CHANGED RECENTLY / ALL TEMPLATES tables: the
+  // current-version score (falling back to the newest scored version) and the
+  // most-recent activity time (promotions, version + candidate creations).
+  _lrTplMeta(t) {
+    const versions = Array.isArray(t.versions) ? t.versions : [];
+    const pend = Array.isArray(t.pending) ? t.pending : [];
+    let score = null;
+    const cur = versions.find(v => v && v.number === t.currentVersion && v.hasScore);
+    if (cur) score = cur.score;
+    else { const scored = versions.filter(v => v && v.hasScore); if (scored.length) score = scored[scored.length - 1].score; }
+    let changedMs = 0;
+    const bump = (x) => { if (x && x > changedMs) changedMs = x; };
+    bump(t.lastPromotedAt); bump(t.canaryStartedAt);
+    versions.forEach(v => { bump(v.createdAt); bump(v.promotedAt); });
+    pend.forEach(c => bump(c.createdAt));
+    return { name: t.name || t.templateId, version: t.currentVersion || 0, score: score, changedMs: changedMs, pendingCount: pend.length, firstAgent: (Array.isArray(t.agents) && t.agents.length) ? t.agents[0] : '' };
+  }
+
+  _lrTableHead() {
+    return '<div class="lr-trow lr-thead"><span class="lr-c-name">TEMPLATE</span><span class="lr-c-ver">VERSION</span><span class="lr-c-score">SCORE</span><span class="lr-c-changed">CHANGED</span></div>';
+  }
+
+  // A determinate mini-bar (fill = score) + the score-colored number. A
+  // determinate bar is honest for a single/flat score — no misleading trend line.
+  // No USES column: the /api/learning/skills contract carries no uses/runs field.
+  _lrTplRow(m) {
+    const esc = (s) => this._galaxyEsc(s);
+    const s = m.score, hasScore = (s != null && !isNaN(s));
+    const col = hasScore ? this._lrScoreColor(s) : '#5a6088';
+    const pct = hasScore ? Math.max(0, Math.min(100, s * 100)) : 0;
+    const scoreCell = hasScore
+      ? '<span class="lr-bar"><span class="lr-barfill" style="width:' + pct.toFixed(0) + '%;background:' + col + '"></span></span><span class="lr-scv" style="color:' + col + '">' + esc(s.toFixed(2)) + '</span>'
+      : '<span class="lr-scv" style="color:#5a6088">no score</span>';
+    const rowAttr = m.firstAgent ? ' data-agent="' + esc(m.firstAgent) + '" title="view ' + esc(m.firstAgent) + '"' : '';
+    return '<div class="lr-trow lr-tdata"' + rowAttr + '>' +
+      '<span class="lr-c-name lr-tn">' + esc(m.name) + '</span>' +
+      '<span class="lr-c-ver"><span class="lr-vchip">v' + esc(m.version) + '</span></span>' +
+      '<span class="lr-c-score">' + scoreCell + '</span>' +
+      '<span class="lr-c-changed">' + esc(m.changedMs ? this._relFromMs(m.changedMs) : '—') + '</span>' +
+    '</div>';
+  }
+
+  _lrScoreColor(s) { return s >= 0.85 ? '#9ece6a' : (s >= 0.75 ? '#e0af68' : '#f7768e'); }
+
+  // ALL TEMPLATES discloses the full table; the toggle persists across the 12s
+  // poll re-render (renderSkills reads _lrAllOpen).
+  _lrToggleSection(which) {
+    if (which === 'all') this._lrAllOpen = !this._lrAllOpen;
+    this.renderSkills();
   }
 
   _copyFallback(text) {
