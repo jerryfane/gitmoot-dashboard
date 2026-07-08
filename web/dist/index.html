@@ -3404,7 +3404,9 @@ class Component extends DCLogic {
 
     // Vitals (computed client-side).
     const activeN = t.running || 0;
-    const blockedStuckN = (t.blocked || 0) + stuck.length;
+    // stuck[] already CONTAINS every blocked job (contract: blocked + queued>10m),
+    // so the tile counts distinct items — adding t.blocked would double-count.
+    const blockedStuckN = stuck.length;
     const lockN = allLocks.length;
     const oldestLock = allLocks.reduce((m, l) => (l.since > 0 && (m === 0 || l.since < m)) ? l.since : m, 0);
     const oldestAge = oldestLock > 0 ? (now - oldestLock) : 0;
@@ -3432,7 +3434,7 @@ class Component extends DCLogic {
       { label: 'ACTIVE', val: activeN, sub: 'jobs running', tone: '#7aa2f7' },
       { label: 'BLOCKED + STUCK', val: blockedStuckN, sub: blockedStuckN > 0 ? 'need triage' : 'all moving', tone: blockedStuckN > 0 ? '#e0af68' : '#9ece6a' },
       { label: 'LOCKS', val: lockN, sub: lockN > 0 ? ('oldest ' + this._hlAgeShort(oldestAge)) : 'none held', tone: lockTone },
-      { label: 'FAILURES · 24h', val: failN, sub: failRate.toFixed(1) + '% overall rate', tone: failN === 0 ? '#9ece6a' : failTone }
+      { label: 'FAILURES · recent', val: failN, sub: failRate.toFixed(1) + '% overall rate', tone: failN === 0 ? '#9ece6a' : failTone }
     ];
     const vel = root.querySelector('#hl-vitals');
     if (vel) vel.innerHTML = vitals.map(v => '<div class="hl-tile" style="border-left:3px solid ' + v.tone + '"><span class="hl-tlabel">' + esc(v.label) + '</span><span class="hl-tval" style="color:' + v.tone + '">' + esc(String(v.val)) + '</span><span class="hl-tsub">' + esc(v.sub) + '</span></div>').join('');
@@ -3516,7 +3518,7 @@ class Component extends DCLogic {
     }
     const n = s.count;
     const noun = n === 1 ? 'item needs' : 'items need';
-    const sub = upSeg + ' · ' + s.blocked + ' blocked · ' + s.stuckWorkers + ' stuck · ' + s.aging + ' locks aging · ' + s.failures + ' failures / 24h';
+    const sub = upSeg + ' · ' + s.blocked + ' blocked · ' + s.stuckWorkers + ' stuck · ' + s.aging + ' locks aging · ' + s.failures + ' recent failures';
     return '<div class="hl-banner" style="background:linear-gradient(180deg,#15182b,#111325);border:1px solid rgba(224,175,104,0.28);border-left:3px solid #e0af68">' +
       '<div class="hl-bnicon" style="background:rgba(224,175,104,0.12);color:#e0af68">⚠</div>' +
       '<div class="hl-bntext"><div class="hl-bntitle">Daemon healthy — ' + n + ' ' + noun + ' your attention</div>' +
@@ -3580,7 +3582,7 @@ class Component extends DCLogic {
     const root = this._healthRoot; if (!root) return;
     const up = root.querySelector('#hl-uptime');
     if (up) { const s = +up.getAttribute('data-started'); up.textContent = s > 0 ? this._fmtUptime(Date.now() - s) : ''; }
-    root.querySelectorAll('.hl-age').forEach(el => { const s = +el.getAttribute('data-since'); el.textContent = s > 0 ? this._relFromMs(s) : '—'; });
+    root.querySelectorAll('.hl-age').forEach(el => { const s = +el.getAttribute('data-since'); el.textContent = s > 0 ? this._relFromMs(s).replace(/ ago$/, '') : '—'; });
     root.querySelectorAll('.hl-exp').forEach(el => { const s = +el.getAttribute('data-exp'); el.textContent = s > 0 ? this._fmtCountdown(s - Date.now()) : '—'; });
   }
 
@@ -3771,6 +3773,7 @@ class Component extends DCLogic {
     if (skEl) skEl.style.display = tab === 'skills' ? 'block' : 'none';
     if (knEl) knEl.style.display = tab === 'knowledge' ? 'block' : 'none';
     try { document.title = this._routeTitle('learning', { tab: tab }); } catch (e) {}
+    this.setState({}); // refresh the top-bar breadcrumb (learning › skills|knowledge)
     if (tab === 'skills') {
       this.stopKnowledgePoll();
       try { if (this._knowGraph && this._knowGraph.pauseAnimation) this._knowGraph.pauseAnimation(); } catch (e) {}
@@ -3884,7 +3887,6 @@ class Component extends DCLogic {
     root.style.cssText = 'position:fixed;left:216px;top:54px;right:0;bottom:0;z-index:40;background:#07080f;display:none';
     root.innerHTML = [
       '<div class="lr-head">',
-      '  <div class="lr-title">Learning<span class="lr-tdot">.</span></div>',
       '  <div class="lr-switch" id="lr-switch">',
       '    <button class="lr-chip" data-tab="skills">Skills</button>',
       '    <button class="lr-chip" data-tab="knowledge">Knowledge</button>',
@@ -7491,6 +7493,7 @@ class Component extends DCLogic {
       else if (isPipelines && this._plDetailName) entity = this._plDetailName;
       else if (isAgents && this._agentsSelected) entity = this._agentsSelected;
       else if (isJobs && this._jobsFacetAgent) entity = this._jobsFacetAgent;
+      else if (view === 'learning') entity = (this._learningTab === 'knowledge') ? 'knowledge' : 'skills';
       if (entity) { crumbRoot = SECT[view] || view; crumbLeaf = entity; }
       else { crumbRoot = NAV_GROUP[view] || 'gitmoot'; crumbLeaf = SECT[view] || view; }
     }
