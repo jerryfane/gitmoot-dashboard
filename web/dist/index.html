@@ -586,6 +586,7 @@ class Component extends DCLogic {
         const after = () => {
           this._redockOverlays();
           if (this.state.view === 'jobs') this.renderJobsTable();
+          if (this.state.view === 'pipelines' && this._plDetailName) { this._plLayout(); this._plUpdateScrollCue(); }
           if (this.state.view === 'chat') this._chatRerender();
           if (this.state.view === 'charts' && this._chartsLoaded) this.renderCharts(false);
           // Galaxy: re-fit the force-graph to the post-dock container. The re-dock
@@ -780,6 +781,7 @@ class Component extends DCLogic {
     if (v === 'pipelines') {
       const root = this.ensurePipelinesDom();
       root.style.display = 'block';
+      if (this._plDetailName) this._plLayout(); // reflow the workbench (rail width / mobile strip)
       this.startPipelinesPoll();
       this.fetchPipelines(false);
       // Deep-link intent (/pipelines/<name>): open the detail once the list loads
@@ -4679,13 +4681,22 @@ class Component extends DCLogic {
       const due = +el.getAttribute('data-due');
       el.textContent = this._plFmtCountdown(due, now);
     });
+    // the RUNS-rail footer carries a "next run in …" countdown of its own.
+    this._pipelinesRoot.querySelectorAll('.pl-nextdue').forEach(el => {
+      const due = +el.getAttribute('data-due');
+      el.textContent = this._plNextRunLabel(due, now);
+    });
   }
 
   ensurePipelinesDom() {
     if (this._pipelinesRoot) return this._pipelinesRoot;
+    // Runs-rail collapse pref (persisted; the Graph runsOpen pattern) + default tab.
+    if (this._plRunsOpen == null) { let v = true; try { const s = localStorage.getItem('gitmoot.plRunsOpen'); if (s != null) v = s === '1'; } catch (e) {} this._plRunsOpen = v; }
+    if (!this._plTab) this._plTab = 'dag';
     const st = document.createElement('style');
     st.textContent = [
-      "#pipelines-root{font-family:Inter,system-ui,sans-serif;color:#c8cce6;overflow-y:auto}",
+      "#pipelines-root{font-family:Inter,system-ui,sans-serif;color:#c8cce6;overflow:hidden}",
+      "#pipelines-root #pl-list{height:100%;overflow-y:auto;box-sizing:border-box}",
       "#pipelines-root .pl-head{display:flex;align-items:baseline;gap:14px;padding:18px 24px 6px;flex-wrap:wrap}",
       "#pipelines-root .pl-title{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:20px;color:#eef0ff;letter-spacing:-0.02em}",
       "#pipelines-root .pl-title .pl-tdot{color:#7aa2f7;margin-left:1px}",
@@ -4714,64 +4725,98 @@ class Component extends DCLogic {
       "#pipelines-root .pl-pip{width:9px;height:9px;border-radius:2px;flex:none}",
       "#pipelines-root .pl-empty{padding:60px 20px;text-align:center;color:#5a6088;font-size:13px}",
       "#pipelines-root .pl-empty code{font-family:'JetBrains Mono',monospace;font-size:12px;color:#c7c9e5;background:#0a0b16;border:1px solid rgba(160,168,220,0.14);border-radius:6px;padding:2px 7px}",
-      // ---- detail ----
-      "#pipelines-root #pl-detail{padding:18px 24px 40px}",
-      "#pipelines-root .pl-back{background:rgba(160,168,220,0.06);border:1px solid rgba(160,168,220,0.12);color:#a8aecf;font-family:'JetBrains Mono',monospace;font-size:12px;padding:6px 13px;border-radius:8px;cursor:pointer;margin-bottom:16px}",
-      "#pipelines-root .pl-back:hover{color:#eef0ff;border-color:rgba(160,168,220,0.28)}",
-      "#pipelines-root .pl-dh-name{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:23px;color:#eef0ff;letter-spacing:-0.02em}",
-      "#pipelines-root .pl-dh-meta{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:9px;font-family:'JetBrains Mono',monospace;font-size:12px;color:#868db5}",
-      "#pipelines-root .pl-dh-repo{color:#7dcfff}",
-      "#pipelines-root .pl-dh-due{color:#c8cce6}",
-      "#pipelines-root .pl-history-wrap{margin-top:20px}",
+      // ---- detail workbench: [ RUNS rail | main ] ----
+      "#pipelines-root #pl-detail{height:100%;min-width:0;min-height:0;background:#0b0d16}",
+      // left RUNS rail
+      "#pipelines-root .pl-rail{flex:none;width:280px;background:#0a0b16;border-right:1px solid rgba(160,168,220,0.08);display:flex;flex-direction:column;min-height:0;min-width:0;overflow:hidden}",
+      "#pipelines-root .pl-rail-full{display:flex;flex-direction:column;min-height:0;min-width:0;flex:1}",
+      "#pipelines-root .pl-rail-mini{display:none;flex-direction:column;align-items:center;padding-top:14px;gap:12px;flex:1}",
+      "#pipelines-root .pl-rail-mini .pl-vlabel{writing-mode:vertical-rl;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.16em;color:#5a6088}",
+      "#pipelines-root .pl-rail-head{display:flex;align-items:center;padding:15px 14px 10px;flex:none}",
+      "#pipelines-root .pl-rail-title{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:0.15em;color:#868db5;font-weight:600}",
+      "#pipelines-root .pl-rail-count{margin-left:7px;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#5a6088}",
+      "#pipelines-root .pl-icbtn{width:24px;height:24px;display:flex;align-items:center;justify-content:center;background:rgba(160,168,220,0.06);border:1px solid rgba(160,168,220,0.14);border-radius:7px;color:#868db5;font-size:14px;line-height:1;cursor:pointer;padding:0;flex:none}",
+      "#pipelines-root .pl-icbtn:hover{border-color:rgba(125,207,255,0.4);color:#c8f0ff}",
+      "#pipelines-root .pl-runs{flex:1;overflow-y:auto;min-height:0;padding:0 6px 10px}",
+      "#pipelines-root .pl-runrow{display:flex;flex-direction:column;gap:6px;padding:9px 11px;margin:2px 4px;border-radius:9px;cursor:pointer;border:1px solid transparent}",
+      "#pipelines-root .pl-runrow:hover{background:rgba(160,168,220,0.05)}",
+      "#pipelines-root .pl-runrow.sel{background:rgba(158,206,106,0.09);border-color:rgba(158,206,106,0.22)}",
+      "#pipelines-root .pl-runrow-top{display:flex;align-items:center;gap:9px}",
+      "#pipelines-root .pl-runrow-dot{width:8px;height:8px;border-radius:50%;flex:none}",
+      "#pipelines-root .pl-runrow-id{font-family:'JetBrains Mono',monospace;font-size:12.5px;color:#eef0ff;font-weight:600}",
+      "#pipelines-root .pl-runrow-tg{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;flex:none}",
+      "#pipelines-root .pl-runrow-tg.manual{color:#bb9af7;background:rgba(187,154,247,0.14)}",
+      "#pipelines-root .pl-runrow-tg.schedule{color:#7dcfff;background:rgba(125,207,255,0.14)}",
+      "#pipelines-root .pl-runrow-ago{font-family:'JetBrains Mono',monospace;font-size:10px;color:#5a6088;margin-left:auto;flex:none}",
+      "#pipelines-root .pl-runrow-sub{display:flex;align-items:center;gap:6px;padding-left:17px}",
+      "#pipelines-root .pl-runrow-dur{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#7c83a8}",
+      "#pipelines-root .pl-runs-empty{padding:24px 12px;text-align:center;color:#5a6088;font-family:'JetBrains Mono',monospace;font-size:11px}",
+      "#pipelines-root .pl-rail-foot{flex:none;padding:12px 16px;border-top:1px solid rgba(160,168,220,0.08);display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}",
+      "#pipelines-root .pl-rail-foot-dot{width:6px;height:6px;border-radius:50%;background:#7dcfff;box-shadow:0 0 8px rgba(125,207,255,0.6);flex:none}",
+      "#pipelines-root .pl-rail-foot-txt{font-family:'JetBrains Mono',monospace;font-size:11px;color:#868db5;min-width:0;overflow:hidden;text-overflow:ellipsis}",
+      // main column
+      "#pipelines-root .pl-main{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0}",
+      "#pipelines-root .pl-main-head{flex:none;padding:13px 22px;border-bottom:1px solid rgba(160,168,220,0.08);display:flex;align-items:center;gap:12px}",
+      "#pipelines-root .pl-back-ic{width:26px;height:26px;display:flex;align-items:center;justify-content:center;background:rgba(160,168,220,0.06);border:1px solid rgba(160,168,220,0.14);border-radius:8px;color:#868db5;font-size:15px;line-height:1;cursor:pointer;padding:0;flex:none}",
+      "#pipelines-root .pl-back-ic:hover{border-color:rgba(125,207,255,0.4);color:#c8f0ff}",
+      "#pipelines-root .pl-h-name{font-family:'Space Grotesk',sans-serif;font-size:17px;font-weight:600;color:#eef0ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:none;max-width:40%}",
+      "#pipelines-root .pl-h-repo{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#5a6088;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:none}",
+      "#pipelines-root .pl-h-runid{font-family:'JetBrains Mono',monospace;font-size:12px;color:#a8aecf;flex:none}",
+      "#pipelines-root .pl-tabs{display:flex;background:#14172a;border:1px solid rgba(160,168,220,0.14);border-radius:9px;padding:2px;gap:2px;flex:none;margin-left:auto}",
+      "#pipelines-root .pl-tabs button{appearance:none;padding:6px 15px;border:none;border-radius:7px;cursor:pointer;font-family:Inter,sans-serif;font-size:12.5px;font-weight:500;background:transparent;color:#868db5}",
+      "#pipelines-root .pl-tabs button.on{background:rgba(158,206,106,0.14);color:#c5f882}",
+      "#pipelines-root .pl-main-body{flex:1;overflow:auto;min-height:0;padding:22px 24px}",
+      "#pipelines-root .pl-tabbody{display:none}",
+      "#pipelines-root .pl-tabbody.on{display:block}",
       "#pipelines-root .pl-history-lbl{font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:0.12em;color:#5a6088;margin-bottom:8px}",
-      "#pipelines-root .pl-history{display:flex;align-items:center;gap:8px;flex-wrap:wrap}",
-      "#pipelines-root .pl-runchip{display:inline-flex;align-items:center;gap:7px;background:#0f1120;border:1px solid rgba(160,168,220,0.12);border-radius:9px;padding:4px 9px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#a8aecf}",
-      "#pipelines-root .pl-runchip:hover{border-color:rgba(160,168,220,0.3)}",
-      "#pipelines-root .pl-runchip.sel{border-color:var(--rc);background:color-mix(in srgb,var(--rc) 12%, #0f1120)}",
-      "#pipelines-root .pl-runchip-dot{width:8px;height:8px;border-radius:50%;flex:none}",
-      "#pipelines-root .pl-runchip-id{color:#eef0ff;font-weight:600}",
-      "#pipelines-root .pl-runchip-t{color:#5a6088}",
-      "#pipelines-root .pl-run-area{margin-top:22px}",
-      // ---- banners ----
-      "#pipelines-root .pl-banner{border-radius:12px;padding:15px 17px;margin-bottom:20px}",
-      "#pipelines-root .pl-banner.blocked{background:rgba(224,175,104,0.08);border:1px solid rgba(224,175,104,0.32)}",
-      "#pipelines-root .pl-banner.failed{background:rgba(247,118,142,0.08);border:1px solid rgba(247,118,142,0.32)}",
-      "#pipelines-root .pl-banner-head{display:flex;align-items:center;gap:9px;font-size:14px}",
-      "#pipelines-root .pl-banner-ic{font-size:15px;flex:none}",
-      "#pipelines-root .pl-banner.blocked .pl-banner-ic,#pipelines-root .pl-banner.blocked .pl-banner-title b{color:#e0af68}",
-      "#pipelines-root .pl-banner.failed .pl-banner-ic,#pipelines-root .pl-banner.failed .pl-banner-title b{color:#f7768e}",
-      "#pipelines-root .pl-banner-title{color:#eef0ff;font-weight:500}",
-      "#pipelines-root .pl-banner-reason{margin-top:8px;font-size:12.5px;color:#c8cce6;line-height:1.5}",
-      "#pipelines-root .pl-needs{margin:10px 0 4px;padding-left:20px}",
-      "#pipelines-root .pl-needs li{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#e0af68;line-height:1.7}",
-      "#pipelines-root .pl-cmd{display:flex;align-items:center;gap:9px;margin-top:12px;flex-wrap:wrap}",
-      "#pipelines-root .pl-cmd code{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#c7c9e5;background:#0a0b16;border:1px solid rgba(160,168,220,0.14);border-radius:7px;padding:7px 11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}",
-      // ---- stage DAG ----
-      "#pipelines-root .pl-dagwrap{overflow-x:auto;padding-bottom:10px}",
+      // ---- banner (blocked / failed) : design accent-bar alert ----
+      "#pipelines-root .pl-banner{display:flex;flex-direction:column;gap:12px;border-radius:12px;padding:16px 18px;margin-bottom:18px;border:1px solid;border-left-width:3px}",
+      "#pipelines-root .pl-banner.blocked{background:color-mix(in srgb,#e0af68 9%,#14172a);border-color:rgba(224,175,104,0.30);border-left-color:#e0af68}",
+      "#pipelines-root .pl-banner.failed{background:color-mix(in srgb,#f7768e 9%,#14172a);border-color:rgba(247,118,142,0.30);border-left-color:#f7768e}",
+      "#pipelines-root .pl-banner-head{display:flex;align-items:center;gap:11px;flex-wrap:wrap}",
+      "#pipelines-root .pl-banner-ic{font-size:16px;flex:none}",
+      "#pipelines-root .pl-banner.blocked .pl-banner-ic{color:#e0af68}",
+      "#pipelines-root .pl-banner.failed .pl-banner-ic{color:#f7768e}",
+      "#pipelines-root .pl-banner-title{font-size:15px;font-weight:600;color:#eef0ff}",
+      "#pipelines-root .pl-banner-stage{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:7px;font-family:'JetBrains Mono',monospace;font-size:11px}",
+      "#pipelines-root .pl-banner.blocked .pl-banner-stage{color:#e0af68;background:color-mix(in srgb,#e0af68 14%,transparent);border:1px solid rgba(224,175,104,0.30)}",
+      "#pipelines-root .pl-banner.failed .pl-banner-stage{color:#f7768e;background:color-mix(in srgb,#f7768e 14%,transparent);border:1px solid rgba(247,118,142,0.30)}",
+      "#pipelines-root .pl-banner-reason{font-size:12.5px;color:#c8cce6;line-height:1.5}",
+      "#pipelines-root .pl-needs-lbl{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:0.12em;color:#868db5;margin-bottom:8px}",
+      "#pipelines-root .pl-needs{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}",
+      "#pipelines-root .pl-needs li{display:flex;align-items:flex-start;gap:9px;font-size:13px;color:#c7c9e5;line-height:1.45}",
+      "#pipelines-root .pl-needs li::before{content:'\\203a';flex:none;margin-top:1px}",
+      "#pipelines-root .pl-banner.blocked .pl-needs li::before{color:#e0af68}",
+      "#pipelines-root .pl-banner.failed .pl-needs li::before{color:#f7768e}",
+      "#pipelines-root .pl-cmd{display:inline-flex;align-items:center;gap:10px;padding:9px 10px 9px 13px;background:#0a0b16;border:1px solid rgba(160,168,220,0.14);border-radius:9px;align-self:flex-start;max-width:100%;box-sizing:border-box}",
+      "#pipelines-root .pl-cmd code{font-family:'JetBrains Mono',monospace;font-size:12px;color:#c5f882;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}",
+      // ---- stage graph (DAG) : design card chips + scroll cue/fade ----
+      "#pipelines-root .pl-sg-lbl{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:0.14em;color:#5a6088;margin-bottom:6px}",
+      "#pipelines-root .pl-sg-cue{color:#5a6088}",
+      "#pipelines-root .pl-sg-wrap{position:relative}",
+      "#pipelines-root .pl-sg-fade{display:none;position:absolute;top:0;right:0;bottom:10px;width:52px;pointer-events:none;background:linear-gradient(90deg,rgba(11,13,22,0),#0b0d16)}",
+      "#pipelines-root .pl-sg-wrap.clip .pl-sg-fade{display:block}",
+      "#pipelines-root .pl-dagwrap{overflow-x:auto;overflow-y:hidden;padding-bottom:10px}",
       "#pipelines-root .pl-dag{display:block}",
-      "#pipelines-root .pl-node{width:100%;height:100%;box-sizing:border-box;background:linear-gradient(180deg,#14172a,#0f1120);border:1px solid rgba(160,168,220,0.12);border-left:3px solid #5a6088;border-radius:11px;padding:10px 12px;display:flex;flex-direction:column;gap:5px;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,0.35);overflow:hidden}",
+      "#pipelines-root .pl-node{width:100%;height:100%;box-sizing:border-box;background:linear-gradient(180deg,#15182b,#111325);border:1px solid rgba(160,168,220,0.12);border-left:3px solid #5a6088;border-radius:11px;padding:11px 13px;display:flex;flex-direction:column;cursor:pointer;box-shadow:0 8px 22px rgba(0,0,0,0.4);overflow:hidden}",
       "#pipelines-root .pl-node:hover{border-color:rgba(160,168,220,0.3)}",
-      "#pipelines-root .pl-node.dim{opacity:0.55}",
+      "#pipelines-root .pl-node.dim{opacity:0.5}",
       "#pipelines-root .pl-node.running{animation:runpulse 1.9s ease-in-out infinite}",
       "#pipelines-root .pl-node-top{display:flex;align-items:center;gap:8px}",
       "#pipelines-root .pl-node-dot{width:9px;height:9px;border-radius:50%;flex:none}",
-      "#pipelines-root .pl-node-id{font-family:Inter,system-ui,sans-serif;font-size:13px;font-weight:600;color:#eef0ff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}",
-      "#pipelines-root .pl-node-try{font-family:'JetBrains Mono',monospace;font-size:10px;color:#e0af68;background:rgba(224,175,104,0.12);border:1px solid rgba(224,175,104,0.3);border-radius:6px;padding:1px 5px;flex:none;white-space:nowrap}",
-      "#pipelines-root .pl-node-meta{display:flex;align-items:center;gap:8px;font-family:'JetBrains Mono',monospace;font-size:11px}",
-      "#pipelines-root .pl-node-state{font-weight:600}",
-      "#pipelines-root .pl-node-el{color:#868db5}",
-      "#pipelines-root .pl-node-job{color:#7aa2f7;margin-left:auto}",
-      "#pipelines-root .pl-node-sum{font-family:'JetBrains Mono',monospace;font-size:11px;line-height:1.35;color:#868db5;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}",
-      // ---- upcoming card (v1.6) ----
-      "#pipelines-root .pl-upcoming{background:#0d0f1c;border:1px solid rgba(160,168,220,0.1);border-radius:12px;padding:10px 14px;margin-bottom:4px}",
-      "#pipelines-root .pl-up-row{display:flex;align-items:center;gap:12px;padding:6px 4px;border-bottom:1px solid rgba(160,168,220,0.05)}",
-      "#pipelines-root .pl-up-row:last-child{border-bottom:none}",
-      "#pipelines-root .pl-up-row.next{background:rgba(122,162,247,0.06);border-radius:8px}",
-      "#pipelines-root .pl-up-tag{font-family:'JetBrains Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:0.1em;color:#7aa2f7;width:30px;flex:none}",
-      "#pipelines-root .pl-up-abs{font-family:'JetBrains Mono',monospace;font-size:12px;color:#eef0ff;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
-      "#pipelines-root .pl-up-rel{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#868db5;flex:none}",
-      "#pipelines-root .pl-up-jit{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#5a6088;flex:none}",
-      "#pipelines-root .pl-up-note{font-family:'JetBrains Mono',monospace;font-size:12px;color:#868db5}",
+      "#pipelines-root .pl-node-id{font-family:Inter,system-ui,sans-serif;font-size:13.5px;font-weight:600;color:#eef0ff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}",
+      "#pipelines-root .pl-node-try{font-family:'JetBrains Mono',monospace;font-size:9px;color:#e0af68;background:rgba(224,175,104,0.12);border:1px solid rgba(224,175,104,0.3);border-radius:5px;padding:1px 5px;flex:none;white-space:nowrap}",
+      "#pipelines-root .pl-node-slbl{font-family:'JetBrains Mono',monospace;font-size:8.5px;text-transform:uppercase;letter-spacing:0.05em;flex:none;white-space:nowrap}",
+      "#pipelines-root .pl-node-sum{font-size:11.5px;line-height:1.35;color:#7c83a8;margin-top:6px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}",
+      "#pipelines-root .pl-node-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:auto;padding-top:6px}",
+      "#pipelines-root .pl-node-dur{font-family:'JetBrains Mono',monospace;font-size:11px}",
+      "#pipelines-root .pl-node-job{font-family:'JetBrains Mono',monospace;font-size:10px;color:#7dcfff;white-space:nowrap}",
+      // ---- STAGES tally chips + matrix note ----
+      "#pipelines-root .pl-tally{display:flex;align-items:center;gap:9px;margin-top:14px;padding-top:16px;border-top:1px solid rgba(160,168,220,0.08);flex-wrap:wrap}",
+      "#pipelines-root .pl-tally-lbl{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:0.12em;color:#5a6088;margin-right:4px}",
+      "#pipelines-root .pl-tchip{display:inline-flex;align-items:center;gap:6px;padding:4px 11px;border-radius:7px;font-family:'JetBrains Mono',monospace;font-size:11px}",
+      "#pipelines-root .pl-tchip-dot{width:8px;height:8px;border-radius:50%;flex:none}",
+      "#pipelines-root .pl-mxnote{font-family:'JetBrains Mono',monospace;font-size:12px;color:#868db5;padding:8px 2px;line-height:1.6}",
       // ---- stage x run matrix (v1.6) ----
       "#pipelines-root .pl-mx-wrap{overflow-x:auto;padding-bottom:8px;margin-bottom:4px}",
       "#pipelines-root .pl-mx{border-collapse:collapse}",
@@ -4793,20 +4838,20 @@ class Component extends DCLogic {
       "#pipelines-root .pl-tbadge{display:inline-flex;align-items:center;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;padding:2px 8px;border-radius:6px;border:1px solid transparent}",
       "#pipelines-root .pl-tbadge.manual{color:#7dcfff;background:rgba(125,207,255,0.1);border-color:rgba(125,207,255,0.28)}",
       "#pipelines-root .pl-tbadge.schedule{color:#bb9af7;background:rgba(187,154,247,0.1);border-color:rgba(187,154,247,0.28)}",
-      // ---- list stats + strip glyph (v1.6) ----
+      // ---- list stats glyph (v1.6) ----
       "#pipelines-root .pl-rate{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#5a6088;margin-top:6px}",
-      "#pipelines-root .pl-runchip-tg{font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;color:#868db5;border:1px solid rgba(160,168,220,0.22);border-radius:4px;padding:0 3px;line-height:1.5}",
-      // ---- selected-run summary bar + parked note (v1.6) ----
+      // ---- selected-run summary caption + parked note ----
       "#pipelines-root .pl-runsum{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;font-family:'JetBrains Mono',monospace;font-size:12px}",
-      "#pipelines-root .pl-runsum-id{color:#eef0ff;font-weight:600}",
       "#pipelines-root .pl-runsum-t{color:#868db5}",
-      "#pipelines-root .pl-banner-parked{color:#868db5;font-family:'JetBrains Mono',monospace;font-size:11.5px;margin-left:8px}",
+      "#pipelines-root .pl-banner-parked{color:#868db5;font-family:'JetBrains Mono',monospace;font-size:11.5px}",
       // ---- declared-DAG preview (v1.6) ----
       "#pipelines-root .pl-declared-note{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#868db5;margin-bottom:12px;display:flex;align-items:center;gap:9px;flex-wrap:wrap}",
       "#pipelines-root .pl-declared-note code{font-family:'JetBrains Mono',monospace;font-size:11px;color:#c7c9e5;background:#0a0b16;border:1px solid rgba(160,168,220,0.14);border-radius:6px;padding:3px 8px}",
-      "@media (max-width:768px){#pipelines-root .pl-head{padding-left:16px;padding-right:16px}#pipelines-root .pl-tablewrap{padding-left:14px;padding-right:14px}#pipelines-root #pl-detail{padding-left:16px;padding-right:16px}#pipelines-root .pl-table,#pipelines-root .pl-table tbody{display:block}#pipelines-root .pl-table thead{display:none}#pipelines-root .pl-table tr.pl-row{display:block;background:#0d0f1c;border:1px solid rgba(160,168,220,0.1);border-radius:11px;padding:11px 13px;margin-bottom:8px}#pipelines-root .pl-table tr.pl-row td{display:block;width:auto;padding:5px 0;border:none;white-space:normal;overflow:visible;text-overflow:clip}#pipelines-root .pl-dh-name{font-size:20px}#pipelines-root .xd-panel{width:100%;left:0;border-left:none}}",
+      "@media (max-width:768px){#pipelines-root .pl-head{padding-left:16px;padding-right:16px}#pipelines-root .pl-tablewrap{padding-left:14px;padding-right:14px}#pipelines-root .pl-table,#pipelines-root .pl-table tbody{display:block}#pipelines-root .pl-table thead{display:none}#pipelines-root .pl-table tr.pl-row{display:block;background:#0d0f1c;border:1px solid rgba(160,168,220,0.1);border-radius:11px;padding:11px 13px;margin-bottom:8px}#pipelines-root .pl-table tr.pl-row td{display:block;width:auto;padding:5px 0;border:none;white-space:normal;overflow:visible;text-overflow:clip}#pipelines-root .xd-panel{width:100%;left:0;border-left:none}}",
+      // detail workbench, mobile: the runs rail collapses to a horizontal run-chip strip above the main area
+      "@media (max-width:768px){#pipelines-root #pl-detail{flex-direction:column}#pipelines-root .pl-rail{width:auto!important;flex:none;border-right:none;border-bottom:1px solid rgba(160,168,220,0.08);max-height:120px}#pipelines-root .pl-rail-mini{display:none!important}#pipelines-root .pl-rail-head{display:none}#pipelines-root .pl-rail-foot{display:none}#pipelines-root .pl-runs{flex-direction:row;overflow-x:auto;overflow-y:hidden;padding:9px 8px;gap:8px}#pipelines-root .pl-runrow{flex:none;min-width:134px;margin:0}#pipelines-root .pl-main-head{padding:11px 14px;gap:9px;flex-wrap:wrap}#pipelines-root .pl-h-name{max-width:none}#pipelines-root .pl-main-body{padding:14px}}",
       "@media (max-width:768px){#pipelines-root .pl-htable,#pipelines-root .pl-htable tbody{display:block}#pipelines-root .pl-htable thead{display:none}#pipelines-root .pl-htable tr.pl-htrow{display:block;background:#0d0f1c;border:1px solid rgba(160,168,220,0.1);border-radius:11px;padding:11px 13px;margin-bottom:8px}#pipelines-root .pl-htable tr.pl-htrow td{display:block;width:auto;padding:4px 0;border:none;white-space:normal}#pipelines-root .pl-mx-lbl{position:static;background:transparent}}",
-      "@media (pointer:coarse){#pipelines-root .xd-panel .xd-close{width:44px;height:44px;font-size:17px}}"
+      "@media (pointer:coarse){#pipelines-root .xd-panel .xd-close{width:44px;height:44px;font-size:17px}#pipelines-root .pl-icbtn{width:34px;height:34px;font-size:16px}#pipelines-root .pl-back-ic{width:36px;height:36px}}"
     ].join('\n');
     document.head.appendChild(st);
 
@@ -4819,27 +4864,55 @@ class Component extends DCLogic {
       '  <div class="pl-tablewrap" id="pl-table"><div class="pl-empty">loading…</div></div>',
       '</div>',
       '<div id="pl-detail" style="display:none">',
-      '  <button class="pl-back" id="pl-back">‹ Pipelines</button>',
-      '  <div id="pl-detail-head"></div>',
-      '  <div id="pl-upcoming"></div>',
-      '  <div class="pl-history-wrap"><div class="pl-history-lbl">runs</div><div id="pl-history" class="pl-history"></div></div>',
-      '  <div id="pl-matrix"></div>',
-      '  <div id="pl-htable"></div>',
-      '  <div id="pl-run-area" class="pl-run-area"></div>',
+      '  <div class="pl-rail">',
+      '    <div class="pl-rail-full">',
+      '      <div class="pl-rail-head"><span class="pl-rail-title">RUNS</span><span class="pl-rail-count" id="pl-rail-count"></span><div style="flex:1"></div><button class="pl-icbtn" data-pl-act="toggle-runs" title="Collapse runs">‹</button></div>',
+      '      <div class="pl-runs" id="pl-runs"></div>',
+      '      <div class="pl-rail-foot" id="pl-rail-foot"></div>',
+      '    </div>',
+      '    <div class="pl-rail-mini"><button class="pl-icbtn" data-pl-act="toggle-runs" title="Expand runs">›</button><span class="pl-vlabel">RUNS</span></div>',
+      '  </div>',
+      '  <div class="pl-main">',
+      '    <div class="pl-main-head">',
+      '      <button class="pl-back-ic" data-pl-act="back" title="Back to pipelines">‹</button>',
+      '      <span class="pl-h-name" id="pl-h-name"></span>',
+      '      <span class="pl-h-repo" id="pl-h-repo"></span>',
+      '      <span class="pl-h-runid" id="pl-h-runid"></span>',
+      '      <span id="pl-h-state"></span>',
+      '      <div class="pl-tabs">',
+      '        <button data-pl-tab="dag" class="on">DAG</button>',
+      '        <button data-pl-tab="history">History</button>',
+      '        <button data-pl-tab="matrix">Matrix</button>',
+      '      </div>',
+      '    </div>',
+      '    <div class="pl-main-body">',
+      '      <div class="pl-tabbody on" id="pl-tab-dag" data-pl-tab="dag"></div>',
+      '      <div class="pl-tabbody" id="pl-tab-history" data-pl-tab="history"></div>',
+      '      <div class="pl-tabbody" id="pl-tab-matrix" data-pl-tab="matrix"></div>',
+      '    </div>',
+      '  </div>',
       '</div>'
     ].join('\n');
     document.body.appendChild(root);
     this._dockOverlay(root); // mobile: left:0 + bottom clears the tab bar
     this._pipelinesRoot = root;
 
-    // One delegated click listener: copy button > back link > run chip > stage node > list row.
+    // One delegated click listener: copy > rail toggle / back / tab > run row/cell > stage node > list row.
     root.addEventListener('click', (e) => {
       const copy = (e.target.closest && e.target.closest('.gm-copy')) || null;
       if (copy) { e.stopPropagation(); this._gmCopyChip(copy); return; }
-      const back = (e.target.closest && e.target.closest('#pl-back')) || null;
-      if (back) { this.closePipelineDetail(); this._navRoute('pipelines'); return; }
-      const chip = (e.target.closest && e.target.closest('.pl-runchip')) || null;
-      if (chip) { const rid = chip.getAttribute('data-run'); if (rid) this.selectPipelineRun(rid); return; }
+      const act = (e.target.closest && e.target.closest('[data-pl-act]')) || null;
+      if (act) {
+        e.stopPropagation();
+        const a = act.getAttribute('data-pl-act');
+        if (a === 'toggle-runs') this._plToggleRuns();
+        else if (a === 'back') { this.closePipelineDetail(); this._navRoute('pipelines'); }
+        return;
+      }
+      const tab = (e.target.closest && e.target.closest('.pl-tabs button[data-pl-tab]')) || null;
+      if (tab) { this._plSetTab(tab.getAttribute('data-pl-tab')); return; }
+      const rrow = (e.target.closest && e.target.closest('.pl-runrow')) || null;
+      if (rrow) { const rid = rrow.getAttribute('data-run'); if (rid) this.selectPipelineRun(rid); return; }
       const mxc = (e.target.closest && e.target.closest('.pl-mx-cell')) || null;
       if (mxc) { const rid = mxc.getAttribute('data-run'); if (rid) this.selectPipelineRun(rid); return; }
       const htr = (e.target.closest && e.target.closest('.pl-htrow')) || null;
@@ -4911,9 +4984,18 @@ class Component extends DCLogic {
     const sched = p.interval ? ('every ' + esc(p.interval) + (p.jitter ? ' +' + esc(p.jitter) : '')) : 'manual';
     const enChip = p.enabled ? '<span class="pl-chip on">enabled</span>' : '<span class="pl-chip off">disabled</span>';
     const lastCol = this._galaxyStateColor(p.lastStatus);
-    const lastChip = p.lastStatus
-      ? '<span class="pl-statechip" style="color:' + lastCol + ';background:color-mix(in srgb,' + lastCol + ' 12%, transparent);border:1px solid color-mix(in srgb,' + lastCol + ' 30%, transparent)">' + esc(p.lastStatus) + '</span>'
-      : '<span class="pl-nohist">—</span>';
+    let lastChip;
+    if (p.lastStatus) {
+      const chip = '<span class="pl-statechip" style="color:' + lastCol + ';background:color-mix(in srgb,' + lastCol + ' 12%, transparent);border:1px solid color-mix(in srgb,' + lastCol + ' 30%, transparent)">' + esc(p.lastStatus) + '</span>';
+      // recency ("succeeded · 18h ago") + a "@ <stage>" halt annotation when parked.
+      const rel = p.lastRunAt ? this._relFromMs(p.lastRunAt) : '';
+      const rc0 = (Array.isArray(p.recent) && p.recent.length) ? p.recent[0] : null;
+      const halt = (rc0 && (p.lastStatus === 'blocked' || p.lastStatus === 'failed') && rc0.haltStage) ? rc0.haltStage : '';
+      const sub = [halt ? ('@ ' + esc(halt)) : '', rel ? esc(rel) : ''].filter(Boolean).join(' · ');
+      lastChip = chip + (sub ? '<div class="pl-rate">' + sub + '</div>' : '');
+    } else {
+      lastChip = '<span class="pl-nohist">—</span>';
+    }
     const due = p.nextDueAt ? '<span class="pl-due" data-due="' + p.nextDueAt + '">' + esc(this._plFmtCountdown(p.nextDueAt)) + '</span>' : '<span class="pl-nohist">—</span>';
     const recent = (Array.isArray(p.recent) ? p.recent.slice() : []).reverse(); // oldest -> newest (left -> right)
     const strip = recent.length
@@ -4933,91 +5015,189 @@ class Component extends DCLogic {
     '</tr>';
   }
 
-  // ---- DETAIL ----------------------------------------------------------------
+  // ---- DETAIL (workbench: [ RUNS rail | main ]) ------------------------------
   openPipelineDetail(name) {
     if (!name) { this.closePipelineDetail(); return; }
     const summary = this._pipelinesByName && this._pipelinesByName[name];
     if (!summary) { this._pendingPipelineDetail = name; return; } // opens after fetchPipelines
     const switching = (this._plDetailName !== name);
     this._plDetailName = name;
-    if (switching) { this._plSelectedRun = null; this._plRun = null; } // don't carry a prior pipeline's run
-    // reset the detail-data channel so a prior pipeline's matrix/table/upcoming never flashes.
+    if (switching) { this._plSelectedRun = null; this._plRun = null; this._plTab = 'dag'; } // don't carry a prior pipeline's run/tab
+    // reset the detail-data channel so a prior pipeline's rail/matrix/table never flashes.
     this._plDetail = null; this._plDetailSig = null;
     const list = this._pipelinesRoot.querySelector('#pl-list');
     const det = this._pipelinesRoot.querySelector('#pl-detail');
     if (list) list.style.display = 'none';
-    if (det) det.style.display = 'block';
-    ['#pl-upcoming', '#pl-matrix', '#pl-htable'].forEach(sel => { const el = this._pipelinesRoot.querySelector(sel); if (el) el.innerHTML = ''; });
-    try { this._pipelinesRoot.scrollTop = 0; } catch (e) {}
+    if (det) det.style.display = 'flex';
+    ['#pl-runs', '#pl-rail-foot', '#pl-tab-dag', '#pl-tab-history', '#pl-tab-matrix'].forEach(sel => { const el = this._pipelinesRoot.querySelector(sel); if (el) el.innerHTML = ''; });
+    this._plLayout();
+    this._plApplyTab();
     this.renderPipelineDetailShell(summary);
-    // v1.6: second fetch — the pipeline's declared DAG + full run history (own poll).
+    // second fetch — the pipeline's declared DAG + full run history (own poll).
     this.fetchPipelineDetailData(name, false);
     this.startPipelineDetailPoll();
     const recent = Array.isArray(summary.recent) ? summary.recent : [];
     const def = summary.lastRunId || (recent[0] && recent[0].id) || '';
     if (def) this.selectPipelineRun(def);
-    else { this._plSelectedRun = null; this._plRun = null; this.renderPipelineRun(null); }
+    else { this._plSelectedRun = null; this._plRun = null; this.renderPipelineRun(null); this._plRenderMainHead(); }
   }
 
+  // The shell = the main header (name/repo/selected #id/state chip) + the RUNS rail
+  // (run rows + footer). The selected run's #id + state come from _plRenderMainHead.
   renderPipelineDetailShell(summary) {
     if (!this._pipelinesRoot || !summary) return;
-    const esc = (s) => this._galaxyEsc(s);
-    const head = this._pipelinesRoot.querySelector('#pl-detail-head');
-    if (head) {
-      const sched = summary.interval ? ('every ' + esc(summary.interval) + (summary.jitter ? ' +' + esc(summary.jitter) : '')) : 'manual';
-      const enChip = summary.enabled ? '<span class="pl-chip on">enabled</span>' : '<span class="pl-chip off">disabled</span>';
-      const nStages = summary.stageCount || 0;
-      // run-count prefers the full history (detail endpoint); falls back to the
-      // recent strip (capped at 10) until the detail data lands.
-      const runCount = (this._plDetail && this._plDetail.name === summary.name && Array.isArray(this._plDetail.runs))
-        ? this._plDetail.runs.length
-        : (Array.isArray(summary.recent) ? summary.recent.length : 0);
-      head.innerHTML =
-        '<div class="pl-dh-name">' + esc(summary.name) + '</div>' +
-        '<div class="pl-dh-meta">' +
-          (summary.repo ? '<span class="pl-dh-repo">' + esc(summary.repo) + '</span>' : '') +
-          enChip +
-          '<span>' + sched + '</span>' +
-          '<span>' + nStages + ' stage' + (nStages === 1 ? '' : 's') + '</span>' +
-          '<span id="pl-runcount">' + runCount + ' run' + (runCount === 1 ? '' : 's') + '</span>' +
-          (summary.nextDueAt ? '<span class="pl-due pl-dh-due" data-due="' + summary.nextDueAt + '">' + esc(this._plFmtCountdown(summary.nextDueAt)) + '</span>' : '') +
-        '</div>';
-    }
-    const hist = this._pipelinesRoot.querySelector('#pl-history');
-    if (hist) {
-      const recent = Array.isArray(summary.recent) ? summary.recent : [];
-      if (!recent.length) { hist.innerHTML = '<span class="pl-nohist">no runs yet</span>'; }
+    this._plRenderMainHead();
+    this._plRenderRail();
+  }
+
+  // Main header meta: pipeline name/repo from the summary; the selected run's short
+  // id + state prefer the loaded run detail, else the history/recent entry.
+  _plMainMeta() {
+    const summary = this._pipelinesByName && this._pipelinesByName[this._plDetailName];
+    const name = this._plDetailName || (summary && summary.name) || '';
+    const repo = (summary && summary.repo) || '';
+    const rid = this._plSelectedRun || '';
+    let state = '', shortId = '';
+    if (rid) {
+      shortId = String(rid).split('-').pop();
+      if (this._plRun && this._plRun.id === rid && this._plRun.state) state = this._plRun.state;
       else {
-        // Oldest->newest so the strip reads the same direction as the matrix columns.
-        hist.innerHTML = recent.slice().reverse().map(r => {
-          const col = this._galaxyStateColor(r.state);
-          const shortId = String(r.id || '').split('-').pop();
-          const rel = r.startedAt ? this._relFromMs(r.startedAt) : '';
-          const sel = (r.id === this._plSelectedRun) ? ' sel' : '';
-          // v1.6: trigger glyph (M/S) + run duration on each quick-selector chip.
-          const trig = (r.trigger === 'manual' || r.trigger === 'schedule')
-            ? '<span class="pl-runchip-tg" title="' + esc(r.trigger) + '">' + (r.trigger === 'manual' ? 'M' : 'S') + '</span>' : '';
-          const dur = (r.duration && r.duration > 0) ? '<span class="pl-runchip-t">' + esc(this._fmtDur(r.duration)) + '</span>' : '';
-          return '<button class="pl-runchip' + sel + '" data-run="' + esc(r.id) + '" style="--rc:' + col + '" title="' + esc(r.state) + '">' +
-            '<span class="pl-runchip-dot" style="background:' + col + '"></span>' +
-            '<span class="pl-runchip-id">#' + esc(shortId) + '</span>' +
-            trig +
-            (rel ? '<span class="pl-runchip-t">' + esc(rel) + '</span>' : '') +
-            dur +
-          '</button>';
-        }).join('');
+        const src = (this._plDetail && Array.isArray(this._plDetail.runs)) ? this._plDetail.runs
+          : ((summary && Array.isArray(summary.recent)) ? summary.recent : []);
+        const e = src.find(r => r && r.id === rid);
+        if (e) state = e.state;
       }
     }
+    return { name: name, repo: repo, shortId: shortId, state: state };
+  }
+  _plRenderMainHead() {
+    const root = this._pipelinesRoot; if (!root) return;
+    const esc = (s) => this._galaxyEsc(s);
+    const m = this._plMainMeta();
+    const nameEl = root.querySelector('#pl-h-name'); if (nameEl) nameEl.textContent = m.name;
+    const repoEl = root.querySelector('#pl-h-repo'); if (repoEl) { repoEl.textContent = m.repo; repoEl.style.display = m.repo ? '' : 'none'; }
+    const idEl = root.querySelector('#pl-h-runid'); if (idEl) idEl.textContent = m.shortId ? ('#' + m.shortId) : '';
+    const stEl = root.querySelector('#pl-h-state');
+    if (stEl) {
+      if (m.state) { const c = this._galaxyStateColor(m.state); stEl.innerHTML = '<span class="pl-statechip" style="color:' + c + ';background:color-mix(in srgb,' + c + ' 12%, transparent);border:1px solid color-mix(in srgb,' + c + ' 30%, transparent)">' + esc(m.state) + '</span>'; }
+      else stEl.innerHTML = '';
+    }
+  }
+
+  // RUNS rail: newest-first run rows (state dot · #shortid · M/S · rel time · ⧗ dur)
+  // from the full history (detail.runs) when loaded, else the recent strip; footer =
+  // next-due countdown / manual run command / schedule-paused.
+  _plRenderRail() {
+    const root = this._pipelinesRoot; if (!root) return;
+    const summary = this._pipelinesByName && this._pipelinesByName[this._plDetailName];
+    const runs = (this._plDetail && Array.isArray(this._plDetail.runs) && this._plDetail.runs.length)
+      ? this._plDetail.runs
+      : ((summary && Array.isArray(summary.recent)) ? summary.recent : []);
+    const runsEl = root.querySelector('#pl-runs');
+    if (runsEl) runsEl.innerHTML = runs.length ? runs.map(r => this._plRunrowHtml(r)).join('') : '<div class="pl-runs-empty">no runs yet</div>';
+    const cntEl = root.querySelector('#pl-rail-count');
+    if (cntEl) cntEl.textContent = runs.length ? String(runs.length) : '';
+    const footEl = root.querySelector('#pl-rail-foot');
+    if (footEl) footEl.innerHTML = this._plFooterHtml(summary);
+    this.refreshPipelineCountdowns();
+  }
+  _plRunrowHtml(r) {
+    const esc = (s) => this._galaxyEsc(s);
+    const col = this._galaxyStateColor(r.state);
+    const shortId = String(r.id || '').split('-').pop();
+    const rel = r.startedAt ? this._relFromMs(r.startedAt) : '';
+    const sel = (r.id === this._plSelectedRun) ? ' sel' : '';
+    const trig = (r.trigger === 'manual' || r.trigger === 'schedule')
+      ? '<span class="pl-runrow-tg ' + r.trigger + '" title="' + esc(r.trigger) + '">' + (r.trigger === 'manual' ? 'M' : 'S') + '</span>' : '';
+    const dur = (r.duration && r.duration > 0) ? this._fmtDur(r.duration) : (r.state === 'running' ? 'running' : '');
+    return '<div class="pl-runrow' + sel + '" data-run="' + esc(r.id) + '" title="' + esc(r.state) + '">' +
+      '<div class="pl-runrow-top"><span class="pl-runrow-dot" style="background:' + col + '"></span>' +
+        '<span class="pl-runrow-id">#' + esc(shortId) + '</span>' + trig +
+        (rel ? '<span class="pl-runrow-ago">' + esc(rel) + '</span>' : '') +
+      '</div>' +
+      (dur ? '<div class="pl-runrow-sub"><span class="pl-runrow-dur">⧗ ' + esc(dur) + '</span></div>' : '') +
+    '</div>';
+  }
+  _plFooterHtml(summary) {
+    const esc = (s) => this._galaxyEsc(s);
+    if (!summary) return '';
+    const interval = (summary.interval || '').trim();
+    if (!interval) {
+      const cmd = 'gitmoot pipeline run ' + (summary.name || '');
+      return '<div class="pl-cmd" style="width:100%"><code>' + esc(cmd) + '</code><button class="gm-copy" data-cmd="' + esc(cmd) + '">copy</button></div>';
+    }
+    if (!summary.enabled) {
+      return '<span class="pl-rail-foot-dot" style="background:#5a6088;box-shadow:none"></span><span class="pl-rail-foot-txt">schedule paused</span>';
+    }
+    const due = summary.nextDueAt || 0;
+    return '<span class="pl-rail-foot-dot"></span><span class="pl-rail-foot-txt pl-nextdue" data-due="' + due + '">' + esc(this._plNextRunLabel(due)) + '</span>';
+  }
+  _plNextRunLabel(ms, now) {
+    if (!ms || ms <= 0) return 'next run —';
+    const d = ms - (now || Date.now());
+    if (d <= 0) return 'next run now';
+    return 'next run in ' + this._fmtEta(d);
+  }
+
+  // ---- rail collapse + segmented tabs + responsive flex reflow ----
+  _plToggleRuns() {
+    if (this.state.isMobile) return; // mobile: the rail is a fixed horizontal strip
+    this._plRunsOpen = !this._plRunsOpen;
+    try { localStorage.setItem('gitmoot.plRunsOpen', this._plRunsOpen ? '1' : '0'); } catch (e) {}
+    this._plLayout();
+  }
+  _plLayout() {
+    const root = this._pipelinesRoot; if (!root) return;
+    const det = root.querySelector('#pl-detail'); if (!det) return;
+    const rail = det.querySelector('.pl-rail');
+    const full = rail && rail.querySelector('.pl-rail-full');
+    const mini = rail && rail.querySelector('.pl-rail-mini');
+    if (this.state.isMobile) {
+      det.style.flexDirection = '';   // the media query lays it out as a column
+      if (rail) rail.style.width = '';
+      if (full) full.style.display = 'flex';
+      if (mini) mini.style.display = 'none';
+      return;
+    }
+    det.style.flexDirection = 'row';
+    const open = this._plRunsOpen;
+    if (rail) rail.style.width = open ? '280px' : '46px';
+    if (full) full.style.display = open ? 'flex' : 'none';
+    if (mini) mini.style.display = open ? 'none' : 'flex';
+  }
+  _plSetTab(tab) {
+    if (!tab || this._plTab === tab) return;
+    this._plTab = tab;
+    this._plApplyTab();
+  }
+  _plApplyTab() {
+    const root = this._pipelinesRoot; if (!root) return;
+    const tab = this._plTab || 'dag';
+    root.querySelectorAll('.pl-tabs button[data-pl-tab]').forEach(b => b.classList.toggle('on', b.getAttribute('data-pl-tab') === tab));
+    root.querySelectorAll('.pl-tabbody').forEach(el => el.classList.toggle('on', el.getAttribute('data-pl-tab') === tab));
+    if (tab === 'dag') this._plUpdateScrollCue();
+  }
+  // Show the right-edge fade + "scroll →" cue only when the stage graph is clipped.
+  _plUpdateScrollCue() {
+    const root = this._pipelinesRoot; if (!root) return;
+    const wrap = root.querySelector('#pl-tab-dag .pl-sg-wrap');
+    const scroller = root.querySelector('#pl-tab-dag .pl-dagwrap');
+    const cue = root.querySelector('#pl-tab-dag .pl-sg-cue');
+    if (!wrap || !scroller) return;
+    const clip = (scroller.scrollWidth - scroller.clientWidth) > 4;
+    wrap.classList.toggle('clip', clip);
+    if (cue) cue.textContent = clip ? ' · scroll →' : '';
   }
 
   selectPipelineRun(id) {
     if (!id) return;
     this._plSelectedRun = id;
     if (this._pipelinesRoot) {
-      // v1.6: keep the strip, matrix, and history table selection in sync.
+      // keep the rail rows, matrix cells, and history-table rows selection in sync.
       this._plSyncRunSelection(id);
-      const area = this._pipelinesRoot.querySelector('#pl-run-area');
-      if (area) area.innerHTML = '<div class="pl-empty">loading run…</div>';
+      this._plRenderMainHead();
+      const dag = this._pipelinesRoot.querySelector('#pl-tab-dag');
+      if (dag) dag.innerHTML = '<div class="pl-empty">loading run…</div>';
     }
     this.fetchPipelineRun(id, false);
     this.startPipelineRunPoll();
@@ -5037,70 +5217,99 @@ class Component extends DCLogic {
       })
       .catch(err => {
         if (isPoll || this._plRunFetchId !== fid || this._plSelectedRun !== id) return;
-        // v1.6: when the full run detail is unavailable (e.g. a pruned run), fall
-        // back to the run's per-stage marks overlaid on the declared DAG so the
-        // matrix/table click still shows that run's shape.
+        // when the full run detail is unavailable (e.g. a pruned run), fall back to
+        // the run's per-stage marks overlaid on the declared DAG so the matrix/table
+        // click still shows that run's shape.
         const fb = this._plRunFromHistory(id);
         if (fb) { this._plRun = fb; this.renderPipelineRun(fb); return; }
-        const area = this._pipelinesRoot && this._pipelinesRoot.querySelector('#pl-run-area');
+        const area = this._pipelinesRoot && this._pipelinesRoot.querySelector('#pl-tab-dag');
         if (area) area.innerHTML = '<div class="pl-empty" style="color:#f7768e">could not load this run (' + this._galaxyEsc(err && err.message) + ')</div>';
+        this._plRenderMainHead();
       });
   }
 
+  // DAG-tab content, in the design's order: (a) blocked/failed banner FIRST, (b) the
+  // run summary caption, (c) the STAGE GRAPH (scroll cue + right-edge fade), (d) the
+  // STAGES tally chips. Renders into #pl-tab-dag; History/Matrix live in their tabs.
   renderPipelineRun(run) {
     if (!this._pipelinesRoot) return;
-    const area = this._pipelinesRoot.querySelector('#pl-run-area');
+    const area = this._pipelinesRoot.querySelector('#pl-tab-dag');
     if (!area) return;
     if (!run) {
-      // v1.6: a never-run pipeline shows its DECLARED DAG (all pending) once the
-      // detail data has landed; otherwise the plain empty note.
+      // a never-run pipeline shows its DECLARED DAG (all pending) once the detail
+      // data has landed; otherwise the plain empty note.
       const d = this._plDetail;
       if (d && (!Array.isArray(d.runs) || !d.runs.length) && Array.isArray(d.declared) && d.declared.length) {
         area.innerHTML = this._plDeclaredDagHtml(d);
       } else {
         area.innerHTML = '<div class="pl-empty">no runs for this pipeline yet</div>';
       }
+      this._plRenderMainHead();
+      this._plUpdateScrollCue();
       return;
     }
     const esc = (s) => this._galaxyEsc(s);
-    // v1.6: selected-run summary bar — trigger badge + total duration + park time.
-    const rcol = this._galaxyStateColor(run.state);
-    const shortId = String(run.id || '').split('-').pop();
+    const stages = Array.isArray(run.stages) ? run.stages : [];
     const dur = (run.finishedAt > run.startedAt) ? this._fmtDur(run.finishedAt - run.startedAt) : '';
     const startedAbs = run.startedAt ? this._plFmtAbsTime(run.startedAt) : '';
     const parkedTs = run.finishedAt > 0 ? run.finishedAt : (run.startedAt || 0);
     const parked = ((run.state === 'blocked' || run.state === 'failed') && parkedTs > 0) ? this._relFromMs(parkedTs) : '';
-    const sumBar = '<div class="pl-runsum">' +
-      '<span class="pl-runsum-id">#' + esc(shortId) + '</span>' +
-      '<span class="pl-statechip" style="color:' + rcol + ';background:color-mix(in srgb,' + rcol + ' 12%, transparent);border:1px solid color-mix(in srgb,' + rcol + ' 30%, transparent)">' + esc(run.state) + '</span>' +
-      (this._plTriggerBadge(run.trigger) || '') +
-      (startedAbs ? '<span class="pl-runsum-t">' + esc(startedAbs) + '</span>' : '') +
-      (dur ? '<span class="pl-runsum-t">⏱ ' + esc(dur) + '</span>' : '') +
-    '</div>';
     // _relFromMs/relTime already end with "ago" (or say "just now") — no suffix here.
     const parkedTag = parked ? '<span class="pl-banner-parked">parked ' + esc(parked) + '</span>' : '';
+    // (a) banner FIRST
     let banner = '';
-    if (run.state === 'blocked') {
+    if (run.state === 'blocked' || run.state === 'failed') {
+      const level = run.state;
+      const haltStg = stages.find(s => s.id === run.haltStage) || stages.find(s => s.state === level);
+      const haltId = run.haltStage || (haltStg && haltStg.id) || '?';
+      const title = (level === 'blocked' ? 'Run halted at ' : 'Run failed at ') + haltId;
       const needs = Array.isArray(run.needs) ? run.needs : [];
-      const cmd = 'gitmoot pipeline resume ' + (run.id || '');
-      banner = '<div class="pl-banner blocked">' +
-        '<div class="pl-banner-head"><span class="pl-banner-ic">⚠</span><span class="pl-banner-title">blocked at <b>' + esc(run.haltStage || '?') + '</b>' + parkedTag + '</span></div>' +
-        (run.haltReason ? '<div class="pl-banner-reason">' + esc(run.haltReason) + '</div>' : '') +
-        (needs.length ? '<ul class="pl-needs">' + needs.map(n => '<li>' + esc(n) + '</li>').join('') + '</ul>' : '') +
-        '<div class="pl-cmd"><code>' + esc(cmd) + '</code><button class="gm-copy" data-cmd="' + esc(cmd) + '">copy</button></div>' +
-      '</div>';
-    } else if (run.state === 'failed') {
-      const stages = Array.isArray(run.stages) ? run.stages : [];
-      const halt = stages.find(s => s.id === run.haltStage) || stages.find(s => s.state === 'failed');
-      const jobId = (halt && halt.jobId) ? halt.jobId : '';
-      const cmd = jobId ? ('gitmoot report bug --job ' + jobId) : '';
-      banner = '<div class="pl-banner failed">' +
-        '<div class="pl-banner-head"><span class="pl-banner-ic">✕</span><span class="pl-banner-title">failed at <b>' + esc(run.haltStage || (halt && halt.id) || '?') + '</b>' + parkedTag + '</span></div>' +
-        (run.haltReason ? '<div class="pl-banner-reason">' + esc(run.haltReason) + '</div>' : '') +
-        (cmd ? '<div class="pl-cmd"><code>' + esc(cmd) + '</code><button class="gm-copy" data-cmd="' + esc(cmd) + '">copy</button></div>' : '') +
+      let body = '';
+      if (needs.length) body = '<div><div class="pl-needs-lbl">NEEDS</div><ul class="pl-needs">' + needs.map(n => '<li>' + esc(n) + '</li>').join('') + '</ul></div>';
+      else if (run.haltReason) body = '<div class="pl-banner-reason">' + esc(run.haltReason) + '</div>';
+      let cmd = '';
+      if (level === 'blocked') cmd = 'gitmoot pipeline resume ' + (run.id || '');
+      else { const jobId = (haltStg && haltStg.jobId) ? haltStg.jobId : ''; cmd = jobId ? ('gitmoot report bug --job ' + jobId) : ''; }
+      const cmdHtml = cmd ? '<div class="pl-cmd"><code>' + esc(cmd) + '</code><button class="gm-copy" data-cmd="' + esc(cmd) + '">copy</button></div>' : '';
+      banner = '<div class="pl-banner ' + level + '">' +
+        '<div class="pl-banner-head"><span class="pl-banner-ic">⚠</span><span class="pl-banner-title">' + esc(title) + '</span>' +
+          '<span class="pl-banner-stage">stage · ' + esc(haltId) + '</span>' + parkedTag + '</div>' +
+        body + cmdHtml +
       '</div>';
     }
-    area.innerHTML = sumBar + banner + this._pipelineStageDag(run.stages);
+    // (b) run summary caption
+    const capParts = [];
+    if (startedAbs) capParts.push('<span class="pl-runsum-t">' + esc(startedAbs) + '</span>');
+    if (dur) capParts.push('<span class="pl-runsum-t">⏱ ' + esc(dur) + '</span>');
+    const trigB = this._plTriggerBadge(run.trigger) || '';
+    const caption = (trigB || capParts.length) ? '<div class="pl-runsum">' + trigB + capParts.join('') + '</div>' : '';
+    // (c) stage graph + (d) tally
+    const sg = '<div class="pl-sg-lbl">STAGE GRAPH<span class="pl-sg-cue"></span></div>' +
+      '<div class="pl-sg-wrap">' + this._pipelineStageDag(stages) + '<div class="pl-sg-fade"></div></div>';
+    const tally = stages.length ? '<div class="pl-tally">' + this._plTallyHtml(stages) + '</div>' : '';
+    area.innerHTML = banner + caption + sg + tally;
+    this._plRenderMainHead();
+    this._plUpdateScrollCue();
+  }
+
+  // STAGES tally: counts by state as design chips (dot + "N label"). "ok" for
+  // succeeded; state-name otherwise. Ordered by severity, extras appended.
+  _plTallyHtml(stages) {
+    const esc = (s) => this._galaxyEsc(s);
+    const list = Array.isArray(stages) ? stages : [];
+    if (!list.length) return '';
+    const order = ['succeeded', 'running', 'blocked', 'failed', 'skipped', 'pending', 'queued', 'cancelled'];
+    const labelMap = { succeeded: 'ok', running: 'running', blocked: 'blocked', failed: 'failed', skipped: 'skipped', pending: 'pending', queued: 'queued', cancelled: 'cancelled' };
+    const counts = {};
+    list.forEach(s => { const st = (s && s.state) || 'pending'; counts[st] = (counts[st] || 0) + 1; });
+    const keys = order.filter(k => counts[k]);
+    Object.keys(counts).forEach(k => { if (keys.indexOf(k) === -1) keys.push(k); });
+    const chips = keys.map(k => {
+      const c = this._plStageColor(k);
+      const lbl = labelMap[k] || k;
+      return '<span class="pl-tchip" style="color:' + c + ';background:color-mix(in srgb,' + c + ' 12%, transparent);border:1px solid color-mix(in srgb,' + c + ' 26%, transparent)"><span class="pl-tchip-dot" style="background:' + c + '"></span>' + counts[k] + ' ' + esc(lbl) + '</span>';
+    }).join('');
+    return '<span class="pl-tally-lbl">STAGES</span>' + chips;
   }
 
   // Hand-rolled inline-SVG stage DAG: depth-column layout from stage deps (the
@@ -5171,7 +5380,9 @@ class Component extends DCLogic {
     // reading "attempt N/M" (1-based) when a budget exists, else a plain count.
     const att = (s.attempt && s.attempt > 0) ? s.attempt : 0;
     const ret = (s.retry && s.retry > 0) ? s.retry : 0;
-    const tryLabel = att ? (ret ? ('attempt ' + (att + 1) + '/' + (ret + 1)) : ('attempt ' + (att + 1))) : '';
+    // Full label for the tooltip; a compact glyph ("3/3" or "×2") on the crowded card.
+    const tryFull = att ? (ret ? ('attempt ' + (att + 1) + '/' + (ret + 1)) : ('attempt ' + (att + 1))) : '';
+    const tryLabel = att ? (ret ? ((att + 1) + '/' + (ret + 1)) : ('×' + (att + 1))) : '';
     let elapsed = '';
     if (s.startedAt > 0) {
       const end = s.finishedAt > 0 ? s.finishedAt : (running ? Date.now() : 0);
@@ -5179,17 +5390,20 @@ class Component extends DCLogic {
     }
     const summary = s.summary || s.cmd || '';
     const clickable = !!s.jobId;
-    return '<div class="pl-node' + (running ? ' running' : '') + (dim ? ' dim' : '') + '" data-stage="' + esc(s.id) + '" style="--gc:' + col + '40;border-left-color:' + col + '">' +
+    // Design card: header row (dot · name · [attempt] · STATE label), summary line,
+    // footer (duration in state color + a "job ▸" affordance opening the slide-in).
+    return '<div class="pl-node' + (running ? ' running' : '') + (dim ? ' dim' : '') + '" data-stage="' + esc(s.id) + '" style="border-left-color:' + col + '">' +
       '<div class="pl-node-top">' +
         '<span class="pl-node-dot" style="background:' + col + ';box-shadow:0 0 7px ' + col + (running ? ';animation:dotpulse 1.4s ease-in-out infinite' : '') + '"></span>' +
         '<span class="pl-node-id">' + esc(s.id) + '</span>' +
-        (tryLabel ? '<span class="pl-node-try" title="' + esc(tryLabel) + '">' + esc(tryLabel) + '</span>' : '') +
-      '</div>' +
-      '<div class="pl-node-meta"><span class="pl-node-state" style="color:' + col + '">' + esc(state) + '</span>' +
-        (elapsed ? '<span class="pl-node-el">' + esc(elapsed) + '</span>' : '') +
-        (clickable ? '<span class="pl-node-job">▸ job</span>' : '') +
+        (tryLabel ? '<span class="pl-node-try" title="' + esc(tryFull) + '">' + esc(tryLabel) + '</span>' : '') +
+        '<span class="pl-node-slbl" style="color:' + col + '">' + esc(state) + '</span>' +
       '</div>' +
       '<div class="pl-node-sum">' + esc(summary) + '</div>' +
+      '<div class="pl-node-foot">' +
+        '<span class="pl-node-dur" style="color:' + col + '">' + esc(elapsed || '—') + '</span>' +
+        (clickable ? '<span class="pl-node-job">job ▸</span>' : '') +
+      '</div>' +
     '</div>';
   }
 
@@ -5274,26 +5488,13 @@ class Component extends DCLogic {
   }
 
   // ==========================================================================
-  // v1.6: pipeline detail data (declared DAG + full run history) — a SECOND fetch
-  // against /api/pipelines/<name>, its own 12s signature-skip poll while a detail
-  // is open. Drives the upcoming card, stage x run matrix, run-history table, and
-  // the never-run declared preview. Every new member is _pl-prefixed (the v1.5
-  // shadow lesson: a duplicate member name silently overrides an existing one).
+  // Pipeline detail data (declared DAG + full run history) — a SECOND fetch against
+  // /api/pipelines/<name>, its own 12s signature-skip poll while a detail is open.
+  // Drives the RUNS rail (full history), the History and Matrix tabs, and the
+  // never-run declared preview. Every new member is _pl-prefixed (the v1.5 shadow
+  // lesson: a duplicate member name silently overrides an existing one).
   // ==========================================================================
 
-  // Parse a Go duration string (h/m/s composites like "1h30m", "24h", "90s") to
-  // milliseconds. Returns 0 on an empty/unparseable value (callers hide the card).
-  _plParseGoDur(s) {
-    if (!s || typeof s !== 'string') return 0;
-    const str = s.trim();
-    if (!/^(\d+(?:\.\d+)?(h|m|s))+$/.test(str)) return 0;
-    let ms = 0, re = /(\d+(?:\.\d+)?)(h|m|s)/g, mt;
-    while ((mt = re.exec(str)) !== null) {
-      const v = parseFloat(mt[1]);
-      ms += v * (mt[2] === 'h' ? 3600000 : (mt[2] === 'm' ? 60000 : 1000));
-    }
-    return ms;
-  }
 
   // Absolute local time (month/day + HH:MM), matching the Jobs/Health idiom.
   _plFmtAbsTime(ms) {
@@ -5351,31 +5552,30 @@ class Component extends DCLogic {
       })
       .catch(err => {
         // the detail data is supplementary (the header + selected run render from
-        // the list + run endpoints); a poll failure keeps what's on screen.
+        // the list + run endpoints); a first-load failure clears the History/Matrix
+        // tabs, a poll failure keeps what's on screen.
         if (isPoll || this._plDetailFetchName !== fname || this._plDetailName !== name) return;
-        const mx = this._pipelinesRoot && this._pipelinesRoot.querySelector('#pl-matrix');
-        if (mx) mx.innerHTML = '';
+        ['#pl-tab-history', '#pl-tab-matrix'].forEach(sel => { const el = this._pipelinesRoot && this._pipelinesRoot.querySelector(sel); if (el) el.innerHTML = ''; });
       });
   }
 
-  // Render the detail-data sections (upcoming, matrix, table) + refresh the run
-  // count, then re-apply the current run selection and the countdown labels.
+  // Render the detail-data driven panes: the RUNS rail (full history), the History
+  // tab table, and the Matrix tab (with a "needs 2+ runs" note under the gate), then
+  // re-apply the run selection, the visible tab, and the live countdown labels.
   renderPipelineDetailData() {
     if (!this._pipelinesRoot) return;
     const detail = this._plDetail;
-    const name = this._plDetailName;
-    const summary = this._pipelinesByName && this._pipelinesByName[name];
     const runs = (detail && Array.isArray(detail.runs)) ? detail.runs : [];
-    const up = this._pipelinesRoot.querySelector('#pl-upcoming');
-    if (up) up.innerHTML = summary ? this._plUpcomingHtml(summary) : '';
-    const mx = this._pipelinesRoot.querySelector('#pl-matrix');
-    // The matrix compares stages ACROSS runs — with fewer than 2 runs it is a
-    // one-column duplicate of the DAG's states, so it stays hidden until then.
-    if (mx) mx.innerHTML = runs.length >= 2 ? this._plMatrixHtml(detail) : '';
-    const tb = this._pipelinesRoot.querySelector('#pl-htable');
-    if (tb) tb.innerHTML = runs.length ? this._plHistoryTableHtml(detail) : '';
-    const rc = this._pipelinesRoot.querySelector('#pl-runcount');
-    if (rc && detail) rc.textContent = runs.length + ' run' + (runs.length === 1 ? '' : 's');
+    // the rail rows + run count now come from the full history endpoint.
+    this._plRenderRail();
+    this._plRenderMainHead();
+    const tb = this._pipelinesRoot.querySelector('#pl-tab-history');
+    if (tb) tb.innerHTML = runs.length ? this._plHistoryTableHtml(detail) : '<div class="pl-mxnote">no runs yet.</div>';
+    const mx = this._pipelinesRoot.querySelector('#pl-tab-matrix');
+    // The matrix compares stages ACROSS runs — with fewer than 2 runs it would be a
+    // one-column duplicate of the DAG, so show a note instead of hiding silently.
+    if (mx) mx.innerHTML = runs.length >= 2 ? this._plMatrixHtml(detail)
+      : '<div class="pl-mxnote">The stage &times; run matrix needs at least 2 runs to compare — this pipeline has ' + runs.length + '.</div>';
     if (runs.length && !this._plSelectedRun) {
       // the list's recent strip was empty/stale but history has runs: pick newest.
       this.selectPipelineRun(runs[0].id);
@@ -5384,43 +5584,8 @@ class Component extends DCLogic {
       this.renderPipelineRun(null);
     }
     if (this._plSelectedRun) this._plSyncRunSelection(this._plSelectedRun);
-    this.refreshPipelineCountdowns(); // upcoming rows carry .pl-due countdowns
-  }
-
-  // Upcoming-runs projection: next 5 fire times (nextDueAt + k*interval), rolled
-  // forward past `now` so a stale anchor still shows real future times. Absolute
-  // local time + a live .pl-due countdown; "± jitter" suffix; first row = next.
-  _plUpcomingHtml(summary) {
-    const esc = (s) => this._galaxyEsc(s);
-    const lbl = '<div class="pl-history-lbl">upcoming</div>';
-    const rawInterval = (summary.interval || '').trim();
-    if (!rawInterval) {
-      const cmd = 'gitmoot pipeline run ' + (summary.name || '');
-      return lbl + '<div class="pl-upcoming"><div class="pl-up-note">manual-only — run with</div>' +
-        '<div class="pl-cmd"><code>' + esc(cmd) + '</code><button class="gm-copy" data-cmd="' + esc(cmd) + '">copy</button></div></div>';
-    }
-    if (!summary.enabled) {
-      return lbl + '<div class="pl-upcoming"><div class="pl-up-note">schedule paused (disabled)</div></div>';
-    }
-    const interval = this._plParseGoDur(rawInterval);
-    if (!interval) return ''; // interval present but unparseable — hide the card
-    const now = Date.now();
-    let base = +summary.nextDueAt || 0;
-    if (base <= 0) base = now;
-    if (base < now) { const k = Math.ceil((now - base) / interval); base = base + k * interval; }
-    const jit = (summary.jitter && this._plParseGoDur(summary.jitter)) ? String(summary.jitter) : '';
-    let rows = '';
-    for (let k = 0; k < 5; k++) {
-      const t = base + k * interval;
-      const next = k === 0 ? ' next' : '';
-      rows += '<div class="pl-up-row' + next + '">' +
-        '<span class="pl-up-tag">' + (k === 0 ? 'next' : '') + '</span>' +
-        '<span class="pl-up-abs">' + esc(this._plFmtAbsTime(t)) + '</span>' +
-        '<span class="pl-due pl-up-rel" data-due="' + t + '">' + esc(this._plFmtCountdown(t, now)) + '</span>' +
-        (jit ? '<span class="pl-up-jit">± ' + esc(jit) + '</span>' : '') +
-      '</div>';
-    }
-    return lbl + '<div class="pl-upcoming">' + rows + '</div>';
+    this._plApplyTab();
+    this.refreshPipelineCountdowns();
   }
 
   // Stage x run matrix: rows = stage ids (declared order, then any history-only
@@ -5501,11 +5666,11 @@ class Component extends DCLogic {
     return note + this._pipelineStageDag(declared);
   }
 
-  // Toggle the selection highlight across all three run selectors (strip chips,
+  // Toggle the selection highlight across all three run selectors (rail rows,
   // matrix columns, history-table rows) for the given run id.
   _plSyncRunSelection(id) {
     if (!this._pipelinesRoot) return;
-    this._pipelinesRoot.querySelectorAll('.pl-runchip').forEach(c => c.classList.toggle('sel', c.getAttribute('data-run') === id));
+    this._pipelinesRoot.querySelectorAll('.pl-runrow').forEach(c => c.classList.toggle('sel', c.getAttribute('data-run') === id));
     this._pipelinesRoot.querySelectorAll('.pl-htrow').forEach(r => r.classList.toggle('sel', r.getAttribute('data-run') === id));
     this._pipelinesRoot.querySelectorAll('.pl-mx-cell').forEach(c => c.classList.toggle('sel', c.getAttribute('data-run') === id));
   }
