@@ -4260,7 +4260,6 @@ class Component extends DCLogic {
 
   // ---- Knowledge tab: a SECOND force-graph instance --------------------------
   _knowColor(n) {
-    if (n.type === 'repo') return n.general ? '#e0af68' : '#7dcfff'; // repo hub teal / general amber (left column)
     if (n.type === 'cluster') return '#bb9af7';         // violet cluster hubs (2nd column)
     if (n.type === 'agent') return '#bb9af7';           // violet agent wells (output layer)
     if (n.type === 'category') return '#bb9af7';        // violet category hubs
@@ -4268,14 +4267,12 @@ class Component extends DCLogic {
     return n.repo ? '#7dcfff' : '#e0af68';              // repo-scoped teal / general amber
   }
   _knowAlpha(n) {
-    if (n.type === 'repo') return 0.95;
     if (n.type === 'cluster') return 0.92;
     if (n.type === 'agent') return (n.facts > 0) ? 0.95 : 0.4; // dim agent well when 0 facts
     if (n.type === 'category') return 0.9;
     return n.superseded ? 0.4 : 0.92;                   // superseded at 40% alpha
   }
   _knowRadius(n) {
-    if (n.type === 'repo') return 6;                    // repo hubs: leftmost column
     if (n.type === 'cluster') return 4.4;               // cluster hubs: 2nd column
     if (n.type === 'agent') return 7;
     if (n.type === 'category') return 3;
@@ -4459,9 +4456,9 @@ class Component extends DCLogic {
         const col = this._knowColor(n);
         let r = this._knowRadius(n);
         // pixel-floor radii (graph-units are sub-pixel at fit zoom) so tiny nodes stay visible
-        const floor = (n.type === 'agent' ? 4 : n.type === 'repo' ? 3.4 : (n.type === 'category' || n.type === 'cluster') ? 2.6 : 1.6) / scale;
+        const floor = (n.type === 'agent' ? 4 : (n.type === 'category' || n.type === 'cluster') ? 2.6 : 1.6) / scale;
         if (r < floor) r = floor;
-        const blur = n.type === 'agent' ? 12 : n.type === 'repo' ? 9 : (n.type === 'category' || n.type === 'cluster') ? 7 : 4;
+        const blur = n.type === 'agent' ? 12 : (n.type === 'category' || n.type === 'cluster') ? 7 : 4;
         ctx.shadowColor = col; ctx.shadowBlur = blur;
         ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 2 * Math.PI);
         ctx.fillStyle = col; ctx.globalAlpha = this._knowAlpha(n) * dim; ctx.fill();
@@ -4515,7 +4512,7 @@ class Component extends DCLogic {
         // additive edges + nodes. Each band = a faint repo-tinted rect + a left
         // accent bar + a hairline separator + a short lane label and "N facts"
         // sub-line anchored in the left gutter. General recedes (lower alpha, dashed).
-        if (this._knowClustered && this._knowBands && this._knowBands.length) {
+        if (this._knowClustered && !this._knowEmpty && this._knowBands && this._knowBands.length) {
           ctx.save();
           const bsel = this._knowSelected;
           for (let bi = 0; bi < this._knowBands.length; bi++) {
@@ -4606,7 +4603,10 @@ class Component extends DCLogic {
     try {
       const el = this._knowGraphEl;
       let downX = 0, downY = 0, dragged = false;
-      el.addEventListener('pointerdown', (e) => { downX = e.clientX; downY = e.clientY; dragged = false; });
+      el.addEventListener('pointerdown', (e) => { downX = e.clientX; downY = e.clientY; dragged = false; this._knowNudgeCancel(); });
+      // A user pan/zoom must win over a pending gutter nudge (a one-shot centerAt fired
+      // 500-700ms after a fit), so cancel it on any direct interaction with the canvas.
+      el.addEventListener('wheel', () => this._knowNudgeCancel(), { passive: true });
       el.addEventListener('pointermove', (e) => {
         if (e.buttons && (Math.abs(e.clientX - downX) > 4 || Math.abs(e.clientY - downY) > 4)) dragged = true;
         this._knowPointer = { x: e.clientX, y: e.clientY };
@@ -4620,11 +4620,15 @@ class Component extends DCLogic {
       });
       el.addEventListener('pointerup', (e) => {
         if (dragged) return;
-        // Repo band labels (option A) are painted, not nodes, so hit-test them FIRST.
+        // Try NODES first: the band label region reaches to pf.x - 6 while fact nodes carry
+        // an 11px hit threshold, so a ~5px sliver left of a fact center would otherwise let
+        // the band swallow a fact click. Band labels live in the gutter (far from nodes), so
+        // node-first costs the band nothing; fall back to the band only when no node is hit.
+        const node = this.knowledgeNodeAt(e.clientX, e.clientY);
+        if (node) { this.openKnowledgeDetail(node); return; }
         const band = this.knowledgeBandAt(e.clientX, e.clientY);
         if (band) { this.openKnowledgeDetail(band.detail); return; }
-        const node = this.knowledgeNodeAt(e.clientX, e.clientY);
-        if (node) this.openKnowledgeDetail(node); else this.closeKnowledgeDetail();
+        this.closeKnowledgeDetail();
       });
       el.addEventListener('pointerleave', () => { if (this._knowHoverRAF) { try { cancelAnimationFrame(this._knowHoverRAF); } catch (e2) {} this._knowHoverRAF = 0; } this._knowPointer = null; try { el.style.cursor = 'default'; } catch (e2) {} });
     } catch (e) {}
@@ -4662,7 +4666,7 @@ class Component extends DCLogic {
   // full height. Returns the band (with its synthetic .detail) or null. Clustered
   // desktop only — mobile uses the accordion, the fallback view has no bands.
   knowledgeBandAt(clientX, clientY) {
-    if (!this._knowClustered || this.state.isMobile) return null;
+    if (!this._knowClustered || this._knowEmpty || this.state.isMobile) return null;
     const bands = this._knowBands; if (!bands || !bands.length) return null;
     const G = this._knowGraph; if (!G) return null;
     let el = null; try { el = this._knowGraphEl.querySelector('canvas'); } catch (e) {}
@@ -4689,6 +4693,8 @@ class Component extends DCLogic {
     clearTimeout(this._knowNudgeT);
     this._knowNudgeT = setTimeout(() => this._knowEnsureGutterClear(200), delayMs);
   }
+  // Cancel a pending one-shot gutter nudge so a user pan/zoom is never overridden.
+  _knowNudgeCancel() { clearTimeout(this._knowNudgeT); this._knowNudgeT = null; }
   _knowEnsureGutterClear(ms) {
     try {
       if (!this._knowClustered || this._knowEmpty || this.state.isMobile) return;
@@ -4819,15 +4825,14 @@ class Component extends DCLogic {
     const clusterById = {};
     clusters.forEach(c => {
       if (!c || !c.id || seen[c.id]) return; seen[c.id] = 1;
-      const repoNodeId = this._knowRepoNodeId(c.repo || '');
-      const node = { id: c.id, type: 'cluster', label: c.label || c.id, count: c.count || 0, repo: c.repo || '', repoNodeId: repoNodeId, medoid: c.medoid || '' };
+      const node = { id: c.id, type: 'cluster', label: c.label || c.id, count: c.count || 0, repo: c.repo || '', medoid: c.medoid || '' };
       clusterById[c.id] = node; nodes.push(node);
     });
     const UNCL = 'cluster:~unclustered';
     const ensureUnclustered = () => {
       if (seen[UNCL]) return clusterById[UNCL];
       seen[UNCL] = 1;
-      const node = { id: UNCL, type: 'cluster', label: 'unclustered', count: 0, repo: '', repoNodeId: this._knowRepoNodeId(''), medoid: '' };
+      const node = { id: UNCL, type: 'cluster', label: 'unclustered', count: 0, repo: '', medoid: '' };
       clusterById[UNCL] = node; nodes.push(node);
       return node;
     };
@@ -4863,6 +4868,11 @@ class Component extends DCLogic {
       bm.clusterIds.push(c.id);
     });
     const clusterScope = {}; clusterNodesList.forEach(c => { clusterScope[c.id] = c.repo || ''; });
+    // Stash the cluster -> band-scope map so the repo detail panel can list a band's
+    // members by the SAME dominant-scope rule the band build uses (not each fact's own
+    // repo), keeping panel == band == highlight. Cluster ids missing from this map fell
+    // into the unclustered bucket (scope '').
+    this._knowClusterScope = clusterScope;
     nodes.forEach(n => { if (n.type !== 'fact') return; const sc = clusterScope[n.cluster]; if (sc != null && bandMap[sc]) bandMap[sc].factCount += 1; });
     const bandList = Object.keys(bandMap).map(k => bandMap[k]);
     bandList.sort((a, c) => {
@@ -4981,10 +4991,12 @@ class Component extends DCLogic {
     if (!this._knowGraph) return;
     const built = this._knowBuild(this._knowRaw || { agents: [], facts: [], edges: [] });
     const nodes = built.nodes, links = built.links;
-    // change signature over ids + superseded flags + repo scope (state that changes
-    // the layout/render — repo folds in so a fact/cluster changing repo re-bands).
+    // change signature over ids + superseded flags + repo scope + labels (state that
+    // changes the layout/render — repo folds in so a fact/cluster changing repo re-bands;
+    // label folds in so a server-side `memory cluster rename` re-renders even when the
+    // node/link topology is otherwise unchanged).
     let h = 0;
-    for (let i = 0; i < nodes.length; i++) { const str = (nodes[i].id || '') + ':' + (nodes[i].superseded ? '1' : '0') + ':' + (nodes[i].repo || ''); for (let j = 0; j < str.length; j++) h = (h * 31 + str.charCodeAt(j)) | 0; }
+    for (let i = 0; i < nodes.length; i++) { const str = (nodes[i].id || '') + ':' + (nodes[i].superseded ? '1' : '0') + ':' + (nodes[i].repo || '') + ':' + (nodes[i].label || ''); for (let j = 0; j < str.length; j++) h = (h * 31 + str.charCodeAt(j)) | 0; }
     // Fold link topology (endpoints + kind) into the same hash so that a fact moving
     // cluster (same node/link COUNTS but different cluster edges) still re-triggers a
     // re-layout. Endpoints may be raw string ids (fresh from _knowBuild) or resolved
@@ -5054,8 +5066,34 @@ class Component extends DCLogic {
   // rewrites them (the fallback view keeps its original DOM chip/legend, ids
   // intact); called every render so the counts track the feed.
   _knowSyncChrome(built) {
-    if (!this._knowClustered) return;
     const root = this._learningRoot; if (!root) return;
+    if (!this._knowClustered) {
+      // FALLBACK: clustered mode rewrote #lr-know-count's innerHTML (destroying the
+      // #lr-kAgents / #lr-kFacts spans) + the repo->cluster legend, so a later payload
+      // with no clusters would render the fallback view against stale clustered chrome.
+      // Restore the ORIGINAL static count pill (with the spans) + the static fallback
+      // legend, then fill the spans from `built`. Guarded on _knowChromeMode so this only
+      // rewrites on an actual mode flip, not every poll.
+      if (this._knowChromeMode !== 'fallback') {
+        this._knowChromeMode = 'fallback';
+        const countEl = root.querySelector('#lr-know-count');
+        if (countEl) countEl.innerHTML = 'showing <b id="lr-kAgents">0</b> agents / <b id="lr-kFacts">0</b> facts';
+        const ca = root.querySelector('#lr-kAgents'); if (ca) ca.textContent = built.agentCount || 0;
+        const cf = root.querySelector('#lr-kFacts'); if (cf) cf.textContent = built.factCount || 0;
+        const legendEl = root.querySelector('#lr-know-legend');
+        if (legendEl) legendEl.innerHTML = [
+          '<div class="h">nodes · left → right</div>',
+          '<div class="row"><span class="sw" style="color:#5a6088;background:#5a6088;width:6px;height:6px;box-shadow:none;opacity:.7"></span>evidence</div>',
+          '<div class="row"><span class="sw" style="color:#7dcfff;background:#7dcfff"></span>repo fact</div>',
+          '<div class="row"><span class="sw" style="color:#e0af68;background:#e0af68"></span>general fact</div>',
+          '<div class="row"><span class="sw" style="color:#5a6088;background:#5a6088"></span>superseded</div>',
+          '<div class="row"><span class="sw" style="color:#bb9af7;background:#bb9af7;width:8px;height:8px"></span>category hub</div>',
+          '<div class="row"><span class="sw" style="color:#bb9af7;background:#bb9af7"></span>agent</div>'
+        ].join('');
+      }
+      return;
+    }
+    this._knowChromeMode = 'clustered';
     const bold = (v) => '<b>' + v + '</b>';
     const countEl = root.querySelector('#lr-know-count');
     if (countEl) countEl.innerHTML = 'showing ' + bold(built.repoCount || 0) + ' repos / ' + bold(built.clusterCount || 0) + ' clusters / ' + bold(built.factCount || 0) + ' facts';
@@ -5371,7 +5409,22 @@ class Component extends DCLogic {
     const allFacts = this._knowFactById ? Object.keys(this._knowFactById).map(k => this._knowFactById[k]) : [];
     allFacts.forEach(f => {
       if (!f) return;
-      if (kind === 'repo') { const rp = f.repo || ''; if (node.general ? rp === '' : rp === node.repoName) facts.push(f); }
+      if (kind === 'repo') {
+        // CLUSTERED (option A repo swimlanes): a band's membership is the fact's CLUSTER
+        // dominant scope, not the fact's own repo — so filter by the same clusterScope
+        // map the band build used, keeping panel members == band members == highlight.
+        // A cross-scope member (its own f.repo differs from the lane scope) still shows
+        // its own repo badge in the row below — the honest view. Non-clustered category/
+        // repo detail keeps the fact.repo filter as the fallback path.
+        if (this._knowClustered && this._knowClusterScope) {
+          let sc = this._knowClusterScope[f.cluster || ''];
+          if (sc === undefined) sc = ''; // fell into the unclustered bucket (scope '')
+          if (node.general ? sc === '' : sc === node.repoName) facts.push(f);
+        } else {
+          const rp = f.repo || '';
+          if (node.general ? rp === '' : rp === node.repoName) facts.push(f);
+        }
+      }
       else if (kind === 'cluster') { if ((f.cluster || '') === node.id) facts.push(f); }
       else if (kind === 'agent') { if ((f.owner || '') === node.id) facts.push(f); }
     });
