@@ -4246,8 +4246,8 @@ class Component extends DCLogic {
 
   // ---- Knowledge tab: a SECOND force-graph instance --------------------------
   _knowColor(n) {
-    if (n.type === 'repo') return n.general ? '#e0af68' : '#7dcfff'; // repo hub teal / general amber (top tier)
-    if (n.type === 'cluster') return '#bb9af7';         // violet cluster hubs (mid tier)
+    if (n.type === 'repo') return n.general ? '#e0af68' : '#7dcfff'; // repo hub teal / general amber (left column)
+    if (n.type === 'cluster') return '#bb9af7';         // violet cluster hubs (2nd column)
     if (n.type === 'agent') return '#bb9af7';           // violet agent wells (output layer)
     if (n.type === 'category') return '#bb9af7';        // violet category hubs
     if (n.superseded) return '#5a6088';                 // superseded fact ghosts (dim)
@@ -4261,8 +4261,8 @@ class Component extends DCLogic {
     return n.superseded ? 0.4 : 0.92;                   // superseded at 40% alpha
   }
   _knowRadius(n) {
-    if (n.type === 'repo') return 6;                    // repo hubs: top tier
-    if (n.type === 'cluster') return 4.4;               // cluster hubs: mid tier
+    if (n.type === 'repo') return 6;                    // repo hubs: leftmost column
+    if (n.type === 'cluster') return 4.4;               // cluster hubs: 2nd column
     if (n.type === 'agent') return 7;
     if (n.type === 'category') return 3;
     if (n.type === 'evidence') return 1.4;              // dim observation dots (input layer)
@@ -4353,7 +4353,9 @@ class Component extends DCLogic {
     let data = null; try { data = this._knowGraph.graphData(); } catch (e) { return; }
     if (!data || !data.nodes) return;
     this._knowLayout(data.nodes, data.links || []);
-    try { this._knowGraph.zoomToFit(400, 42); } catch (e) {}
+    // clustered layout draws repo labels OUTBOARD (left of the leftmost column); give the
+    // fit extra padding so they survive. Fallback mode keeps its original padding.
+    try { this._knowGraph.zoomToFit(400, this._knowClustered ? 90 : 42); } catch (e) {}
   }
 
   initKnowledgeGraph() {
@@ -4361,7 +4363,7 @@ class Component extends DCLogic {
       const r = this._knowGraphEl.getBoundingClientRect();
       this._knowGraph.width(r.width).height(r.height);
       try { if (this._knowGraph.resumeAnimation) this._knowGraph.resumeAnimation(); } catch (e) {}
-      try { this._knowGraph.zoomToFit(400, 55); } catch (e) {}
+      try { this._knowGraph.zoomToFit(400, this._knowClustered ? 90 : 55); } catch (e) {}
       this.fetchKnowledge(false);
       return;
     }
@@ -4443,21 +4445,29 @@ class Component extends DCLogic {
         ctx.beginPath(); ctx.arc(n.x, n.y, r * 0.5, 0, 2 * Math.PI);
         ctx.fillStyle = '#ffffff'; ctx.globalAlpha = 0.4 * this._knowAlpha(n) * dim; ctx.fill();
         if (hi) { ctx.beginPath(); ctx.arc(n.x, n.y, r + 1.8, 0, 2 * Math.PI); ctx.strokeStyle = col; ctx.lineWidth = 1 / scale; ctx.globalAlpha = 0.9; ctx.stroke(); }
-        // REPO hubs (top tier): bold teal/amber label ABOVE the node so it never
-        // collides with the cluster row below. CLUSTER hubs (mid tier): violet mono
-        // label ABOVE the node. AGENT labels to the right; CATEGORY labels beside.
+        // Columns (left -> right): REPO | CLUSTER | FACT | AGENT. Labels anchor
+        // sideways (never above/below) so stacked column nodes never collide with
+        // each other's labels. REPO (leftmost): label LEFT into the free outboard
+        // margin. CLUSTER: label RIGHT. AGENT: label right. CATEGORY (fallback view
+        // only): label beside, mobile flip preserved below.
         if (n.type === 'repo') {
           const fs = Math.max(4.4, 11.5 / scale);
           ctx.globalAlpha = (hi || !sel ? 1 : 0.55) * (dim < 1 ? dim : 1);
           ctx.font = '600 ' + fs + "px 'Space Grotesk',sans-serif";
-          ctx.fillStyle = col; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-          ctx.fillText(n.label || '', n.x, n.y - r - (3 / scale));
+          ctx.fillStyle = col; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+          ctx.fillText(n.label || '', n.x - r - (4 / scale), n.y);
         } else if (n.type === 'cluster') {
-          const fs = Math.max(3.6, 9 / scale);
-          ctx.globalAlpha = (hi || !sel ? 0.92 : 0.45) * (dim < 1 ? dim : 1);
-          ctx.font = '500 ' + fs + "px 'JetBrains Mono',monospace";
-          ctx.fillStyle = '#cabff2'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-          ctx.fillText(n.label || '', n.x, n.y - r - (2.5 / scale));
+          // Cluster labels sit RIGHT of the node (toward the fact column). On narrow
+          // (mobile) widths the fact column is only pixels away, so a right-side label
+          // overprints the fact dots — hide it there (the violet hub still reads, and a
+          // tap opens the cluster detail panel). Desktop keeps the right-side label.
+          if (!this.state.isMobile) {
+            const fs = Math.max(3.6, 9 / scale);
+            ctx.globalAlpha = (hi || !sel ? 0.92 : 0.45) * (dim < 1 ? dim : 1);
+            ctx.font = '500 ' + fs + "px 'JetBrains Mono',monospace";
+            ctx.fillStyle = '#cabff2'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+            ctx.fillText(n.label || '', n.x + r + (4 / scale), n.y);
+          }
         } else if (n.type === 'agent') {
           const fs = Math.max(4.2, 11 / scale);
           ctx.globalAlpha = (hi || !sel ? 1 : 0.5) * (dim < 1 ? dim : 1);
@@ -4507,7 +4517,7 @@ class Component extends DCLogic {
         ctx.restore();
       })
       .onEngineStop(() => {
-        if (this._knowNeedFit && !this._knowFitDone) { this._knowFitDone = true; this._knowNeedFit = false; try { G.zoomToFit(600, this._knowEmpty ? 60 : 42); } catch (e) {} }
+        if (this._knowNeedFit && !this._knowFitDone) { this._knowFitDone = true; this._knowNeedFit = false; try { G.zoomToFit(600, this._knowEmpty ? 60 : (this._knowClustered ? 90 : 42)); } catch (e) {} }
         this._knowPinned = true;
         // static layout: drop the (unused) layout forces so nothing can ever perturb the pins
         try { G.d3Force('charge', null); G.d3Force('link', null); G.d3Force('center', null); } catch (e) {}
@@ -4675,8 +4685,8 @@ class Component extends DCLogic {
   _knowRepoNodeId(scope) { return scope ? 'repo:' + scope : 'repo:~general'; }
 
   // CLUSTERED build (Knowledge graph v2, gitmoot #763): repo -> cluster -> fact ->
-  // owner-agent. Repo hubs are the top tier (derived from cluster/fact scopes),
-  // cluster hubs the mid tier, facts the bottom tier, agents a right-hand rail.
+  // owner-agent. Repo hubs are the leftmost column (derived from cluster/fact scopes),
+  // cluster hubs the 2nd column, facts the 3rd column, agents the rightmost column.
   // Facts with no cluster fall into a synthesized 'unclustered' hub so they are
   // still visibly grouped (never silently dropped).
   _knowBuildClustered(raw, agents, facts, edges, clusters) {
@@ -4729,60 +4739,83 @@ class Component extends DCLogic {
     return { nodes: nodes, links: links, agentCount: agents.length, factCount: facts.length, clusterCount: clusterCount, repoCount: repoCount };
   }
 
-  // CLUSTERED layout (gitmoot #763): three stacked horizontal tiers — repo (top),
-  // cluster (mid), fact (bottom) — with each tier's BAND HEIGHT proportional to its
-  // node count (min floor so a tiny tier is never a sliver), and uniform node
-  // spacing within a band. This replaces the old equal-height columns. Agents sit
-  // in a right-hand rail. Static + deterministic: positions are computed, pinned,
-  // committed — no physics, so the same data yields the same picture every poll.
+  // CLUSTERED layout (gitmoot #763): FOUR vertical columns, left -> right —
+  // repo | cluster | fact | agent — sharing the same column x-positions as the
+  // fallback (_knowComputeBands cols[0..3]) so both modes read consistently. Each
+  // column's HEIGHT is proportional to its node count (uniform node spacing, a
+  // single global STEP), so the biggest column spans ~GH and small columns are
+  // short + centered on y=0. Static + deterministic: positions are computed,
+  // pinned, committed — no physics, so the same data yields the same picture every
+  // poll. (Edge control points still bow toward the y=0 centerline, so columns
+  // fan cleanly left -> right.)
   _knowLayoutClustered(nodes, links) {
-    let W = 1000, H = 700;
-    try { const r = this._knowGraphEl.getBoundingClientRect(); if (r && r.width) { W = r.width; H = r.height; } } catch (e) {}
-    const GH = 460;                                                     // vertical extent (graph units)
-    const aspect = Math.max(0.5, Math.min(2.4, W / Math.max(1, H)));
-    const GW = GH * aspect;                                             // horizontal extent tracks the container
-    const half = GW / 2;
-    const railX = half * 0.9;                                           // agent rail, far right
-    const mainLeft = -half, mainRight = half * 0.58;                    // main tiers span, leaving room for the rail
-    const spanX = mainRight - mainLeft;
-    const top = -GH / 2;
+    const b = this._knowComputeBands();
+    const cols = b.cols, GH = b.GH;                                     // cols = [repo, cluster, fact, agent]
 
     const repos = nodes.filter(n => n.type === 'repo');
     const clusters = nodes.filter(n => n.type === 'cluster');
     const factNodes = nodes.filter(n => n.type === 'fact');
     const agents = nodes.filter(n => n.type === 'agent');
 
-    // Deterministic ordering so fans converge cleanly (repo, then cluster grouped by
-    // repo, then facts grouped by cluster). general repo sorts last.
-    const repoKey = (n) => (n.general ? '~' : '') + (n.repoName || '');
-    repos.sort((a, b) => { const ka = repoKey(a), kb = repoKey(b); return ka < kb ? -1 : ka > kb ? 1 : 0; });
-    const repoOrder = {}; repos.forEach((n, i) => { repoOrder[n.id] = i; });
-    clusters.sort((a, b) => { const ra = repoOrder[a.repoNodeId] || 0, rb = repoOrder[b.repoNodeId] || 0; if (ra !== rb) return ra - rb; return a.id < b.id ? -1 : a.id > b.id ? 1 : 0; });
-    const clusterOrder = {}; clusters.forEach((n, i) => { clusterOrder[n.id] = i; });
-    factNodes.sort((a, b) => { const ca = clusterOrder[a.cluster] == null ? 1e9 : clusterOrder[a.cluster], cb = clusterOrder[b.cluster] == null ? 1e9 : clusterOrder[b.cluster]; if (ca !== cb) return ca - cb; return a.id < b.id ? -1 : a.id > b.id ? 1 : 0; });
-    agents.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    // link-endpoint id (links carry id strings pre-commit, node objects post-commit)
+    const lid = (v) => (v && v.id != null) ? v.id : v;
 
-    // Proportional band heights: weight = max(count, MINW); band gets GH * weight/total.
-    const MINW = 2;
-    const tiers = [repos, clusters, factNodes];
-    const weights = tiers.map(t => Math.max(t.length, MINW));
-    const totalW = weights.reduce((s, w) => s + w, 0) || 1;
-    let cursor = top;
-    const placeRow = (tier, y) => {
-      const c = tier.length;
-      tier.forEach((n, i) => {
-        const x = (c <= 1) ? (mainLeft + spanX / 2) : (mainLeft + (i + 0.5) * (spanX / c));
-        n.fx = x; n.fy = y; n.x = x; n.y = y; n.vx = 0; n.vy = 0;
-      });
+    // --- ordering (keeps fans clean) ---
+    // repos: keep build order.
+    const repoOrder = {}; repos.forEach((n, i) => { repoOrder[n.id] = i; });
+    // clusters: group by their repo via `clusterrepo` links (source cluster -> target repo).
+    const clusterRepo = {};
+    for (let i = 0; i < links.length; i++) { const l = links[i]; if (l.kind === 'clusterrepo') clusterRepo[lid(l.source)] = lid(l.target); }
+    const clusterBuild = {}; clusters.forEach((n, i) => { clusterBuild[n.id] = i; });
+    const clusterRepoIdx = (c) => { const r = clusterRepo[c.id]; return (r != null && repoOrder[r] != null) ? repoOrder[r] : 1e9; }; // unmapped last
+    clusters.sort((a, c) => { const ra = clusterRepoIdx(a), rc = clusterRepoIdx(c); if (ra !== rc) return ra - rc; return clusterBuild[a.id] - clusterBuild[c.id]; });
+    const clusterOrder = {}; clusters.forEach((n, i) => { clusterOrder[n.id] = i; });
+    // facts: group by their cluster via `cluster` links (source fact -> target cluster).
+    const factCluster = {};
+    for (let i = 0; i < links.length; i++) { const l = links[i]; if (l.kind === 'cluster') factCluster[lid(l.source)] = lid(l.target); }
+    const factBuild = {}; factNodes.forEach((n, i) => { factBuild[n.id] = i; });
+    const factClusterIdx = (f) => { const c = factCluster[f.id]; return (c != null && clusterOrder[c] != null) ? clusterOrder[c] : 1e9; }; // no cluster edge -> last group
+    factNodes.sort((a, c) => { const ca = factClusterIdx(a), cc = factClusterIdx(c); if (ca !== cc) return ca - cc; return factBuild[a.id] - factBuild[c.id]; });
+    // agents: sorted by id/name.
+    agents.sort((a, c) => (a.id < c.id ? -1 : a.id > c.id ? 1 : 0));
+
+    // --- fact slot walk: an extra GAP between consecutive cluster groups (mirrors
+    // the fallback), so cluster groups read as bands within the fact column. ---
+    const GAP = 1.4;
+    const factSlot = []; let slot = 0, prevGroup = null;
+    factNodes.forEach((f) => {
+      const c = factCluster[f.id]; const g = (c != null && clusterOrder[c] != null) ? c : '~none';
+      if (prevGroup !== null && g !== prevGroup) slot += GAP;
+      factSlot.push(slot); prevGroup = g; slot += 1;
+    });
+    const factSpan = factNodes.length ? factSlot[factSlot.length - 1] : 0; // slot span (incl. gap slots)
+
+    // --- global step: GH across the LARGEST column's slot span, so heights stay
+    // proportional to counts with uniform spacing everywhere. ---
+    const maxSpan = Math.max(0, repos.length - 1, clusters.length - 1, factNodes.length && factSpan, agents.length - 1);
+    const STEP = GH / Math.max(maxSpan, 1);
+    // Per-kind minimum gap prevents node/label overlap: repo/cluster/agent carry
+    // labels (~14 graph units); facts only need ~2.5x their radius.
+    const FACT_R = 2.4;
+    const minGap = (kind) => (kind === 'fact' ? 2.5 * FACT_R : 14);
+
+    // Place a plain (gapless) column: uniform spacing, height = (n-1)*spacing,
+    // centered on y=0. n <= 1 -> y=0.
+    const placeCol = (tier, x, kind) => {
+      const n = tier.length; if (!n) return;
+      const spacing = Math.max(STEP, minGap(kind));
+      const y0 = -((n - 1) * spacing) / 2;
+      tier.forEach((node, i) => { const y = (n <= 1) ? 0 : y0 + i * spacing; node.fx = x; node.fy = y; node.x = x; node.y = y; node.vx = 0; node.vy = 0; });
     };
-    for (let ti = 0; ti < tiers.length; ti++) {
-      const h = GH * weights[ti] / totalW;
-      placeRow(tiers[ti], cursor + h / 2);
-      cursor += h;
+    placeCol(repos, cols[0], 'repo');
+    placeCol(clusters, cols[1], 'cluster');
+    placeCol(agents, cols[3], 'agent');
+    // Facts: same STEP but slot-indexed (group gaps), height = factSpan*spacing, centered.
+    if (factNodes.length) {
+      const spacing = Math.max(STEP, minGap('fact'));
+      const y0 = -(factSpan * spacing) / 2;
+      factNodes.forEach((f, i) => { const y = (factNodes.length <= 1) ? 0 : y0 + factSlot[i] * spacing; f.fx = cols[2]; f.fy = y; f.x = cols[2]; f.y = y; f.vx = 0; f.vy = 0; });
     }
-    // Agent rail: evenly spaced down the full height at the right margin.
-    const na = agents.length;
-    agents.forEach((a, i) => { const y = (na <= 1) ? 0 : top + i * (GH / (na - 1)); a.fx = railX; a.fy = y; a.x = railX; a.y = y; a.vx = 0; a.vy = 0; });
   }
 
   renderKnowledge(isPoll) {
@@ -4792,6 +4825,11 @@ class Component extends DCLogic {
     // change signature over ids + superseded flags (state that changes the layout/render)
     let h = 0;
     for (let i = 0; i < nodes.length; i++) { const str = (nodes[i].id || '') + ':' + (nodes[i].superseded ? '1' : '0'); for (let j = 0; j < str.length; j++) h = (h * 31 + str.charCodeAt(j)) | 0; }
+    // Fold link topology (endpoints + kind) into the same hash so that a fact moving
+    // cluster (same node/link COUNTS but different cluster/clusterrepo edges) still
+    // re-triggers a re-layout. Endpoints may be raw string ids (fresh from _knowBuild)
+    // or resolved node objects, so normalize with the (v && v.id != null) ? v.id : v pattern.
+    for (let i = 0; i < links.length; i++) { const l = links[i]; const sv = l.source, tv = l.target; const s = (sv && sv.id != null) ? sv.id : sv; const t = (tv && tv.id != null) ? tv.id : tv; const str = '~' + s + '>' + t + ':' + (l.kind || ''); for (let j = 0; j < str.length; j++) h = (h * 31 + str.charCodeAt(j)) | 0; }
     const sig = nodes.length + '/' + links.length + '/' + h;
     // sig-skip: leave the COMMITTED graph (its pinned node objects) untouched. No instance
     // map holds node-object references (adjacency/selection are id strings), so returning
@@ -4801,8 +4839,8 @@ class Component extends DCLogic {
     const ca = this._learningRoot.querySelector('#lr-kAgents'); if (ca) ca.textContent = built.agentCount;
     const cf = this._learningRoot.querySelector('#lr-kFacts'); if (cf) cf.textContent = built.factCount;
     // Clustered mode: fold the cluster count into the header chip + swap the legend
-    // to the repo -> cluster -> fact tiers (top -> bottom). Fallback view keeps the
-    // original left -> right column legend untouched.
+    // to the repo -> cluster -> fact -> agent columns (left -> right). Fallback view
+    // keeps the original left -> right column legend untouched.
     this._knowSyncChrome(built);
     // adjacency (id -> neighbor ids / connected link keys) for the selected-node highlight
     const neighbors = {}, nodeLinks = {};
@@ -4830,7 +4868,7 @@ class Component extends DCLogic {
     this._knowNeedFit = true; this._knowFitDone = false;
     try { this._knowGraph.cooldownTicks(0); } catch (e) {}
     this._knowGraph.graphData({ nodes: nodes, links: links });
-    const pad = empty ? 60 : 42;
+    const pad = empty ? 60 : (this._knowClustered ? 90 : 42);
     setTimeout(() => { if (!this._knowFitDone) { try { this._knowGraph.zoomToFit(isPoll ? 0 : 600, pad); this._knowFitDone = true; this._knowNeedFit = false; } catch (e) {} } }, isPoll ? 40 : 220);
   }
 
@@ -4845,7 +4883,7 @@ class Component extends DCLogic {
     if (countEl) countEl.innerHTML = 'showing ' + bold(built.repoCount || 0) + ' repos / ' + bold(built.clusterCount || 0) + ' clusters / ' + bold(built.factCount || 0) + ' facts';
     const legendEl = root.querySelector('#lr-know-legend');
     if (legendEl) legendEl.innerHTML = [
-      '<div class="h">tiers · top → bottom</div>',
+      '<div class="h">columns · left → right</div>',
       '<div class="row"><span class="sw" style="color:#7dcfff;background:#7dcfff"></span>repo hub</div>',
       '<div class="row"><span class="sw" style="color:#bb9af7;background:#bb9af7"></span>cluster hub</div>',
       '<div class="row"><span class="sw" style="color:#7dcfff;background:#7dcfff;width:7px;height:7px"></span>repo fact</div>',
