@@ -4246,8 +4246,8 @@ class Component extends DCLogic {
 
   // ---- Knowledge tab: a SECOND force-graph instance --------------------------
   _knowColor(n) {
-    if (n.type === 'repo') return n.general ? '#e0af68' : '#7dcfff'; // repo hub teal / general amber (top tier)
-    if (n.type === 'cluster') return '#bb9af7';         // violet cluster hubs (mid tier)
+    if (n.type === 'repo') return n.general ? '#e0af68' : '#7dcfff'; // repo hub teal / general amber (left column)
+    if (n.type === 'cluster') return '#bb9af7';         // violet cluster hubs (2nd column)
     if (n.type === 'agent') return '#bb9af7';           // violet agent wells (output layer)
     if (n.type === 'category') return '#bb9af7';        // violet category hubs
     if (n.superseded) return '#5a6088';                 // superseded fact ghosts (dim)
@@ -4261,8 +4261,8 @@ class Component extends DCLogic {
     return n.superseded ? 0.4 : 0.92;                   // superseded at 40% alpha
   }
   _knowRadius(n) {
-    if (n.type === 'repo') return 6;                    // repo hubs: top tier
-    if (n.type === 'cluster') return 4.4;               // cluster hubs: mid tier
+    if (n.type === 'repo') return 6;                    // repo hubs: leftmost column
+    if (n.type === 'cluster') return 4.4;               // cluster hubs: 2nd column
     if (n.type === 'agent') return 7;
     if (n.type === 'category') return 3;
     if (n.type === 'evidence') return 1.4;              // dim observation dots (input layer)
@@ -4353,7 +4353,9 @@ class Component extends DCLogic {
     let data = null; try { data = this._knowGraph.graphData(); } catch (e) { return; }
     if (!data || !data.nodes) return;
     this._knowLayout(data.nodes, data.links || []);
-    try { this._knowGraph.zoomToFit(400, 42); } catch (e) {}
+    // clustered layout draws repo labels OUTBOARD (left of the leftmost column); give the
+    // fit extra padding so they survive. Fallback mode keeps its original padding.
+    try { this._knowGraph.zoomToFit(400, this._knowClustered ? 90 : 42); } catch (e) {}
   }
 
   initKnowledgeGraph() {
@@ -4361,7 +4363,7 @@ class Component extends DCLogic {
       const r = this._knowGraphEl.getBoundingClientRect();
       this._knowGraph.width(r.width).height(r.height);
       try { if (this._knowGraph.resumeAnimation) this._knowGraph.resumeAnimation(); } catch (e) {}
-      try { this._knowGraph.zoomToFit(400, 55); } catch (e) {}
+      try { this._knowGraph.zoomToFit(400, this._knowClustered ? 90 : 55); } catch (e) {}
       this.fetchKnowledge(false);
       return;
     }
@@ -4515,7 +4517,7 @@ class Component extends DCLogic {
         ctx.restore();
       })
       .onEngineStop(() => {
-        if (this._knowNeedFit && !this._knowFitDone) { this._knowFitDone = true; this._knowNeedFit = false; try { G.zoomToFit(600, this._knowEmpty ? 60 : 42); } catch (e) {} }
+        if (this._knowNeedFit && !this._knowFitDone) { this._knowFitDone = true; this._knowNeedFit = false; try { G.zoomToFit(600, this._knowEmpty ? 60 : (this._knowClustered ? 90 : 42)); } catch (e) {} }
         this._knowPinned = true;
         // static layout: drop the (unused) layout forces so nothing can ever perturb the pins
         try { G.d3Force('charge', null); G.d3Force('link', null); G.d3Force('center', null); } catch (e) {}
@@ -4683,8 +4685,8 @@ class Component extends DCLogic {
   _knowRepoNodeId(scope) { return scope ? 'repo:' + scope : 'repo:~general'; }
 
   // CLUSTERED build (Knowledge graph v2, gitmoot #763): repo -> cluster -> fact ->
-  // owner-agent. Repo hubs are the top tier (derived from cluster/fact scopes),
-  // cluster hubs the mid tier, facts the bottom tier, agents a right-hand rail.
+  // owner-agent. Repo hubs are the leftmost column (derived from cluster/fact scopes),
+  // cluster hubs the 2nd column, facts the 3rd column, agents the rightmost column.
   // Facts with no cluster fall into a synthesized 'unclustered' hub so they are
   // still visibly grouped (never silently dropped).
   _knowBuildClustered(raw, agents, facts, edges, clusters) {
@@ -4823,6 +4825,11 @@ class Component extends DCLogic {
     // change signature over ids + superseded flags (state that changes the layout/render)
     let h = 0;
     for (let i = 0; i < nodes.length; i++) { const str = (nodes[i].id || '') + ':' + (nodes[i].superseded ? '1' : '0'); for (let j = 0; j < str.length; j++) h = (h * 31 + str.charCodeAt(j)) | 0; }
+    // Fold link topology (endpoints + kind) into the same hash so that a fact moving
+    // cluster (same node/link COUNTS but different cluster/clusterrepo edges) still
+    // re-triggers a re-layout. Endpoints may be raw string ids (fresh from _knowBuild)
+    // or resolved node objects, so normalize with the (v && v.id != null) ? v.id : v pattern.
+    for (let i = 0; i < links.length; i++) { const l = links[i]; const sv = l.source, tv = l.target; const s = (sv && sv.id != null) ? sv.id : sv; const t = (tv && tv.id != null) ? tv.id : tv; const str = '~' + s + '>' + t + ':' + (l.kind || ''); for (let j = 0; j < str.length; j++) h = (h * 31 + str.charCodeAt(j)) | 0; }
     const sig = nodes.length + '/' + links.length + '/' + h;
     // sig-skip: leave the COMMITTED graph (its pinned node objects) untouched. No instance
     // map holds node-object references (adjacency/selection are id strings), so returning
@@ -4832,8 +4839,8 @@ class Component extends DCLogic {
     const ca = this._learningRoot.querySelector('#lr-kAgents'); if (ca) ca.textContent = built.agentCount;
     const cf = this._learningRoot.querySelector('#lr-kFacts'); if (cf) cf.textContent = built.factCount;
     // Clustered mode: fold the cluster count into the header chip + swap the legend
-    // to the repo -> cluster -> fact tiers (top -> bottom). Fallback view keeps the
-    // original left -> right column legend untouched.
+    // to the repo -> cluster -> fact -> agent columns (left -> right). Fallback view
+    // keeps the original left -> right column legend untouched.
     this._knowSyncChrome(built);
     // adjacency (id -> neighbor ids / connected link keys) for the selected-node highlight
     const neighbors = {}, nodeLinks = {};
@@ -4861,7 +4868,7 @@ class Component extends DCLogic {
     this._knowNeedFit = true; this._knowFitDone = false;
     try { this._knowGraph.cooldownTicks(0); } catch (e) {}
     this._knowGraph.graphData({ nodes: nodes, links: links });
-    const pad = empty ? 60 : 42;
+    const pad = empty ? 60 : (this._knowClustered ? 90 : 42);
     setTimeout(() => { if (!this._knowFitDone) { try { this._knowGraph.zoomToFit(isPoll ? 0 : 600, pad); this._knowFitDone = true; this._knowNeedFit = false; } catch (e) {} } }, isPoll ? 40 : 220);
   }
 
@@ -4876,7 +4883,7 @@ class Component extends DCLogic {
     if (countEl) countEl.innerHTML = 'showing ' + bold(built.repoCount || 0) + ' repos / ' + bold(built.clusterCount || 0) + ' clusters / ' + bold(built.factCount || 0) + ' facts';
     const legendEl = root.querySelector('#lr-know-legend');
     if (legendEl) legendEl.innerHTML = [
-      '<div class="h">tiers · top → bottom</div>',
+      '<div class="h">columns · left → right</div>',
       '<div class="row"><span class="sw" style="color:#7dcfff;background:#7dcfff"></span>repo hub</div>',
       '<div class="row"><span class="sw" style="color:#bb9af7;background:#bb9af7"></span>cluster hub</div>',
       '<div class="row"><span class="sw" style="color:#7dcfff;background:#7dcfff;width:7px;height:7px"></span>repo fact</div>',
