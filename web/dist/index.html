@@ -4384,8 +4384,31 @@ class Component extends DCLogic {
     this._knowLayout(data.nodes, data.links || []);
     // clustered layout draws repo labels OUTBOARD (left of the leftmost column); give the
     // fit extra padding so they survive. Fallback mode keeps its original padding.
-    try { this._knowGraph.zoomToFit(400, this._knowClustered ? 100 : 42); } catch (e) {}
+    this._knowFit(400, this._knowClustered ? 100 : 42);
     this._knowScheduleGutterNudge(500);
+  }
+
+  // Clustered fit is WIDTH-anchored: zoom so the columns + gutter fill the width
+  // (the same scaleW the layout converted its screen-px spacing floors through),
+  // then center a short stack or TOP-anchor a tall one — the user pans down for the
+  // rest. zoomToFit would instead shrink a tall stack until the constant screen-size
+  // labels overlap again, which is exactly the crowding this replaces. Non-clustered,
+  // empty, and mobile views keep the original fit-everything behavior.
+  _knowFit(ms, pad) {
+    const G = this._knowGraph; if (!G) return;
+    const geom = this._knowGeom;
+    if (!this._knowClustered || this._knowEmpty || !geom || this.state.isMobile) {
+      try { G.zoomToFit(ms, pad); } catch (e) {}
+      return;
+    }
+    let W = 0, H = 0;
+    try { const r = this._knowGraphEl.getBoundingClientRect(); W = r.width; H = r.height; } catch (e) {}
+    if (!W || !H) { try { G.zoomToFit(ms, pad); } catch (e) {} return; }
+    const k = Math.max(0.02, (W - geom.padL - geom.padR) / Math.max(1, geom.xA - geom.xF));
+    const cx = geom.xF + (W / 2 - geom.padL) / k;            // left edge lands at padL, agent labels keep padR
+    const fitsH = geom.totalH * k <= H - 60;
+    const cy = fitsH ? geom.top + geom.totalH / 2 : geom.top + (H / 2 - 56) / k;
+    try { G.zoom(k, ms); G.centerAt(cx, cy, ms); } catch (e) {}
   }
 
   initKnowledgeGraph() {
@@ -4393,7 +4416,7 @@ class Component extends DCLogic {
       const r = this._knowGraphEl.getBoundingClientRect();
       this._knowGraph.width(r.width).height(r.height);
       try { if (this._knowGraph.resumeAnimation) this._knowGraph.resumeAnimation(); } catch (e) {}
-      try { this._knowGraph.zoomToFit(400, this._knowClustered ? 100 : 55); } catch (e) {}
+      this._knowFit(400, this._knowClustered ? 100 : 55);
       this._knowScheduleGutterNudge(500);
       this.fetchKnowledge(false);
       return;
@@ -4577,7 +4600,7 @@ class Component extends DCLogic {
         ctx.restore();
       })
       .onEngineStop(() => {
-        if (this._knowNeedFit && !this._knowFitDone) { this._knowFitDone = true; this._knowNeedFit = false; try { G.zoomToFit(600, this._knowEmpty ? 60 : (this._knowClustered ? 100 : 42)); } catch (e) {} this._knowScheduleGutterNudge(700); }
+        if (this._knowNeedFit && !this._knowFitDone) { this._knowFitDone = true; this._knowNeedFit = false; this._knowFit(600, this._knowEmpty ? 60 : (this._knowClustered ? 100 : 42)); this._knowScheduleGutterNudge(700); }
         this._knowPinned = true;
         // static layout: drop the (unused) layout forces so nothing can ever perturb the pins
         try { G.d3Force('charge', null); G.d3Force('link', null); G.d3Force('center', null); } catch (e) {}
@@ -4727,9 +4750,12 @@ class Component extends DCLogic {
       }
       if (need <= 0) return;
       const k = G.zoom(); if (!k) return;
-      // Cap the shift so the agent labels keep ~100px of room at the right edge.
+      // Cap the shift so the agent labels keep their full reserved room at the right
+      // edge (the clustered fit reserves geom.padR for the constant-size labels —
+      // eating into it here is what used to clip them after the nudge).
       let slack = Infinity;
-      try { const bb = G.getGraphBbox(); const rEdge = G.graph2ScreenCoords(bb.x[1], 0).x; slack = Math.max(0, rect.width - 100 - rEdge); } catch (e) {}
+      const rpad = (this._knowGeom && this._knowGeom.padR) ? this._knowGeom.padR : 100;
+      try { const bb = G.getGraphBbox(); const rEdge = G.graph2ScreenCoords(bb.x[1], 0).x; slack = Math.max(0, rect.width - rpad - rEdge); } catch (e) {}
       const shift = Math.min(need, slack);
       if (shift <= 0.5) return;
       const c = G.centerAt();
@@ -5042,44 +5068,64 @@ class Component extends DCLogic {
     // constant SCREEN size (font/scale), so reserve a gutter whose WIDTH tracks the
     // zoom the graph will settle at (estimate it the way zoomToFit does) — otherwise
     // the label would overrun the facts at narrow widths or clip at wide ones.
-    const PAD = 100;                                         // matches the clustered zoomToFit padding
-    const bboxW = xA - xF, bboxH = GH;
-    const estScale = Math.max(0.02, Math.min((W - 2 * PAD) / Math.max(1, bboxW), (H - 2 * PAD) / Math.max(1, bboxH)));
-    const gutterGU = 74 / estScale;                          // ~74px of label room
+    // Asymmetric fit padding: the left gutter needs ~100px (74px band label + tint
+    // margin); the RIGHT needs ~210px because agent labels render at a constant 11px
+    // to the right of their node ("waybread-baseline-reviewer" is ~180px) and must
+    // never clip at the settled zoom.
+    const PADL = 100, PADR = 210;
+    const bboxW = xA - xF;
+    // WIDTH-anchored scale: the clustered view settles at fit-to-WIDTH (_knowFit),
+    // so every screen-pixel spacing floor below converts to graph units through THIS
+    // scale and holds exactly on screen. The old estimate also folded in the height
+    // fit — which is precisely what compressed dense lanes until their constant
+    // screen-size labels smeared together. Height no longer participates: the band
+    // stack may grow taller than the viewport and the user pans down for the rest.
+    const scaleW = Math.max(0.02, (W - PADL - PADR) / Math.max(1, bboxW));
+    const px = (v) => v / scaleW;                            // screen px -> graph units
+    const gutterGU = px(74);                                 // ~74px of label room
     const labelX = xF - gutterGU;
-    const tintX0 = labelX - 8 / estScale;                   // tint left edge, just left of the label
+    const tintX0 = labelX - px(8);                          // tint left edge, just left of the label
     const tintX1 = xC + half * 0.22;                        // tint right edge, past the clusters
 
-    // --- vertical bands: height proportional to fact count, min-height floor, then
-    // scale-to-fit so bands + inter-band gaps fill GH exactly. ---
-    const top = -GH / 2, usable = GH;
-    const GAPB = 14, MINH = 46;
+    // --- vertical bands: CONTENT-DRIVEN heights — each band is exactly tall enough
+    // for its clusters at a minimum label pitch and its facts at a minimum dot pitch
+    // (whichever needs more), floored for tiny bands. NO scale-to-fit: bands are
+    // unequal by design and the stack grows as knowledge grows. Pitches are SCREEN
+    // px (cluster labels render at a constant 8-9px) converted via scaleW, so hub
+    // labels can never overlap at the settled zoom. ---
+    const CPITCH = px(18), FPITCH = px(9);                   // min hub / fact pitch
+    const CMAXP = px(30), FMAXP = px(12);                    // spread caps for sparse bands
+    const CINSET = px(24), FINSET = px(16);                  // inner top+bottom padding
+    const GAPB = px(12), MINH = px(40);
     const n = bands.length;
-    const totalFacts = bands.reduce((s, bd) => s + (bd.factCount || 0), 0) || 1;
-    const totalGap = GAPB * Math.max(0, n - 1);
-    const avail = Math.max(1, usable - totalGap);
-    let raw = bands.map(bd => Math.max(MINH, ((bd.factCount || 0) / totalFacts) * avail));
-    const rawSum = raw.reduce((s, v) => s + v, 0) || 1;
-    const scaleH = avail / rawSum;                          // <= 1, so floored bands still fit
-    raw = raw.map(v => v * scaleH);
+    const raw = bands.map(bd => {
+      const nC = (bd.clusterIds || []).length, nF = bd.factCount || 0;
+      const needC = nC > 0 ? (nC - 1) * CPITCH + CINSET : 0;
+      const needF = nF > 0 ? (nF - 1) * FPITCH + FINSET : 0;
+      return Math.max(MINH, needC, needF);
+    });
+    const totalH = raw.reduce((s, v) => s + v, 0) + GAPB * Math.max(0, n - 1);
+    const top = -totalH / 2;
 
     const rects = [];
     let y = top;
     bands.forEach((bd, bi) => {
       const h = raw[bi];
       const cy = y + h / 2;
-      // clusters of this band, stacked centered; capped inner extent so 1-2 clusters
-      // don't span the whole (possibly tall) band.
+      // clusters of this band, stacked centered: NEVER closer than CPITCH (the
+      // whole point — labels can't overlap), spread up to CMAXP when the band is
+      // tall because facts dominate, so 1-2 clusters don't span a huge band.
       const cs = (bd.clusterIds || []).map(id => clusterNodes[id]).filter(Boolean);
-      const cInner = Math.min(h - 20, cs.length * 26);
-      const cGap = cs.length > 1 ? cInner / (cs.length - 1) : 0;
+      const cGap = cs.length > 1 ? Math.min(Math.max((h - CINSET) / (cs.length - 1), CPITCH), CMAXP) : 0;
+      const cInner = cGap * Math.max(0, cs.length - 1);
       const cTop = cy - cInner / 2;
       cs.forEach((c, k) => { const yy = cs.length > 1 ? cTop + k * cGap : cy; c.fx = xC; c.fy = yy; c.x = xC; c.y = yy; c.vx = 0; c.vy = 0; });
-      // facts of this band, contiguous by cluster, stacked centered.
+      // facts of this band, contiguous by cluster, stacked centered — same clamp
+      // shape with the smaller dot pitch.
       const fs = [];
       (bd.clusterIds || []).forEach(cid => { factNodes.forEach(f => { if (f.cluster === cid) fs.push(f); }); });
-      const fInner = Math.min(h - 16, Math.max(0, fs.length - 1) * 14);
-      const fGap = fs.length > 1 ? fInner / (fs.length - 1) : 0;
+      const fGap = fs.length > 1 ? Math.min(Math.max((h - FINSET) / (fs.length - 1), FPITCH), FMAXP) : 0;
+      const fInner = fGap * Math.max(0, fs.length - 1);
       const fTop = cy - fInner / 2;
       fs.forEach((f, k) => { const yy = fs.length > 1 ? fTop + k * fGap : cy; f.fx = xF; f.fy = yy; f.x = xF; f.y = yy; f.vx = 0; f.vy = 0; });
       rects.push({ y: y, h: h, cy: cy, tintX0: tintX0, tintX1: tintX1, labelX: labelX, factX: xF, scope: bd.scope, color: bd.color, general: bd.general, label: bd.label, factCount: bd.factCount, detail: bd.detail });
@@ -5102,10 +5148,15 @@ class Component extends DCLogic {
     }
     const ags = agents.map(a => { const ys = agentClY[a.id] || []; return { a: a, by: ys.length ? ys.reduce((s, v) => s + v, 0) / ys.length : 0 }; });
     ags.sort((x, z) => x.by - z.by);
-    const aN = ags.length, aTop = top + 6, aBot = top + usable - 6, aSpan = aBot - aTop, AMINGAP = 14;
+    // The rail stretches over the FULL band-stack height (barycenter order keeps
+    // each agent beside its clusters), with the min gap now a true screen-px floor.
+    const aN = ags.length, aTop = top + px(8), aBot = top + totalH - px(8), aSpan = aBot - aTop, AMINGAP = px(16);
     let aSpacing = aN > 1 ? aSpan / (aN - 1) : 0, aStart = aTop;
     if (aN > 1 && aSpacing < AMINGAP) { aSpacing = AMINGAP; aStart = -(aSpacing * (aN - 1)) / 2; }
     ags.forEach((o, i) => { const yy = aN <= 1 ? 0 : aStart + i * aSpacing; o.a.fx = xA; o.a.fy = yy; o.a.x = xA; o.a.y = yy; o.a.vx = 0; o.a.vy = 0; });
+    // Geometry handoff for _knowFit (width-anchored zoom + top-anchor) and the split
+    // pass (min-pitch sweeps in the same screen-px terms).
+    this._knowGeom = { scaleW: scaleW, xF: xF, xA: xA, top: top, totalH: totalH, padL: PADL, padR: PADR };
   }
 
   // Split layout starts from the proven three-column swimlane geometry, then tightens
@@ -5139,6 +5190,41 @@ class Component extends DCLogic {
       parent.fx = xParent; parent.fy = py; parent.x = xParent; parent.y = py; parent.vx = 0; parent.vy = 0;
     });
 
+    // Barycenter placement can land two sub-clusters (or two parents) closer than a
+    // label height — enforce the flat pass's minimum pitch on each split column with
+    // an ordered push-down sweep per band, then re-anchor each parent on its swept
+    // children. Pitches in screen px via the flat pass's scaleW (see _knowGeom).
+    const geom = this._knowGeom || {};
+    const kpx = (v) => v / Math.max(0.02, geom.scaleW || 1);
+    const CHPITCH = kpx(15), PPITCH = kpx(18);
+    const sweep = (arr, pitch, y0, y1) => {
+      if (arr.length < 2) return;
+      arr.sort((a, b) => a.y - b.y);
+      const need = pitch * (arr.length - 1);
+      let yy = Math.max(y0, Math.min(arr[0].y, y1 - need));
+      for (let i = 0; i < arr.length; i++) {
+        const t = Math.max(arr[i].y, yy);
+        arr[i].fy = t; arr[i].y = t; arr[i].vy = 0;
+        yy = t + pitch;
+      }
+    };
+    const bandsSrc = this._knowRepoBands || [];               // rects carry no clusterIds; index-aligned with the source bands
+    (this._knowBands || []).forEach((bd, bi) => {
+      const y0 = bd.y + kpx(8), y1 = bd.y + bd.h - kpx(8);
+      const kids = [], parents = [];
+      ((bandsSrc[bi] || {}).clusterIds || []).forEach(id => {
+        const c = clusterNodes[id]; if (!c) return;
+        if (c.parentId) kids.push(c);
+        else if ((this._knowChildrenByParent[c.id] || []).length) parents.push(c);
+      });
+      sweep(kids, CHPITCH, y0, y1);
+      parents.forEach(p => {
+        const ch = (this._knowChildrenByParent[p.id] || []).map(id => clusterNodes[id]).filter(Boolean);
+        if (ch.length) { const yy = ch.reduce((s, c) => s + c.y, 0) / ch.length; p.fy = yy; p.y = yy; }
+      });
+      sweep(parents, PPITCH, y0, y1);
+    });
+
     // Reorder the agent rail from the adjusted leaf positions so ownership fans keep
     // their clean barycentric flow after children move within the cluster column.
     const agents = nodes.filter(n => n.type === 'agent');
@@ -5151,7 +5237,10 @@ class Component extends DCLogic {
     });
     const ags = agents.map(a => { const ys = agentClY[a.id] || []; return { a: a, by: ys.length ? ys.reduce((s, v) => s + v, 0) / ys.length : 0 }; });
     ags.sort((a, b) => a.by - b.by || (a.a.id < b.a.id ? -1 : a.a.id > b.a.id ? 1 : 0));
-    const top = -GH / 2, aN = ags.length, aTop = top + 6, aBot = top + GH - 6, aSpan = aBot - aTop, AMINGAP = 14;
+    // Respread over the flat pass's content-driven stack height (not the old fixed
+    // GH), same screen-px min gap.
+    const top = (geom.top != null) ? geom.top : -GH / 2, totalH = geom.totalH || GH;
+    const aN = ags.length, aTop = top + kpx(8), aBot = top + totalH - kpx(8), aSpan = aBot - aTop, AMINGAP = kpx(16);
     let aSpacing = aN > 1 ? aSpan / (aN - 1) : 0, aStart = aTop;
     if (aN > 1 && aSpacing < AMINGAP) { aSpacing = AMINGAP; aStart = -(aSpacing * (aN - 1)) / 2; }
     ags.forEach((o, i) => { const yy = aN <= 1 ? 0 : aStart + i * aSpacing; o.a.fy = yy; o.a.y = yy; o.a.vx = 0; o.a.vy = 0; });
@@ -5240,7 +5329,7 @@ class Component extends DCLogic {
     try { this._knowGraph.cooldownTicks(0); } catch (e) {}
     this._knowGraph.graphData({ nodes: nodes, links: links });
     const pad = empty ? 60 : (this._knowClustered ? 100 : 42);
-    setTimeout(() => { if (!this._knowFitDone) { try { this._knowGraph.zoomToFit(isPoll ? 0 : 600, pad); this._knowFitDone = true; this._knowNeedFit = false; } catch (e) {} this._knowScheduleGutterNudge(isPoll ? 100 : 700); } }, isPoll ? 40 : 220);
+    setTimeout(() => { if (!this._knowFitDone) { this._knowFit(isPoll ? 0 : 600, pad); this._knowFitDone = true; this._knowNeedFit = false; this._knowScheduleGutterNudge(isPoll ? 100 : 700); } }, isPoll ? 40 : 220);
     // Mobile (option A): swap the canvas for the repo accordion when clustered + narrow.
     this._knowApplyMobile();
   }
