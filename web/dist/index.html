@@ -5062,8 +5062,16 @@ class Component extends DCLogic {
     const spanFactor = 0.46 * Math.max(0.6, Math.min(1, (W - 40) / 700));
     const half = spanFactor * (GH * aspect);
     const xF = -half * 0.74;                                 // facts column
-    const xC = -half * 0.10;                                 // clusters column
+    const xC = -half * 0.10;                                 // clusters column (classic 3-column view)
     const xA = half * 0.66;                                  // agents column (outside the tint)
+    // When cluster HIERARCHIES exist, the sub-clusters get a PROPER level of their
+    // own: the span between facts and agents splits into equal thirds — facts |
+    // sub-clusters | clusters | agents — instead of tucking children a token
+    // offset beside the hub column (which read as jitter, not structure). Without
+    // splits the classic 3-column geometry is untouched.
+    const G3 = (xA - xF) / 3;
+    const xSub = xF + G3;                                    // sub-cluster level (populated by the split pass)
+    const xClu = this._knowHasSplits ? xF + 2 * G3 : xC;     // cluster level
     // The lane label + "N facts" sub-line live in a left gutter. It is drawn at a
     // constant SCREEN size (font/scale), so reserve a gutter whose WIDTH tracks the
     // zoom the graph will settle at (estimate it the way zoomToFit does) — otherwise
@@ -5085,7 +5093,7 @@ class Component extends DCLogic {
     const gutterGU = px(74);                                 // ~74px of label room
     const labelX = xF - gutterGU;
     const tintX0 = labelX - px(8);                          // tint left edge, just left of the label
-    const tintX1 = xC + half * 0.22;                        // tint right edge, past the clusters
+    const tintX1 = this._knowHasSplits ? xClu + 0.3 * (xA - xClu) : xC + half * 0.22; // tint right edge, past the clusters
 
     // --- vertical bands: CONTENT-DRIVEN heights — each band is exactly tall enough
     // for its clusters at a minimum label pitch and its facts at a minimum dot pitch
@@ -5119,7 +5127,7 @@ class Component extends DCLogic {
       const cGap = cs.length > 1 ? Math.min(Math.max((h - CINSET) / (cs.length - 1), CPITCH), CMAXP) : 0;
       const cInner = cGap * Math.max(0, cs.length - 1);
       const cTop = cy - cInner / 2;
-      cs.forEach((c, k) => { const yy = cs.length > 1 ? cTop + k * cGap : cy; c.fx = xC; c.fy = yy; c.x = xC; c.y = yy; c.vx = 0; c.vy = 0; });
+      cs.forEach((c, k) => { const yy = cs.length > 1 ? cTop + k * cGap : cy; c.fx = xClu; c.fy = yy; c.x = xClu; c.y = yy; c.vx = 0; c.vy = 0; });
       // facts of this band, contiguous by cluster, stacked centered — same clamp
       // shape with the smaller dot pitch.
       const fs = [];
@@ -5156,7 +5164,7 @@ class Component extends DCLogic {
     ags.forEach((o, i) => { const yy = aN <= 1 ? 0 : aStart + i * aSpacing; o.a.fx = xA; o.a.fy = yy; o.a.x = xA; o.a.y = yy; o.a.vx = 0; o.a.vy = 0; });
     // Geometry handoff for _knowFit (width-anchored zoom + top-anchor) and the split
     // pass (min-pitch sweeps in the same screen-px terms).
-    this._knowGeom = { scaleW: scaleW, xF: xF, xA: xA, top: top, totalH: totalH, padL: PADL, padR: PADR };
+    this._knowGeom = { scaleW: scaleW, xF: xF, xA: xA, xSub: xSub, xClu: xClu, top: top, totalH: totalH, padL: PADL, padR: PADR };
   }
 
   // Split layout starts from the proven three-column swimlane geometry, then tightens
@@ -5164,14 +5172,14 @@ class Component extends DCLogic {
   // their slightly larger parent sits just behind them. No fourth rail is introduced.
   _knowLayoutClusteredSplit(nodes, links) {
     this._knowLayoutClusteredFlat(nodes, links);
-    const cb = this._knowComputeBands();
-    const GH = cb.GH, W = cb.W, H = cb.H;
-    const aspect = Math.max(0.5, Math.min(2.4, W / Math.max(1, H)));
-    const spanFactor = 0.46 * Math.max(0.6, Math.min(1, (W - 40) / 700));
-    const half = spanFactor * (GH * aspect);
-    const xC = -half * 0.10;
-    const xChild = xC - Math.min(22, half * 0.075);
-    const xParent = xC + Math.min(16, half * 0.055);
+    // The flat pass already put every cluster on the CLUSTER level (xClu, shifted
+    // right when splits exist to make room). Here the children drop down to the
+    // dedicated SUB level (xSub, an equal third of the span) so a hierarchy reads
+    // as a proper extra level — facts | sub-clusters | clusters | agents — instead
+    // of a token offset beside the hub column. Parents keep their level; only
+    // their Y re-anchors to the children barycenter.
+    const geom = this._knowGeom || {};
+    const xSub = (geom.xSub != null) ? geom.xSub : 0;
     const lid = (v) => (v && v.id != null) ? v.id : v;
     const clusterNodes = {}, factsByCluster = {};
     nodes.forEach(n => {
@@ -5184,17 +5192,18 @@ class Component extends DCLogic {
       children.forEach(ch => {
         const fs = factsByCluster[ch.id] || [];
         const yy = fs.length ? fs.reduce((s, f) => s + f.y, 0) / fs.length : ch.y;
-        ch.fx = xChild; ch.fy = yy; ch.x = xChild; ch.y = yy; ch.vx = 0; ch.vy = 0;
+        ch.fx = xSub; ch.fy = yy; ch.x = xSub; ch.y = yy; ch.vx = 0; ch.vy = 0;
       });
       const py = children.length ? children.reduce((s, ch) => s + ch.y, 0) / children.length : parent.y;
-      parent.fx = xParent; parent.fy = py; parent.x = xParent; parent.y = py; parent.vx = 0; parent.vy = 0;
+      parent.fy = py; parent.y = py; parent.vx = 0; parent.vy = 0;
     });
 
-    // Barycenter placement can land two sub-clusters (or two parents) closer than a
-    // label height — enforce the flat pass's minimum pitch on each split column with
-    // an ordered push-down sweep per band, then re-anchor each parent on its swept
-    // children. Pitches in screen px via the flat pass's scaleW (see _knowGeom).
-    const geom = this._knowGeom || {};
+    // Barycenter placement can land two sub-clusters (or two hub-level nodes)
+    // closer than a label height — enforce the flat pass's minimum pitch on each
+    // level with an ordered push-down sweep per band, re-anchoring each parent on
+    // its swept children first. The hub sweep covers ALL non-child clusters: after
+    // the barycenter re-anchor a parent can land on a childless hub's row, and the
+    // two now share the cluster level. Pitches in screen px via scaleW.
     const kpx = (v) => v / Math.max(0.02, geom.scaleW || 1);
     const CHPITCH = kpx(15), PPITCH = kpx(18);
     const sweep = (arr, pitch, y0, y1) => {
@@ -5211,18 +5220,17 @@ class Component extends DCLogic {
     const bandsSrc = this._knowRepoBands || [];               // rects carry no clusterIds; index-aligned with the source bands
     (this._knowBands || []).forEach((bd, bi) => {
       const y0 = bd.y + kpx(8), y1 = bd.y + bd.h - kpx(8);
-      const kids = [], parents = [];
+      const kids = [], hubs = [];
       ((bandsSrc[bi] || {}).clusterIds || []).forEach(id => {
         const c = clusterNodes[id]; if (!c) return;
-        if (c.parentId) kids.push(c);
-        else if ((this._knowChildrenByParent[c.id] || []).length) parents.push(c);
+        if (c.parentId) kids.push(c); else hubs.push(c);
       });
       sweep(kids, CHPITCH, y0, y1);
-      parents.forEach(p => {
+      hubs.forEach(p => {
         const ch = (this._knowChildrenByParent[p.id] || []).map(id => clusterNodes[id]).filter(Boolean);
         if (ch.length) { const yy = ch.reduce((s, c) => s + c.y, 0) / ch.length; p.fy = yy; p.y = yy; }
       });
-      sweep(parents, PPITCH, y0, y1);
+      sweep(hubs, PPITCH, y0, y1);
     });
 
     // Reorder the agent rail from the adjusted leaf positions so ownership fans keep
