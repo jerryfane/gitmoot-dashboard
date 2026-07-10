@@ -29,6 +29,10 @@
  .gm-copy{display:inline-flex;align-items:center;gap:5px;border:none;border-radius:6px;font-family:'JetBrains Mono',monospace;font-size:10.5px;font-weight:600;line-height:1;cursor:pointer;padding:4px 9px;transition:background .15s ease,color .15s ease;background:rgba(160,168,220,0.1);color:#a8aecf}
  .gm-copy:hover{background:rgba(160,168,220,0.16);color:#c7c9e5}
  .gm-copy.done{background:rgba(158,206,106,0.16);color:#c5f882}
+ .gm-aplink{display:inline-flex;align-items:center;gap:6px;text-decoration:none;padding:5px 10px;border-radius:7px;border:1px solid rgba(160,168,220,0.16);background:rgba(160,168,220,0.06);color:#c7c9e5;font-family:Inter,system-ui,sans-serif;font-size:12px;font-weight:600;line-height:1;white-space:nowrap;transition:background .15s ease,border-color .15s ease,color .15s ease}
+ .gm-aplink:hover{background:rgba(158,206,106,0.12);border-color:rgba(158,206,106,0.35);color:#eef0ff}
+ .gm-aplink svg{flex:none}
+ .gm-aplink .ext{opacity:.55}
 </style>
 </helmet>
 <div style="display:flex;flex-direction:column;height:100vh;width:100vw;overflow:hidden;background:#07080f;color:#a8aecf;font-family:Inter,system-ui,sans-serif;font-size:14px">
@@ -46,6 +50,11 @@
       <span style="font-family:'JetBrains Mono';font-size:12.5px;color:#eef0ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ crumbTitle }}</span>
     </div>
     <div style="margin-left:auto;display:flex;align-items:center;gap:14px;flex:none">
+      <a href="http://localhost:8080" target="_blank" rel="noopener noreferrer" class="gm-aplink" title="Open the local Activepieces UI (default http://localhost:8080). Run your Activepieces instance and `gitmoot bridge serve` on this machine, then drive gitmoot pipelines from Activepieces flows.">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13l7-9-1 6h4l-7 9 1-6z"/></svg>
+        <span>Activepieces</span>
+        <svg class="ext" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8"/></svg>
+      </a>
       <span style="{{ daemonTextStyle }}">{{ daemonText }}</span>
       <div style="{{ liveBadgeStyle }}">
         <span style="{{ liveDotStyle }}"></span>
