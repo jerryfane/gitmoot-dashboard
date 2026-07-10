@@ -1327,8 +1327,10 @@ func fakeKnowledge() Knowledge {
 	// Owner + category + cluster edges per fact, then the one supersede chain
 	// (the newer auth-flow fact supersedes the older one). Category edges stay
 	// for the pre-cluster fallback view; cluster edges back the repo -> cluster
-	// -> fact hierarchy.
-	edges := make([]KnowledgeEdge, 0, len(facts)*3+1)
+	// -> fact hierarchy. Scored link edges are undirected and emitted once per
+	// pair. They deliberately cover tight in-cluster pairs, cross-cluster pairs,
+	// and cross-repo pairs so the dev harness exercises every galaxy treatment.
+	edges := make([]KnowledgeEdge, 0, len(facts)*3+10)
 	for _, fct := range facts {
 		edges = append(edges, KnowledgeEdge{Source: fct.ID, Target: fct.Owner, Kind: "owner"})
 		cat := fct.Repo
@@ -1341,6 +1343,17 @@ func fakeKnowledge() Knowledge {
 		}
 	}
 	edges = append(edges, KnowledgeEdge{Source: "fact:9", Target: "fact:3", Kind: "supersede"})
+	edges = append(edges,
+		KnowledgeEdge{Source: "fact:3", Target: "fact:9", Kind: "link", Score: 0.95},
+		KnowledgeEdge{Source: "fact:1", Target: "fact:8", Kind: "link", Score: 0.92},
+		KnowledgeEdge{Source: "fact:6", Target: "fact:7", Kind: "link", Score: 0.88},
+		KnowledgeEdge{Source: "fact:2", Target: "fact:10", Kind: "link", Score: 0.84},
+		KnowledgeEdge{Source: "fact:4", Target: "fact:5", Kind: "link", Score: 0.78},
+		KnowledgeEdge{Source: "fact:5", Target: "fact:7", Kind: "link", Score: 0.62},
+		KnowledgeEdge{Source: "fact:1", Target: "fact:2", Kind: "link", Score: 0.48},
+		KnowledgeEdge{Source: "fact:1", Target: "fact:4", Kind: "link", Score: 0.33},
+		KnowledgeEdge{Source: "fact:9", Target: "fact:5", Kind: "link", Score: 0.15},
+	)
 	sort.SliceStable(edges, func(i, j int) bool {
 		if edges[i].Kind != edges[j].Kind {
 			return edges[i].Kind < edges[j].Kind
