@@ -5371,7 +5371,7 @@ class Component extends DCLogic {
     const tintX0 = labelX - px(8);                          // tint left edge, just left of the label
     const tintX1 = this._knowHasSplits ? xClu + 0.3 * (xA - xClu) : xC + half * 0.22; // tint right edge, past the clusters
     const galaxyX0 = xF + px(6);
-    const galaxyX1 = Math.max(galaxyX0 + px(72), (this._knowHasSplits ? xSub : xClu) - px(this._knowHasSplits ? 74 : 82));
+    const galaxyX1 = Math.max(galaxyX0 + px(72), (this._knowHasSplits ? xSub : xClu) - px(this._knowHasSplits ? 112 : 82));
 
     // --- vertical bands: CONTENT-DRIVEN heights — each band is exactly tall enough
     // for its cluster labels and its constellation area (fact count + number of
@@ -5429,7 +5429,16 @@ class Component extends DCLogic {
       const ids = {}; bd.facts.forEach(f => { ids[f.id] = 1; });
       const local = factLinks.filter(l => l.factRelation !== 'repo' && ids[l.__sourceId] && ids[l.__targetId]);
       this._knowSettleFactGalaxy(bd.facts, clusterNodes, local, bd, this._knowSig + '|band|' + bd.scope + '|' + bi, px);
-      bd.facts.slice().sort((a, b) => b.__knowDegree - a.__knowDegree || (a.id < b.id ? -1 : 1)).slice(0, 6).forEach(f => { f.__knowPersistentLabel = true; });
+      // Persistent labels: only genuinely LINKED facts earn one (degree >= 1 —
+      // with zero links a "top 6" is an arbitrary alphabetical pick that smears
+      // long keys over the clumps), capped at 6, and de-conflicted vertically so
+      // two kept labels in one band are never closer than ~11 screen px.
+      const kept = [];
+      bd.facts.slice().sort((a, b) => b.__knowDegree - a.__knowDegree || (a.id < b.id ? -1 : 1)).forEach(f => {
+        if (f.__knowDegree < 1 || kept.length >= 6) return;
+        if (kept.some(k => Math.abs(k.y - f.y) < px(11))) return;
+        kept.push(f); f.__knowPersistentLabel = true;
+      });
     });
     // Safety: a fact whose cluster somehow landed in no band still gets a position.
     factNodes.forEach(f => { if (f.x == null) { f.fx = xF; f.fy = 0; f.x = xF; f.y = 0; f.vx = 0; f.vy = 0; } });
