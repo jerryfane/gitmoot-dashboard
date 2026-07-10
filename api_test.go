@@ -973,11 +973,13 @@ func TestHandleLearningKnowledge(t *testing.T) {
 	// Edges: only the three real kinds, at least one of each; owner/category
 	// sources and supersede endpoints reference known facts; owner targets are
 	// enrolled agents.
-	// Clusters (gitmoot #763): every cluster has an id/label and a positive count
-	// that matches its member-fact assignments; every fact's Cluster references a
-	// known cluster; a cluster's Medoid (when set) is a member fact.
+	// Clusters (gitmoot #763, #779): every cluster has an id/label and a positive
+	// count. Leaf counts match direct fact assignments; parent counts aggregate
+	// their children. Facts always attach to leaves and parent ids are valid.
 	clusterIDs := map[string]bool{}
 	clusterMembers := map[string]int{}
+	clusterByID := map[string]KnowledgeCluster{}
+	childrenByParent := map[string][]string{}
 	if len(k.Clusters) == 0 {
 		t.Fatalf("expected >=1 cluster, got 0")
 	}
@@ -989,6 +991,15 @@ func TestHandleLearningKnowledge(t *testing.T) {
 			t.Fatalf("duplicate cluster id %q", c.ID)
 		}
 		clusterIDs[c.ID] = true
+		clusterByID[c.ID] = c
+		if c.ParentID != "" {
+			childrenByParent[c.ParentID] = append(childrenByParent[c.ParentID], c.ID)
+		}
+	}
+	for _, c := range k.Clusters {
+		if c.ParentID != "" && !clusterIDs[c.ParentID] {
+			t.Fatalf("cluster %s parent_id %q is not a known cluster", c.ID, c.ParentID)
+		}
 	}
 	clusterOf := map[string]string{}
 	for _, fct := range k.Facts {
@@ -1000,6 +1011,9 @@ func TestHandleLearningKnowledge(t *testing.T) {
 		}
 		clusterMembers[fct.Cluster]++
 		clusterOf[fct.ID] = fct.Cluster
+		if len(childrenByParent[fct.Cluster]) != 0 {
+			t.Fatalf("fact %s attaches to parent cluster %q, want a leaf", fct.ID, fct.Cluster)
+		}
 		// Provenance is one of source job / source file, never both.
 		if fct.SourceJob != "" && fct.SourceFile != "" {
 			t.Fatalf("fact %s carries both sourceJob and sourceFile", fct.ID)
@@ -1012,15 +1026,28 @@ func TestHandleLearningKnowledge(t *testing.T) {
 		}
 	}
 	for _, c := range k.Clusters {
-		if c.Count != clusterMembers[c.ID] {
-			t.Fatalf("cluster %s count = %d, want member total %d", c.ID, c.Count, clusterMembers[c.ID])
+		want := clusterMembers[c.ID]
+		if children := childrenByParent[c.ID]; len(children) != 0 {
+			want = 0
+			for _, childID := range children {
+				want += clusterMembers[childID]
+			}
+		}
+		if c.Count != want {
+			t.Fatalf("cluster %s count = %d, want hierarchy member total %d", c.ID, c.Count, want)
 		}
 		if c.Count <= 0 {
 			t.Fatalf("cluster %s has non-positive count %d", c.ID, c.Count)
 		}
-		if c.Medoid != "" && clusterOf[c.Medoid] != c.ID {
-			t.Fatalf("cluster %s medoid %q is not one of its member facts", c.ID, c.Medoid)
+		if c.Medoid != "" {
+			medoidCluster := clusterOf[c.Medoid]
+			if medoidCluster != c.ID && clusterByID[medoidCluster].ParentID != c.ID {
+				t.Fatalf("cluster %s medoid %q is not one of its direct or child facts", c.ID, c.Medoid)
+			}
 		}
+	}
+	if got := len(childrenByParent["cluster:4"]); got != 2 {
+		t.Fatalf("cluster:4 children = %d, want 2", got)
 	}
 	// Clusters sorted by id asc (deterministic ordering for the sig-skip).
 	for i := 1; i < len(k.Clusters); i++ {
@@ -1078,6 +1105,29 @@ func TestHandleLearningKnowledge(t *testing.T) {
 	}
 	if kinds["cluster"] != clustered {
 		t.Fatalf("cluster edges = %d, want one per clustered fact (%d)", kinds["cluster"], clustered)
+	}
+}
+
+func TestHandleLearningKnowledgeFlatFixture(t *testing.T) {
+	srv := httptest.NewServer(Serve(NewFakeDataSourceFlatKnowledge()))
+	defer srv.Close()
+
+	var k Knowledge
+	if err := json.Unmarshal(getRaw(t, srv.URL+"/api/learning/knowledge"), &k); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(k.Clusters) != 4 {
+		t.Fatalf("flat fixture clusters = %d, want 4", len(k.Clusters))
+	}
+	for _, c := range k.Clusters {
+		if c.ParentID != "" {
+			t.Fatalf("flat fixture cluster %s unexpectedly has parent_id %q", c.ID, c.ParentID)
+		}
+	}
+	for _, fct := range k.Facts {
+		if fct.ID == "fact:4" && fct.Cluster != "cluster:4" {
+			t.Fatalf("flat fixture fact:4 cluster = %q, want cluster:4", fct.Cluster)
+		}
 	}
 }
 
