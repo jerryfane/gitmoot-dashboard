@@ -1056,13 +1056,16 @@ func TestHandleLearningKnowledge(t *testing.T) {
 		}
 	}
 
-	// Edges: the four real kinds, at least one of each; owner/category/cluster
+	// Edges: the five real kinds, at least one of each; owner/category/cluster
 	// sources and supersede endpoints reference known facts; owner targets are
-	// enrolled agents; cluster targets are known clusters.
+	// enrolled agents; cluster targets are known clusters. Link edges are scored
+	// undirected fact pairs emitted exactly once.
 	kinds := map[string]int{}
+	linkPairs := map[string]bool{}
+	crossRepoLinks := 0
 	for _, e := range k.Edges {
 		switch e.Kind {
-		case "owner", "category", "cluster", "supersede":
+		case "owner", "category", "cluster", "supersede", "link":
 		default:
 			t.Fatalf("edge has unexpected kind %q: %+v", e.Kind, e)
 		}
@@ -1083,12 +1086,43 @@ func TestHandleLearningKnowledge(t *testing.T) {
 			if !factIDs[e.Target] {
 				t.Fatalf("supersede edge target %q is not a known fact", e.Target)
 			}
+		case "link":
+			if !factIDs[e.Target] {
+				t.Fatalf("link edge target %q is not a known fact", e.Target)
+			}
+			if e.Score <= 0 || e.Score > 1 {
+				t.Fatalf("link edge score = %v, want (0,1]: %+v", e.Score, e)
+			}
+			a, b := e.Source, e.Target
+			if a > b {
+				a, b = b, a
+			}
+			pair := a + "|" + b
+			if linkPairs[pair] {
+				t.Fatalf("duplicate undirected link pair %q", pair)
+			}
+			linkPairs[pair] = true
+			var sourceRepo, targetRepo string
+			for _, fact := range k.Facts {
+				if fact.ID == e.Source {
+					sourceRepo = fact.Repo
+				}
+				if fact.ID == e.Target {
+					targetRepo = fact.Repo
+				}
+			}
+			if sourceRepo != targetRepo {
+				crossRepoLinks++
+			}
 		}
 	}
-	for _, kind := range []string{"owner", "category", "cluster", "supersede"} {
+	for _, kind := range []string{"owner", "category", "cluster", "supersede", "link"} {
 		if kinds[kind] == 0 {
 			t.Fatalf("expected at least one %q edge: %+v", kind, kinds)
 		}
+	}
+	if crossRepoLinks == 0 {
+		t.Fatal("expected at least one cross-repo link edge")
 	}
 	// One owner + one category edge per fact; one cluster edge per clustered fact.
 	if kinds["owner"] != len(k.Facts) {

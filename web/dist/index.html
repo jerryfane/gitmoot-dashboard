@@ -3976,8 +3976,17 @@ class Component extends DCLogic {
       "#learning-root .lr-empty-tbl{padding:60px 20px;text-align:center;color:#5a6088;font-size:13px}",
       "#learning-root #lr-know-graph{position:absolute;inset:0}",
       "#learning-root .lr-kchip{position:absolute;z-index:10;background:rgba(14,16,30,.72);border:1px solid rgba(187,154,247,.2);border-radius:12px;backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px);box-shadow:0 6px 30px rgba(0,0,0,.55)}",
-      "#learning-root #lr-know-count{top:16px;left:16px;padding:9px 13px;font-family:'JetBrains Mono',monospace;font-size:11px;color:#c8cce6}",
+      "#learning-root #lr-know-chrome{position:absolute;z-index:12;top:16px;left:16px;right:16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;pointer-events:none}",
+      "#learning-root #lr-know-chrome .lr-kchip{position:relative;z-index:auto;pointer-events:auto}",
+      "#learning-root #lr-know-count,#learning-root #lr-know-linkcount{padding:9px 13px;font-family:'JetBrains Mono',monospace;font-size:11px;color:#c8cce6}",
       "#learning-root #lr-know-count b{color:#bb9af7;font-weight:500}",
+      "#learning-root #lr-know-linkcount b{color:#6ec6ff;font-weight:500}",
+      "#learning-root #lr-know-controls{display:flex;align-items:center;padding:4px;gap:4px}",
+      "#learning-root .lr-ktoggle{border:0;background:transparent;color:#6b7196;padding:5px 9px;border-radius:7px;font-family:'JetBrains Mono',monospace;font-size:10.5px;cursor:pointer;white-space:nowrap}",
+      "#learning-root .lr-ktoggle:hover{color:#c8cce6;background:rgba(160,168,220,.07)}",
+      "#learning-root .lr-ktoggle.on{color:#a9e4ff;background:rgba(110,198,255,.12)}",
+      "#learning-root .lr-ktoggle .dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:6px;background:#454b6c;box-shadow:none}",
+      "#learning-root .lr-ktoggle.on .dot{background:#6ec6ff;box-shadow:0 0 7px rgba(110,198,255,.75)}",
       "#learning-root #lr-know-legend{bottom:16px;left:16px;padding:12px 14px;max-width:230px}",
       "#learning-root #lr-know-legend .h{font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:1.2px;color:#7f86ad;margin-bottom:7px}",
       "#learning-root #lr-know-legend .row{display:flex;align-items:center;gap:8px;font-size:12px;line-height:1.85;color:#c8cce6}",
@@ -4049,7 +4058,7 @@ class Component extends DCLogic {
       "#learning-root .km-cluster-group{display:flex;flex-direction:column;gap:5px}",
       "#learning-root .km-subrow{margin-left:17px;padding-left:13px;background:rgba(187,154,247,0.035);border-left:2px solid rgba(187,154,247,0.24)}",
       "#learning-root .km-subrow .lr-dmemdot{width:6px;height:6px;background:#a99ac8!important}",
-      "@media (max-width:768px){#learning-root .lr-head{padding-left:16px;padding-right:16px}#learning-root .lr-skbody{padding-left:14px;padding-right:14px}#learning-root .lr-thead{display:none}#learning-root .lr-trow{flex-wrap:wrap;gap:6px 10px}#learning-root .lr-c-name{flex:1 1 100%;white-space:normal}#learning-root .lr-c-ver,#learning-root .lr-c-changed{width:auto;flex:none}#learning-root .lr-c-score{width:auto;flex:1}#learning-root .lr-nrow{gap:8px}#learning-root .lr-cmd{width:100%;max-width:none}#learning-root .lr-cmd code{white-space:normal;word-break:break-all}#learning-root .lr-detail{width:100%;left:0;border-left:none}}",
+      "@media (max-width:768px){#learning-root .lr-head{padding-left:16px;padding-right:16px}#learning-root .lr-skbody{padding-left:14px;padding-right:14px}#learning-root .lr-thead{display:none}#learning-root .lr-trow{flex-wrap:wrap;gap:6px 10px}#learning-root .lr-c-name{flex:1 1 100%;white-space:normal}#learning-root .lr-c-ver,#learning-root .lr-c-changed{width:auto;flex:none}#learning-root .lr-c-score{width:auto;flex:1}#learning-root .lr-nrow{gap:8px}#learning-root .lr-cmd{width:100%;max-width:none}#learning-root .lr-cmd code{white-space:normal;word-break:break-all}#learning-root .lr-detail{width:100%;left:0;border-left:none}#learning-root #lr-know-linkcount,#learning-root #lr-know-controls{display:none!important}}",
       "@media (pointer:coarse){#learning-root .lr-dclose{width:44px;height:44px;font-size:17px}}"
     ].join('\n');
     document.head.appendChild(st);
@@ -4071,7 +4080,14 @@ class Component extends DCLogic {
       '  <div id="lr-knowledge" style="display:none">',
       '    <div id="lr-know-graph"></div>',
       '    <div id="lr-know-loading">summoning the brain…</div>',
-      '    <div id="lr-know-count" class="lr-kchip">showing <b id="lr-kAgents">0</b> agents / <b id="lr-kFacts">0</b> facts</div>',
+      '    <div id="lr-know-chrome">',
+      '      <div id="lr-know-count" class="lr-kchip">showing <b id="lr-kAgents">0</b> agents / <b id="lr-kFacts">0</b> facts</div>',
+      '      <div id="lr-know-linkcount" class="lr-kchip" style="display:none"><b>0</b> fact links</div>',
+      '      <div id="lr-know-controls" class="lr-kchip" style="display:none">',
+      '        <button type="button" class="lr-ktoggle on" data-know-toggle="links" aria-pressed="true"><span class="dot"></span>fact links</button>',
+      '        <button type="button" class="lr-ktoggle" data-know-toggle="cross" aria-pressed="false"><span class="dot"></span>cross-repo links</button>',
+      '      </div>',
+      '    </div>',
       '    <div id="lr-know-legend" class="lr-kchip">',
       '      <div class="h">nodes · left → right</div>',
       '      <div class="row"><span class="sw" style="color:#5a6088;background:#5a6088;width:6px;height:6px;box-shadow:none;opacity:.7"></span>evidence</div>',
@@ -4093,6 +4109,17 @@ class Component extends DCLogic {
     root.querySelector('#lr-switch').addEventListener('click', (e) => {
       const b = (e.target.closest && e.target.closest('.lr-chip')) || null;
       if (b) this.switchLearningTab(b.getAttribute('data-tab'));
+    });
+    this._knowFactLinksOn = this._knowFactLinksOn !== false;
+    this._knowCrossRepoOn = !!this._knowCrossRepoOn;
+    root.querySelector('#lr-know-chrome').addEventListener('click', (e) => {
+      const b = e.target.closest && e.target.closest('[data-know-toggle]');
+      if (!b) return;
+      const which = b.getAttribute('data-know-toggle');
+      if (which === 'links') this._knowFactLinksOn = !this._knowFactLinksOn;
+      if (which === 'cross') this._knowCrossRepoOn = !this._knowCrossRepoOn;
+      this._knowSyncChrome(this._knowBuilt || { agentCount: 0, factCount: 0, factLinkCount: 0 });
+      try { if (this._knowGraph && this._knowGraph.refresh) this._knowGraph.refresh(); } catch (e2) {}
     });
     // Skills delegation: copy chip > section disclosure toggle > row-nav-to-agent.
     const sbody = root.querySelector('#lr-skills-body');
@@ -4274,11 +4301,11 @@ class Component extends DCLogic {
 
   // ---- Knowledge tab: a SECOND force-graph instance --------------------------
   _knowColor(n) {
-    if (n.type === 'cluster') return '#bb9af7';         // violet cluster hubs (2nd column)
-    if (n.type === 'agent') return '#bb9af7';           // violet agent wells (output layer)
+    if (n.type === 'cluster') return n.parentId ? '#a99ac8' : '#cabff2'; // sub-cluster / top-level hub
+    if (n.type === 'agent') return this._knowClustered ? '#cdbdf6' : '#bb9af7';
     if (n.type === 'category') return '#bb9af7';        // violet category hubs
     if (n.superseded) return '#5a6088';                 // superseded fact ghosts (dim)
-    return n.repo ? '#7dcfff' : '#e0af68';              // repo-scoped teal / general amber
+    return n.repo ? (this._knowClustered ? '#6ec6ff' : '#7dcfff') : '#e0af68';
   }
   _knowAlpha(n) {
     if (n.type === 'cluster') return 0.92;
@@ -4318,6 +4345,17 @@ class Component extends DCLogic {
     return h >>> 0;
   }
   _knowRand(str) { return (this._knowHash(str) % 100000) / 100000; } // deterministic [0,1)
+  _knowRng(seed) {
+    let s = this._knowHash(seed);
+    return () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; };
+  }
+  _knowClamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
+  _knowFactLinkAlpha(score) {
+    const s = this._knowClamp(Number(score) || 0, 0, 1);
+    const t = this._knowClamp((s - 0.2) / 0.75, 0, 1);
+    return 0.05 + 0.42 * Math.pow(t, 1.4);
+  }
+  _knowFactLinkWidth(score) { return 0.5 + 1.15 * this._knowClamp(Number(score) || 0, 0, 1); }
 
   // The FOUR vertical columns of the layered layout, in GRAPH coordinates (zoomToFit
   // maps them to screen). Recomputed from the live container size so the spread tracks
@@ -4470,12 +4508,25 @@ class Component extends DCLogic {
       switch (l.kind) {
         case 'evidence':  { const t = l.target; return { color: (t && t.repo) ? '#7dcfff' : '#e0af68', alpha: 0.15, width: 0.55 }; } // evidence->fact in the fact's scope hue
         case 'category':  return { color: '#bb9af7', alpha: 0.22, width: 0.6 };                                                       // fact->category violet
-        case 'cluster':   return { color: '#bb9af7', alpha: 0.24, width: 0.62 };                                                      // fact->cluster violet (v2)
+        case 'cluster':   return { color: '#a99ac8', alpha: this._knowClustered ? 0.1 : 0.24, width: 0.52 };                           // low-density membership fan
         case 'subcluster':return { color: '#cabff2', alpha: 0.16, width: 0.52 };                                                      // child->parent hierarchy edge
-        case 'catagent':  { const c = Math.min(l.count || 1, 10); return { color: '#9ece6a', alpha: 0.16 + c * 0.04, width: 0.6 + c * 0.06 }; } // category/cluster->agent green, alpha by count
+        case 'catagent':  { const c = Math.min(l.count || 1, 10); return { color: this._knowClustered ? '#c9e98a' : '#9ece6a', alpha: 0.16 + c * 0.04, width: 0.6 + c * 0.06 }; }
+        case 'link': {
+          const rel = l.factRelation || 'in', mult = rel === 'in' ? 1 : 0.4;
+          return { color: rel === 'in' ? '#6ec6ff' : (rel === 'cross' ? '#788fe1' : '#9678eb'), alpha: this._knowFactLinkAlpha(l.score) * mult, width: this._knowFactLinkWidth(l.score) };
+        }
         case 'supersede': return { color: '#f7768e', alpha: 0.42, width: 0.8 };                                                       // supersede dim red
         default:          return { color: '#a0a8dc', alpha: 0.14, width: 0.5 };
       }
+    };
+    const bandStub = (from, toward, band) => {
+      if (!band) return null;
+      const dx = toward.x - from.x, dy = toward.y - from.y, ts = [];
+      if (dx > 0) ts.push((band.galaxyX1 - from.x) / dx); else if (dx < 0) ts.push((band.galaxyX0 - from.x) / dx);
+      if (dy > 0) ts.push((band.y + band.h - from.y) / dy); else if (dy < 0) ts.push((band.y - from.y) / dy);
+      const valid = ts.filter(t => t > 0.001 && t <= 1).sort((a, b) => a - b);
+      const t = valid.length ? valid[0] : 0.15;
+      return { x: from.x + dx * t, y: from.y + dy * t };
     };
     const G = window.ForceGraph()(this._knowGraphEl)
       .backgroundColor('#080a14')
@@ -4486,7 +4537,7 @@ class Component extends DCLogic {
       .autoPauseRedraw(false)           // keep the rAF loop alive for the packet animation
       .nodeCanvasObjectMode(() => 'replace')
       .nodeCanvasObject((n, ctx, scale) => {
-        const sel = this._knowSelected;
+        const sel = this._knowHoverFocus || this._knowSelected;
         let dim = 1, hi = false;
         if (sel) { if (n.id === sel.id || (sel.neighbors && sel.neighbors.has(n.id))) hi = true; else dim = 0.16; }
         // EVIDENCE input layer: tiny dim observation dots, no glow / core / label.
@@ -4501,13 +4552,18 @@ class Component extends DCLogic {
         // pixel-floor radii (graph-units are sub-pixel at fit zoom) so tiny nodes stay visible
         const floor = (n.type === 'agent' ? 4 : (n.type === 'category' || n.type === 'cluster') ? 2.6 : 1.6) / scale;
         if (r < floor) r = floor;
-        const blur = n.type === 'agent' ? 12 : (n.type === 'category' || n.type === 'cluster') ? 7 : 4;
-        ctx.shadowColor = col; ctx.shadowBlur = blur;
-        ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 2 * Math.PI);
-        ctx.fillStyle = col; ctx.globalAlpha = this._knowAlpha(n) * dim; ctx.fill();
-        ctx.shadowBlur = 0;
-        ctx.beginPath(); ctx.arc(n.x, n.y, r * 0.5, 0, 2 * Math.PI);
-        ctx.fillStyle = '#ffffff'; ctx.globalAlpha = 0.4 * this._knowAlpha(n) * dim; ctx.fill();
+        const blur = n.type === 'agent' ? 12 : (n.type === 'category' || n.type === 'cluster') ? 7 : (4 + Math.min(3, n.__knowDegree || 0) * 1.5);
+        if (this._knowClustered && n.type === 'fact' && n.superseded) {
+          ctx.shadowBlur = 0; ctx.beginPath(); ctx.arc(n.x, n.y, r + 0.4 / scale, 0, 2 * Math.PI);
+          ctx.strokeStyle = '#5a6088'; ctx.lineWidth = 1 / scale; ctx.globalAlpha = 0.58 * dim; ctx.stroke();
+        } else {
+          ctx.shadowColor = col; ctx.shadowBlur = blur;
+          ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 2 * Math.PI);
+          ctx.fillStyle = col; ctx.globalAlpha = this._knowAlpha(n) * dim; ctx.fill();
+          ctx.shadowBlur = 0;
+          ctx.beginPath(); ctx.arc(n.x, n.y, r * 0.5, 0, 2 * Math.PI);
+          ctx.fillStyle = '#ffffff'; ctx.globalAlpha = 0.4 * this._knowAlpha(n) * dim; ctx.fill();
+        }
         if (hi) { ctx.beginPath(); ctx.arc(n.x, n.y, r + 1.8, 0, 2 * Math.PI); ctx.strokeStyle = col; ctx.lineWidth = 1 / scale; ctx.globalAlpha = 0.9; ctx.stroke(); }
         // Labels anchor sideways (never above/below) so stacked column nodes never
         // collide with each other's labels. Clustered (option A) columns left ->
@@ -4515,7 +4571,17 @@ class Component extends DCLogic {
         // CLUSTER labels sit RIGHT toward the open gap before the agents; AGENT
         // labels sit right; CATEGORY (fallback view only) labels beside, mobile flip
         // preserved below.
-        if (n.type === 'cluster') {
+        if (n.type === 'fact' && this._knowClustered) {
+          const hovered = this._knowHoveredFact === n.id;
+          if (hovered || n.__knowPersistentLabel) {
+            const fs = Math.max(3.2, 8.5 / scale);
+            ctx.font = '500 ' + fs + "px 'JetBrains Mono',monospace";
+            ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+            ctx.fillStyle = hovered ? '#e9f7ff' : '#b4cce8';
+            ctx.globalAlpha = hovered ? 1 : ((hi || !sel) ? 0.72 : 0.18);
+            ctx.fillText(n.key || n.id, n.x + r + 4 / scale, n.y - 6 / scale);
+          }
+        } else if (n.type === 'cluster') {
           // Cluster labels sit RIGHT of the node. On mobile the canvas is replaced by
           // the repo accordion, so this label never renders there anyway; desktop keeps
           // the right-side label toward the empty gap before the agent column.
@@ -4582,21 +4648,60 @@ class Component extends DCLogic {
             ctx.font = '500 ' + (9 / scale) + "px 'Space Grotesk',sans-serif";
             ctx.fillStyle = '#5a6088';
             ctx.fillText(bd.factCount + ' fact' + (bd.factCount === 1 ? '' : 's'), bd.labelX, bd.cy + 7 / scale);
+            ctx.globalCompositeOperation = 'lighter';
+            const clumps = bd.clumps || [];
+            for (let ci = 0; ci < clumps.length; ci++) {
+              const cl = clumps[ci], grad = ctx.createRadialGradient(cl.x, cl.y, 0, cl.x, cl.y, cl.r);
+              grad.addColorStop(0, 'rgba(80,125,185,0.055)'); grad.addColorStop(1, 'rgba(80,125,185,0)');
+              ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(cl.x, cl.y, cl.r, 0, 2 * Math.PI); ctx.fill();
+            }
+            ctx.globalCompositeOperation = 'source-over';
           }
           ctx.restore();
         }
         ctx.save(); ctx.globalCompositeOperation = 'lighter';
         let links = null; try { links = G.graphData().links; } catch (e) {}
         if (links) {
-          const sel = this._knowSelected;
+          const sel = this._knowHoverFocus || this._knowSelected;
           for (let i = 0; i < links.length; i++) {
             const l = links[i], s = l.source, t = l.target;
             if (!s || !t || s.x == null || t.x == null) continue;
+            const sid = (s.id != null ? s.id : s), tid = (t.id != null ? t.id : t), key = sid + ' ' + tid;
+            if (l.kind === 'link') {
+              if (!this._knowFactLinksOn) continue;
+              const focused = !!(sel && sel.links && sel.links.has(key));
+              if (l.factRelation === 'repo') {
+                const endpointHover = this._knowHoveredFact === sid || this._knowHoveredFact === tid;
+                if (!this._knowCrossRepoOn && !endpointHover) continue;
+                const st = edgeStyle(l), alpha = focused ? 0.72 : (sel ? 0.02 : st.alpha);
+                const aStub = bandStub(s, t, s.__knowBand), bStub = bandStub(t, s, t.__knowBand);
+                ctx.strokeStyle = rgba(st.color, alpha); ctx.lineWidth = Math.max(0.45 / scale, st.width * 0.75 / scale);
+                ctx.setLineDash([3 / scale, 3 / scale]);
+                if (aStub) { ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(aStub.x, aStub.y); ctx.stroke(); ctx.fillStyle = rgba(st.color, Math.min(0.9, alpha + 0.2)); ctx.beginPath(); ctx.arc(aStub.x, aStub.y, 2 / scale, 0, 2 * Math.PI); ctx.fill(); }
+                if (bStub) { ctx.beginPath(); ctx.moveTo(t.x, t.y); ctx.lineTo(bStub.x, bStub.y); ctx.stroke(); ctx.fillStyle = rgba(st.color, Math.min(0.9, alpha + 0.2)); ctx.beginPath(); ctx.arc(bStub.x, bStub.y, 2 / scale, 0, 2 * Math.PI); ctx.fill(); }
+                ctx.setLineDash([]);
+                continue;
+              }
+              const st = edgeStyle(l);
+              let alpha = focused ? Math.min(0.9, st.alpha + 0.48) : (sel ? 0.02 : st.alpha);
+              let width = st.width + (focused ? 0.55 : 0);
+              const mx = (s.x + t.x) / 2, my = (s.y + t.y) / 2;
+              ctx.beginPath(); ctx.moveTo(s.x, s.y);
+              if (l.factRelation === 'cross') {
+                const dx = t.x - s.x, dy = t.y - s.y, mag = Math.hypot(dx, dy) || 1, bow = Math.min(18 / scale, mag * 0.08);
+                ctx.quadraticCurveTo(mx - dy / mag * bow, my + dx / mag * bow, t.x, t.y);
+              } else ctx.lineTo(t.x, t.y);
+              ctx.strokeStyle = rgba(st.color, alpha); ctx.lineWidth = Math.max(width / scale, 0.35 / scale); ctx.stroke();
+              continue;
+            }
+            if (l.kind === 'cluster' && this._knowClustered) {
+              const fact = s.type === 'fact' ? s : (t.type === 'fact' ? t : null);
+              if (fact && fact.__knowBand && fact.__knowBand.factCount > 40 && this._knowHoveredFact !== fact.id) continue;
+            }
             const st = edgeStyle(l);
             let alpha = st.alpha, width = st.width;
             if (sel) {
-              const sid = (s.id != null ? s.id : s), tid = (t.id != null ? t.id : t);
-              if (sel.links && sel.links.has(sid + ' ' + tid)) { alpha = Math.min(1, alpha + 0.4); width += 0.5; }
+              if (sel.links && sel.links.has(key)) { alpha = Math.min(1, alpha + 0.4); width += 0.5; }
               else alpha = 0.035;
             }
             const c = ctrl(s, t, l.kind);
@@ -4658,7 +4763,9 @@ class Component extends DCLogic {
         this._knowHoverRAF = requestAnimationFrame(() => {
           this._knowHoverRAF = 0;
           const p = this._knowPointer; if (!p) return;
-          const hit = this.knowledgeBandAt(p.x, p.y) || this.knowledgeNodeAt(p.x, p.y);
+          const node = this.knowledgeNodeAt(p.x, p.y);
+          this._knowSetHoveredFact(node && node.type === 'fact' ? node : null);
+          const hit = node || this.knowledgeBandAt(p.x, p.y);
           try { el.style.cursor = hit ? 'pointer' : 'default'; } catch (e2) {}
         });
       });
@@ -4674,7 +4781,7 @@ class Component extends DCLogic {
         if (band) { this.openKnowledgeDetail(band.detail); return; }
         this.closeKnowledgeDetail();
       });
-      el.addEventListener('pointerleave', () => { if (this._knowHoverRAF) { try { cancelAnimationFrame(this._knowHoverRAF); } catch (e2) {} this._knowHoverRAF = 0; } this._knowPointer = null; try { el.style.cursor = 'default'; } catch (e2) {} });
+      el.addEventListener('pointerleave', () => { if (this._knowHoverRAF) { try { cancelAnimationFrame(this._knowHoverRAF); } catch (e2) {} this._knowHoverRAF = 0; } this._knowPointer = null; this._knowSetHoveredFact(null); try { el.style.cursor = 'default'; } catch (e2) {} });
     } catch (e) {}
     this.fetchKnowledge(false);
   }
@@ -4702,6 +4809,14 @@ class Component extends DCLogic {
       if (score < bestScore) { bestScore = score; best = n; }
     }
     return best;
+  }
+
+  _knowSetHoveredFact(node) {
+    const id = node && node.type === 'fact' ? node.id : '';
+    if ((this._knowHoveredFact || '') === id) return;
+    this._knowHoveredFact = id;
+    this._knowHoverFocus = id && this._knowHoverByFact ? (this._knowHoverByFact[id] || null) : null;
+    try { if (this._knowGraph && this._knowGraph.refresh) this._knowGraph.refresh(); } catch (e) {}
   }
 
   // Repo swimlane label hit-test (option A). Converts each band's rect corners
@@ -4822,6 +4937,7 @@ class Component extends DCLogic {
     edges.forEach(e => {
       if (!e || e.source == null || e.target == null) return;
       if (e.kind === 'owner') return;                       // replaced by the derived category->agent layer
+      if (e.kind === 'link') return;                        // fact galaxy links are clustered-mode only
       if (e.kind === 'category') {
         if (!seen[e.target]) { seen[e.target] = 1; nodes.push({ id: e.target, type: 'category', label: this._knowCatLabel(e.target) }); }
         links.push({ source: e.source, target: e.target, kind: 'category' });
@@ -4866,6 +4982,25 @@ class Component extends DCLogic {
     return this._knowBuildClusteredFlat(raw, agents, facts, edges, clusters);
   }
 
+  // Preserve the backend's undirected, once-per-pair fact wiki links. Invalid or
+  // dangling pairs are ignored defensively; the live server may not emit this
+  // additive edge kind yet, so an empty result is a normal constellation input.
+  _knowAppendFactLinks(edges, seen, links) {
+    let count = 0;
+    const pairs = {};
+    edges.forEach(e => {
+      if (!e || e.kind !== 'link' || !seen[e.source] || !seen[e.target] || e.source === e.target) return;
+      if (!this._knowFactById[e.source] || !this._knowFactById[e.target]) return;
+      const a = e.source < e.target ? e.source : e.target, b = e.source < e.target ? e.target : e.source;
+      const rawScore = Number(e.score); if (!isFinite(rawScore) || rawScore <= 0) return;
+      const pair = a + '|' + b; if (pairs[pair]) return; pairs[pair] = 1;
+      const score = this._knowClamp(rawScore, 0, 1);
+      links.push({ source: e.source, target: e.target, kind: 'link', score: score });
+      count++;
+    });
+    return count;
+  }
+
   // Original no-parent implementation. Keeping this path byte-for-byte in behavior is
   // the hierarchy regression bar: payloads without parent_id render exactly as before.
   _knowBuildClusteredFlat(raw, agents, facts, edges, clusters) {
@@ -4908,6 +5043,7 @@ class Component extends DCLogic {
     Object.keys(clusterAgent).forEach(k => { const i = k.indexOf('|'); const cid = k.slice(0, i), ag = k.slice(i + 1); if (seen[cid] && seen[ag]) links.push({ source: cid, target: ag, kind: 'catagent', count: clusterAgent[k] }); });
     // --- supersede chains (fact->fact) carried straight through ---
     edges.forEach(e => { if (e && e.kind === 'supersede' && seen[e.source] && seen[e.target]) links.push({ source: e.source, target: e.target, kind: 'supersede' }); });
+    const factLinkCount = this._knowAppendFactLinks(edges, seen, links);
     // --- repo bands (option A): one swimlane per distinct CLUSTER repo scope. Each
     // band owns the clusters carrying that scope + the facts inside those clusters
     // (cross-repo fact membership is real — a general fact can live in an acme
@@ -4940,7 +5076,7 @@ class Component extends DCLogic {
     this._knowRepoBands = bandList;
     const repoCount = Object.keys(repoScopes).length;
     const clusterCount = nodes.filter(n => n.type === 'cluster').length;
-    return { nodes: nodes, links: links, agentCount: agents.length, factCount: facts.length, clusterCount: clusterCount, repoCount: repoCount };
+    return { nodes: nodes, links: links, agentCount: agents.length, factCount: facts.length, factLinkCount: factLinkCount, clusterCount: clusterCount, repoCount: repoCount };
   }
 
   // Split-aware clustered build (gitmoot #779). Parents and children occupy the same
@@ -4986,19 +5122,25 @@ class Component extends DCLogic {
     agents.forEach(a => { if (a && a.name && !seen[a.name]) { seen[a.name] = 1; nodes.push({ id: a.name, type: 'agent', label: a.name, enrolled: !!a.enrolled, facts: a.facts || 0, observations: a.observations || 0 }); } });
 
     const clusterAgent = {};
+    const rootCluster = (id) => {
+      let cur = id, guard = 0;
+      while (clusterById[cur] && clusterById[cur].parentId && guard++ < clusters.length) cur = clusterById[cur].parentId;
+      return cur;
+    };
     facts.forEach(f => {
       if (!f || !f.id || seen[f.id]) return; seen[f.id] = 1;
       let cid = f.cluster || '';
       if (!cid || !clusterById[cid]) { const u = ensureUnclustered(); cid = u.id; u.count += 1; }
       nodes.push({ id: f.id, type: 'fact', label: f.id, content: f.content || '', repo: f.repo || '', key: f.key || '', owner: f.owner || '', witnesses: f.witnesses || 0, firstSeen: f.firstSeen || 0, lastSeen: f.lastSeen || 0, superseded: !!f.superseded, cluster: cid, sourceJob: f.sourceJob || '', sourceFile: f.sourceFile || '', links: Array.isArray(f.links) ? f.links : [] });
       links.push({ source: f.id, target: cid, kind: 'cluster' });
-      if (f.owner && seen[f.owner]) { const k = cid + '|' + f.owner; clusterAgent[k] = (clusterAgent[k] || 0) + 1; }
+      if (f.owner && seen[f.owner]) { const k = rootCluster(cid) + '|' + f.owner; clusterAgent[k] = (clusterAgent[k] || 0) + 1; }
     });
     Object.keys(childrenByParent).sort().forEach(pid => {
       childrenByParent[pid].forEach(cid => { if (clusterById[cid] && clusterById[pid]) links.push({ source: cid, target: pid, kind: 'subcluster' }); });
     });
     Object.keys(clusterAgent).forEach(k => { const i = k.indexOf('|'); const cid = k.slice(0, i), ag = k.slice(i + 1); if (seen[cid] && seen[ag]) links.push({ source: cid, target: ag, kind: 'catagent', count: clusterAgent[k] }); });
     edges.forEach(e => { if (e && e.kind === 'supersede' && seen[e.source] && seen[e.target]) links.push({ source: e.source, target: e.target, kind: 'supersede' }); });
+    const factLinkCount = this._knowAppendFactLinks(edges, seen, links);
 
     // Bands are keyed only by top-level cluster scope. Their clusterIds include the
     // parent and children for painting, highlighting and hit-test membership, while the
@@ -5034,7 +5176,7 @@ class Component extends DCLogic {
     this._knowRepoBands = bandList;
     const clusterCount = clusterNodesList.length;
     const subclusterCount = clusterNodesList.filter(c => !!c.parentId).length;
-    return { nodes: nodes, links: links, agentCount: agents.length, factCount: facts.length, clusterCount: clusterCount, subclusterCount: subclusterCount, repoCount: Object.keys(repoScopes).length };
+    return { nodes: nodes, links: links, agentCount: agents.length, factCount: facts.length, factLinkCount: factLinkCount, clusterCount: clusterCount, subclusterCount: subclusterCount, repoCount: Object.keys(repoScopes).length };
   }
 
   // CLUSTERED layout (option A, repo swimlanes): THREE vertical node columns —
@@ -5049,6 +5191,131 @@ class Component extends DCLogic {
   _knowLayoutClustered(nodes, links) {
     if (this._knowHasSplits) return this._knowLayoutClusteredSplit(nodes, links);
     return this._knowLayoutClusteredFlat(nodes, links);
+  }
+
+  // Two-phase deterministic fact layout inside one repo band. Phase 1 settles
+  // leaf-cluster centroids with mutual repulsion, cross-clump link affinity and
+  // parent cohesion. Phase 2 packs facts around those centroids with score-driven
+  // springs, collision separation and soft walls. Positions are pinned once and
+  // never handed to the live force engine.
+  _knowSettleFactGalaxy(facts, clusterNodes, factLinks, rect, seed, px) {
+    if (!facts.length) { rect.clumps = []; return; }
+    const rng = this._knowRng(seed);
+    const byId = {}; facts.forEach(f => { byId[f.id] = f; });
+    const leafMap = {};
+    facts.forEach(f => { (leafMap[f.cluster] = leafMap[f.cluster] || []).push(f); });
+    const leafIds = Object.keys(leafMap).sort();
+    const cx = (rect.galaxyX0 + rect.galaxyX1) / 2, cy = rect.cy;
+    const gw = Math.max(px(36), rect.galaxyX1 - rect.galaxyX0), gh = Math.max(px(36), rect.h);
+    const C = leafIds.map((id, i) => {
+      const a = (i / Math.max(1, leafIds.length)) * Math.PI * 2 + 0.7 + (rng() - 0.5) * 0.12;
+      return { id: id, x: cx + Math.cos(a) * gw * 0.18, y: cy + Math.sin(a) * gh * 0.2 };
+    });
+    const ci = {}; C.forEach((c, i) => { ci[c.id] = i; });
+    const cross = {};
+    factLinks.forEach(l => {
+      const a = byId[l.__sourceId], b = byId[l.__targetId];
+      if (!a || !b || a.cluster === b.cluster) return;
+      const key = a.cluster < b.cluster ? a.cluster + '|' + b.cluster : b.cluster + '|' + a.cluster;
+      cross[key] = (cross[key] || 0) + l.score;
+    });
+    const minDim = Math.min(gw, gh);
+    const kc = Math.max(px(18), Math.min(minDim * 0.38, 0.82 * Math.sqrt((gw * gh) / Math.max(1, C.length))));
+    let temp = minDim * 0.1;
+    for (let it = 0; it < 190; it++) {
+      const d = C.map(() => ({ x: 0, y: 0 }));
+      for (let i = 0; i < C.length; i++) for (let j = i + 1; j < C.length; j++) {
+        let dx = C[i].x - C[j].x, dy = C[i].y - C[j].y, dist = Math.hypot(dx, dy);
+        if (dist < 0.01) { dx = rng() - 0.5; dy = rng() - 0.5; dist = Math.hypot(dx, dy) || 0.5; }
+        const force = kc * kc / dist, ux = dx / dist, uy = dy / dist;
+        d[i].x += ux * force; d[i].y += uy * force; d[j].x -= ux * force; d[j].y -= uy * force;
+      }
+      Object.keys(cross).forEach(key => {
+        const parts = key.split('|'), ia = ci[parts[0]], ib = ci[parts[1]];
+        if (ia == null || ib == null) return;
+        let dx = C[ia].x - C[ib].x, dy = C[ia].y - C[ib].y, dist = Math.hypot(dx, dy) || 0.01;
+        const force = dist * dist / Math.max(kc, 0.01) * Math.min(0.5, cross[key] * 0.05), ux = dx / dist, uy = dy / dist;
+        d[ia].x -= ux * force; d[ia].y -= uy * force; d[ib].x += ux * force; d[ib].y += uy * force;
+      });
+      const parentGroups = {};
+      leafIds.forEach(id => { const c = clusterNodes[id], pid = c && c.parentId; if (pid) (parentGroups[pid] = parentGroups[pid] || []).push(ci[id]); });
+      Object.keys(parentGroups).forEach(pid => {
+        const ids = parentGroups[pid]; if (ids.length < 2) return;
+        const mx = ids.reduce((s, i) => s + C[i].x, 0) / ids.length, my = ids.reduce((s, i) => s + C[i].y, 0) / ids.length;
+        ids.forEach(i => { d[i].x += (mx - C[i].x) * 0.05; d[i].y += (my - C[i].y) * 0.05; });
+      });
+      C.forEach((c, i) => {
+        d[i].x += (cx - c.x) * 0.028; d[i].y += (cy - c.y) * 0.028;
+        const mag = Math.hypot(d[i].x, d[i].y) || 0.01, step = Math.min(mag, temp), pad = px(20);
+        c.x = this._knowClamp(c.x + d[i].x / mag * step, rect.galaxyX0 + pad, rect.galaxyX1 - pad);
+        c.y = this._knowClamp(c.y + d[i].y / mag * step, rect.y + pad, rect.y + rect.h - pad);
+      });
+      temp *= 0.976;
+    }
+    const centroids = {}; C.forEach(c => { centroids[c.id] = { x: c.x, y: c.y }; });
+    const dense = facts.length > 40, coll = px(dense ? 5.5 : 8.5);
+    facts.forEach(f => {
+      const c = centroids[f.cluster], a = rng() * Math.PI * 2;
+      const r = rng() * (px(10) + Math.sqrt(leafMap[f.cluster].length) * coll * 0.6);
+      f.x = c.x + Math.cos(a) * r; f.y = c.y + Math.sin(a) * r;
+    });
+    const disp = facts.map(() => ({ x: 0, y: 0 })), idx = {};
+    facts.forEach((f, i) => { idx[f.id] = i; });
+    let temp2 = px(44);
+    for (let it = 0; it < 300; it++) {
+      for (let i = 0; i < facts.length; i++) { disp[i].x = 0; disp[i].y = 0; }
+      for (let i = 0; i < facts.length; i++) for (let j = i + 1; j < facts.length; j++) {
+        let dx = facts[i].x - facts[j].x, dy = facts[i].y - facts[j].y, dist = Math.hypot(dx, dy);
+        if (dist < 0.01) { dx = rng() - 0.5; dy = rng() - 0.5; dist = Math.hypot(dx, dy) || 0.5; }
+        if (dist < coll * 2.4) {
+          const force = coll * coll / dist, ux = dx / dist, uy = dy / dist;
+          disp[i].x += ux * force; disp[i].y += uy * force; disp[j].x -= ux * force; disp[j].y -= uy * force;
+        }
+      }
+      factLinks.forEach(l => {
+        const a = byId[l.__sourceId], b = byId[l.__targetId]; if (!a || !b) return;
+        const ia = idx[a.id], ib = idx[b.id], score = this._knowClamp(l.score, 0, 1);
+        let dx = b.x - a.x, dy = b.y - a.y, dist = Math.hypot(dx, dy) || 0.01;
+        const same = a.cluster === b.cluster;
+        const rest = coll * (same ? (2.3 - 1.2 * score) : (6.5 - 2.8 * score));
+        const strength = same ? (0.035 + 0.09 * score) : (0.012 + 0.04 * score);
+        const force = (dist - rest) * strength, ux = dx / dist, uy = dy / dist;
+        disp[ia].x += ux * force; disp[ia].y += uy * force; disp[ib].x -= ux * force; disp[ib].y -= uy * force;
+      });
+      const live = {};
+      leafIds.forEach(id => { let sx = 0, sy = 0; leafMap[id].forEach(f => { sx += f.x; sy += f.y; }); live[id] = { x: sx / leafMap[id].length, y: sy / leafMap[id].length }; });
+      facts.forEach((f, i) => {
+        const a = centroids[f.cluster], b = live[f.cluster], tx = a.x * 0.55 + b.x * 0.45, ty = a.y * 0.55 + b.y * 0.45;
+        disp[i].x += (tx - f.x) * 0.1; disp[i].y += (ty - f.y) * 0.1;
+        const wall = coll * 3, left = rect.galaxyX0 + wall, right = rect.galaxyX1 - wall, top = rect.y + wall, bottom = rect.y + rect.h - wall;
+        if (f.x < left) disp[i].x += (left - f.x) * 0.18; else if (f.x > right) disp[i].x -= (f.x - right) * 0.18;
+        if (f.y < top) disp[i].y += (top - f.y) * 0.18; else if (f.y > bottom) disp[i].y -= (f.y - bottom) * 0.18;
+      });
+      facts.forEach((f, i) => {
+        const mag = Math.hypot(disp[i].x, disp[i].y) || 0.01, step = Math.min(mag, temp2), pad = coll;
+        f.x = this._knowClamp(f.x + disp[i].x / mag * step, rect.galaxyX0 + pad, rect.galaxyX1 - pad);
+        f.y = this._knowClamp(f.y + disp[i].y / mag * step, rect.y + pad, rect.y + rect.h - pad);
+      });
+      temp2 *= 0.985;
+    }
+    // A short fixed collision cleanup removes any residual pileups caused by wall
+    // clamps, then every point is hard-clamped for the containment guarantee.
+    for (let it = 0; it < 24; it++) {
+      for (let i = 0; i < facts.length; i++) for (let j = i + 1; j < facts.length; j++) {
+        let dx = facts[i].x - facts[j].x, dy = facts[i].y - facts[j].y, dist = Math.hypot(dx, dy);
+        if (dist < 0.01) { dx = rng() - 0.5; dy = rng() - 0.5; dist = Math.hypot(dx, dy) || 0.5; }
+        const minD = coll * 1.9; if (dist >= minD) continue;
+        const push = (minD - dist) * 0.5, ux = dx / dist, uy = dy / dist;
+        facts[i].x += ux * push; facts[i].y += uy * push; facts[j].x -= ux * push; facts[j].y -= uy * push;
+      }
+      facts.forEach(f => { f.x = this._knowClamp(f.x, rect.galaxyX0 + coll, rect.galaxyX1 - coll); f.y = this._knowClamp(f.y, rect.y + coll, rect.y + rect.h - coll); });
+    }
+    rect.clumps = leafIds.map(id => {
+      const fs = leafMap[id], mx = fs.reduce((s, f) => s + f.x, 0) / fs.length, my = fs.reduce((s, f) => s + f.y, 0) / fs.length;
+      let spread = px(8); fs.forEach(f => { spread = Math.max(spread, Math.hypot(f.x - mx, f.y - my)); });
+      return { x: mx, y: my, r: spread + px(22) };
+    });
+    facts.forEach(f => { f.fx = f.x; f.fy = f.y; f.vx = 0; f.vy = 0; f.__knowBand = rect; });
   }
 
   // Original no-parent layout. Payloads without parent_id stay on this path unchanged.
@@ -5103,23 +5370,25 @@ class Component extends DCLogic {
     const labelX = xF - gutterGU;
     const tintX0 = labelX - px(8);                          // tint left edge, just left of the label
     const tintX1 = this._knowHasSplits ? xClu + 0.3 * (xA - xClu) : xC + half * 0.22; // tint right edge, past the clusters
+    const galaxyX0 = xF + px(6);
+    const galaxyX1 = Math.max(galaxyX0 + px(72), (this._knowHasSplits ? xSub : xClu) - px(this._knowHasSplits ? 112 : 82));
 
     // --- vertical bands: CONTENT-DRIVEN heights — each band is exactly tall enough
-    // for its clusters at a minimum label pitch and its facts at a minimum dot pitch
-    // (whichever needs more), floored for tiny bands. NO scale-to-fit: bands are
-    // unequal by design and the stack grows as knowledge grows. Pitches are SCREEN
-    // px (cluster labels render at a constant 8-9px) converted via scaleW, so hub
-    // labels can never overlap at the settled zoom. ---
-    const CPITCH = px(18), FPITCH = px(9);                   // min hub / fact pitch
-    const CMAXP = px(30), FMAXP = px(12);                    // spread caps for sparse bands
-    const CINSET = px(24), FINSET = px(16);                  // inner top+bottom padding
-    const GAPB = px(12), MINH = px(40);
+    // for its cluster labels and its constellation area (fact count + number of
+    // independent clumps), floored for tiny bands. NO scale-to-fit: bands remain
+    // unequal and the stack grows as knowledge grows.
+    const CPITCH = px(18), CMAXP = px(30), CINSET = px(24);
+    const GAPB = px(12), MINH = px(72);
     const n = bands.length;
     const raw = bands.map(bd => {
       const nC = (bd.clusterIds || []).length, nF = bd.factCount || 0;
       const needC = nC > 0 ? (nC - 1) * CPITCH + CINSET : 0;
-      const needF = nF > 0 ? (nF - 1) * FPITCH + FINSET : 0;
-      return Math.max(MINH, needC, needF);
+      const leafCount = Math.max(1, (bd.clusterIds || []).filter(id => factNodes.some(f => f.cluster === id)).length);
+      const galaxyWidthPx = Math.max(120, (galaxyX1 - galaxyX0) * scaleW);
+      const spreadPx = Math.sqrt(Math.max(1, nF)) * 24 + Math.sqrt(leafCount) * 18;
+      const areaPx = nF > 0 ? (nF * 170) / galaxyWidthPx + 44 : 0;
+      const needGalaxy = nF > 0 ? px(Math.max(72, spreadPx, areaPx)) : 0;
+      return Math.max(MINH, needC, needGalaxy);
     });
     const totalH = raw.reduce((s, v) => s + v, 0) + GAPB * Math.max(0, n - 1);
     const top = -totalH / 2;
@@ -5137,18 +5406,40 @@ class Component extends DCLogic {
       const cInner = cGap * Math.max(0, cs.length - 1);
       const cTop = cy - cInner / 2;
       cs.forEach((c, k) => { const yy = cs.length > 1 ? cTop + k * cGap : cy; c.fx = xClu; c.fy = yy; c.x = xClu; c.y = yy; c.vx = 0; c.vy = 0; });
-      // facts of this band, contiguous by cluster, stacked centered — same clamp
-      // shape with the smaller dot pitch.
+      // Facts are no longer a vertical pitch column. The fixed-iteration galaxy
+      // solver below places them within this band's dedicated left-hand sky.
       const fs = [];
       (bd.clusterIds || []).forEach(cid => { factNodes.forEach(f => { if (f.cluster === cid) fs.push(f); }); });
-      const fGap = fs.length > 1 ? Math.min(Math.max((h - FINSET) / (fs.length - 1), FPITCH), FMAXP) : 0;
-      const fInner = fGap * Math.max(0, fs.length - 1);
-      const fTop = cy - fInner / 2;
-      fs.forEach((f, k) => { const yy = fs.length > 1 ? fTop + k * fGap : cy; f.fx = xF; f.fy = yy; f.x = xF; f.y = yy; f.vx = 0; f.vy = 0; });
-      rects.push({ y: y, h: h, cy: cy, tintX0: tintX0, tintX1: tintX1, labelX: labelX, factX: xF, scope: bd.scope, color: bd.color, general: bd.general, label: bd.label, factCount: bd.factCount, detail: bd.detail });
+      fs.sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+      fs.forEach(f => { f.__knowBandScope = bd.scope; });
+      rects.push({ y: y, h: h, cy: cy, tintX0: tintX0, tintX1: tintX1, labelX: labelX, factX: xF, galaxyX0: galaxyX0, galaxyX1: galaxyX1, scope: bd.scope, color: bd.color, general: bd.general, label: bd.label, factCount: bd.factCount, detail: bd.detail, facts: fs, clumps: [] });
       y += h + GAPB;
     });
     this._knowBands = rects;
+    const factById = {}; factNodes.forEach(f => { factById[f.id] = f; f.__knowDegree = 0; f.__knowPersistentLabel = false; });
+    const factLinks = links.filter(l => l.kind === 'link');
+    factLinks.forEach(l => {
+      const sid = lid(l.source), tid = lid(l.target), s = factById[sid], t = factById[tid];
+      l.__sourceId = sid; l.__targetId = tid;
+      if (!s || !t) return;
+      l.factRelation = s.__knowBandScope !== t.__knowBandScope ? 'repo' : (s.cluster === t.cluster ? 'in' : 'cross');
+      s.__knowDegree++; t.__knowDegree++;
+    });
+    rects.forEach((bd, bi) => {
+      const ids = {}; bd.facts.forEach(f => { ids[f.id] = 1; });
+      const local = factLinks.filter(l => l.factRelation !== 'repo' && ids[l.__sourceId] && ids[l.__targetId]);
+      this._knowSettleFactGalaxy(bd.facts, clusterNodes, local, bd, this._knowSig + '|band|' + bd.scope + '|' + bi, px);
+      // Persistent labels: only genuinely LINKED facts earn one (degree >= 1 —
+      // with zero links a "top 6" is an arbitrary alphabetical pick that smears
+      // long keys over the clumps), capped at 6, and de-conflicted vertically so
+      // two kept labels in one band are never closer than ~11 screen px.
+      const kept = [];
+      bd.facts.slice().sort((a, b) => b.__knowDegree - a.__knowDegree || (a.id < b.id ? -1 : 1)).forEach(f => {
+        if (f.__knowDegree < 1 || kept.length >= 6) return;
+        if (kept.some(k => Math.abs(k.y - f.y) < px(11))) return;
+        kept.push(f); f.__knowPersistentLabel = true;
+      });
+    });
     // Safety: a fact whose cluster somehow landed in no band still gets a position.
     factNodes.forEach(f => { if (f.x == null) { f.fx = xF; f.fy = 0; f.x = xF; f.y = 0; f.vx = 0; f.vy = 0; } });
 
@@ -5277,13 +5568,14 @@ class Component extends DCLogic {
     // cluster (same node/link COUNTS but different cluster edges) still re-triggers a
     // re-layout. Endpoints may be raw string ids (fresh from _knowBuild) or resolved
     // node objects, so normalize with the (v && v.id != null) ? v.id : v pattern.
-    for (let i = 0; i < links.length; i++) { const l = links[i]; const sv = l.source, tv = l.target; const s = (sv && sv.id != null) ? sv.id : sv; const t = (tv && tv.id != null) ? tv.id : tv; const str = '~' + s + '>' + t + ':' + (l.kind || ''); for (let j = 0; j < str.length; j++) h = (h * 31 + str.charCodeAt(j)) | 0; }
+    for (let i = 0; i < links.length; i++) { const l = links[i]; const sv = l.source, tv = l.target; const s = (sv && sv.id != null) ? sv.id : sv; const t = (tv && tv.id != null) ? tv.id : tv; const str = '~' + s + '>' + t + ':' + (l.kind || '') + ':' + (l.score == null ? '' : l.score); for (let j = 0; j < str.length; j++) h = (h * 31 + str.charCodeAt(j)) | 0; }
     const sig = nodes.length + '/' + links.length + '/' + h;
     // sig-skip: leave the COMMITTED graph (its pinned node objects) untouched. No instance
     // map holds node-object references (adjacency/selection are id strings), so returning
     // here can never strand a map on the position-less rebuild.
     if (isPoll && this._knowSig === sig) return;
     this._knowSig = sig;
+    this._knowBuilt = built;
     const ca = this._learningRoot.querySelector('#lr-kAgents'); if (ca) ca.textContent = built.agentCount;
     const cf = this._learningRoot.querySelector('#lr-kFacts'); if (cf) cf.textContent = built.factCount;
     // Clustered mode: fold the cluster count into the header chip + swap the legend
@@ -5294,18 +5586,40 @@ class Component extends DCLogic {
     const neighbors = {}, nodeLinks = {};
     nodes.forEach(n => { neighbors[n.id] = new Set(); nodeLinks[n.id] = new Set(); });
     links.forEach(l => { const s = l.source, t = l.target, key = s + ' ' + t; if (neighbors[s]) { neighbors[s].add(t); nodeLinks[s].add(key); } if (neighbors[t]) { neighbors[t].add(s); nodeLinks[t].add(key); } });
-    // A parent selection is aggregate: include each child plus the child's facts and
-    // owning agents, while retaining the actual edge keys for the highlighted fan.
-    if (this._knowHasSplits) {
-      Object.keys(this._knowChildrenByParent || {}).forEach(pid => {
-        const pn = neighbors[pid], pl = nodeLinks[pid]; if (!pn || !pl) return;
-        (this._knowChildrenByParent[pid] || []).forEach(cid => {
-          pn.add(cid);
-          if (neighbors[cid]) neighbors[cid].forEach(id => pn.add(id));
-          if (nodeLinks[cid]) nodeLinks[cid].forEach(key => pl.add(key));
-        });
-      });
-    }
+    const factLinks = links.filter(l => l.kind === 'link');
+    const factsByCluster = {}, fanKey = {};
+    const clusterNodeById = {};
+    nodes.forEach(n => { if (n.type === 'cluster') clusterNodeById[n.id] = n; });
+    nodes.forEach(n => { if (n.type === 'fact') (factsByCluster[n.cluster] = factsByCluster[n.cluster] || []).push(n.id); });
+    links.forEach(l => { if (l.kind === 'cluster') fanKey[l.source] = l.source + ' ' + l.target; });
+    // Cluster selection is aggregate: isolate all descendant facts and only the
+    // wiki links whose endpoints both belong to that selected clump.
+    const collectFacts = (cid, out, seenCl) => {
+      if (seenCl[cid]) return; seenCl[cid] = 1;
+      (factsByCluster[cid] || []).forEach(id => out.add(id));
+      ((this._knowChildrenByParent && this._knowChildrenByParent[cid]) || []).forEach(child => collectFacts(child, out, seenCl));
+    };
+    nodes.filter(n => n.type === 'cluster').forEach(c => {
+      const members = new Set(); collectFacts(c.id, members, {});
+      members.forEach(id => { neighbors[c.id].add(id); if (fanKey[id]) nodeLinks[c.id].add(fanKey[id]); });
+      ((this._knowChildrenByParent && this._knowChildrenByParent[c.id]) || []).forEach(id => neighbors[c.id].add(id));
+      factLinks.forEach(l => { if (members.has(l.source) && members.has(l.target)) { neighbors[c.id].add(l.source); neighbors[c.id].add(l.target); nodeLinks[c.id].add(l.source + ' ' + l.target); } });
+      let root = c, guard = 0;
+      while (root.parentId && clusterNodeById[root.parentId] && guard++ < nodes.length) root = clusterNodeById[root.parentId];
+      if (root.id !== c.id) neighbors[c.id].add(root.id);
+      links.forEach(l => { if (l.kind === 'catagent' && l.source === root.id) { neighbors[c.id].add(l.target); nodeLinks[c.id].add(l.source + ' ' + l.target); } });
+    });
+    // Hovering a fact has a narrower focus than clicking it: linked facts + those
+    // links, its own leaf-cluster node and exactly one membership fan.
+    const hoverByFact = {};
+    nodes.filter(n => n.type === 'fact').forEach(f => { hoverByFact[f.id] = { id: f.id, neighbors: new Set(f.cluster ? [f.cluster] : []), links: new Set(), hover: true }; if (fanKey[f.id]) hoverByFact[f.id].links.add(fanKey[f.id]); });
+    factLinks.forEach(l => {
+      const key = l.source + ' ' + l.target;
+      if (hoverByFact[l.source]) { hoverByFact[l.source].neighbors.add(l.target); hoverByFact[l.source].links.add(key); }
+      if (hoverByFact[l.target]) { hoverByFact[l.target].neighbors.add(l.source); hoverByFact[l.target].links.add(key); }
+    });
+    this._knowHoverByFact = hoverByFact;
+    if (this._knowHoveredFact) this._knowHoverFocus = hoverByFact[this._knowHoveredFact] || null;
     // Repo band PSEUDO-entries (option A): a band has no graph node, so give its
     // synthetic detail id an adjacency entry covering all member clusters + their
     // facts + owning agents (and the matching cluster/catagent link keys). Selecting
@@ -5313,6 +5627,7 @@ class Component extends DCLogic {
     if (this._knowClustered && Array.isArray(this._knowRepoBands) && this._knowRepoBands.length) {
       const clScope = {};                                   // cluster id -> band scope
       this._knowRepoBands.forEach(bd => (bd.clusterIds || []).forEach(cid => { clScope[cid] = bd.scope; }));
+      const factScope = {}; nodes.forEach(n => { if (n.type === 'fact') factScope[n.id] = clScope[n.cluster]; });
       const acc = {};                                       // scope -> { id, nb:Set, lk:Set }
       this._knowRepoBands.forEach(bd => { acc[bd.scope] = { id: bd.detail.id, nb: new Set(bd.clusterIds || []), lk: new Set() }; });
       links.forEach(l => {
@@ -5320,6 +5635,7 @@ class Component extends DCLogic {
         if (l.kind === 'cluster') { const sc = clScope[t]; const e = sc != null ? acc[sc] : null; if (e) { e.nb.add(s); e.lk.add(s + ' ' + t); } }
         else if (l.kind === 'subcluster') { const sc = clScope[s]; const e = sc != null ? acc[sc] : null; if (e) e.lk.add(s + ' ' + t); }
         else if (l.kind === 'catagent') { const sc = clScope[s]; const e = sc != null ? acc[sc] : null; if (e) { e.nb.add(t); e.lk.add(s + ' ' + t); } }
+        else if (l.kind === 'link' && factScope[s] != null && factScope[s] === factScope[t]) { const e = acc[factScope[s]]; if (e) { e.nb.add(s); e.nb.add(t); e.lk.add(s + ' ' + t); } }
       });
       Object.keys(acc).forEach(sc => { const e = acc[sc]; neighbors[e.id] = e.nb; nodeLinks[e.id] = e.lk; });
     }
@@ -5356,7 +5672,11 @@ class Component extends DCLogic {
   // intact); called every render so the counts track the feed.
   _knowSyncChrome(built) {
     const root = this._learningRoot; if (!root) return;
+    const linkCountEl = root.querySelector('#lr-know-linkcount');
+    const controlsEl = root.querySelector('#lr-know-controls');
     if (!this._knowClustered) {
+      if (linkCountEl) linkCountEl.style.display = 'none';
+      if (controlsEl) controlsEl.style.display = 'none';
       // FALLBACK: clustered mode rewrote #lr-know-count's innerHTML (destroying the
       // #lr-kAgents / #lr-kFacts spans) + the repo->cluster legend, so a later payload
       // with no clusters would render the fallback view against stale clustered chrome.
@@ -5383,6 +5703,14 @@ class Component extends DCLogic {
       return;
     }
     this._knowChromeMode = 'clustered';
+    if (linkCountEl) { const n = built.factLinkCount || 0; linkCountEl.style.display = ''; linkCountEl.innerHTML = '<b>' + n + '</b> fact link' + (n === 1 ? '' : 's'); }
+    if (controlsEl) {
+      controlsEl.style.display = 'flex';
+      controlsEl.querySelectorAll('[data-know-toggle]').forEach(b => {
+        const on = b.getAttribute('data-know-toggle') === 'links' ? this._knowFactLinksOn : this._knowCrossRepoOn;
+        b.classList.toggle('on', !!on); b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+    }
     const bold = (v) => '<b>' + v + '</b>';
     const countEl = root.querySelector('#lr-know-count');
     const sub = built.subclusterCount || 0;
@@ -5390,15 +5718,18 @@ class Component extends DCLogic {
     const legendEl = root.querySelector('#lr-know-legend');
     if (legendEl) {
       const rows = [
-      '<div class="h">columns · left → right</div>',
+      '<div class="h">fact galaxy · columns</div>',
       '<div class="row"><span style="display:inline-block;width:17px;height:11px;border-radius:2px;background:rgba(125,207,255,0.12);box-shadow:inset 2.5px 0 0 #7dcfff;flex:0 0 auto"></span>repo lane</div>',
       '<div class="row"><span class="sw" style="color:#bb9af7;background:#bb9af7"></span>cluster hub</div>',
-      '<div class="row"><span class="sw" style="color:#7dcfff;background:#7dcfff;width:7px;height:7px"></span>repo fact</div>',
+      '<div class="row"><span class="sw" style="color:#6ec6ff;background:#6ec6ff;width:7px;height:7px"></span>repo fact</div>',
       '<div class="row"><span class="sw" style="color:#e0af68;background:#e0af68;width:7px;height:7px"></span>general fact</div>',
       '<div class="row"><span class="sw" style="color:#5a6088;background:#5a6088;width:7px;height:7px"></span>superseded</div>',
+      '<div class="row"><span style="width:18px;height:1px;background:#6ec6ff;box-shadow:0 0 5px #6ec6ff;flex:none"></span>fact link (weight = score)</div>',
+      '<div class="row"><span style="width:18px;height:1px;background:#788fe1;opacity:.7;flex:none"></span>cross-clump</div>',
       '<div class="row"><span class="sw" style="color:#bb9af7;background:#bb9af7"></span>agent</div>'
       ];
       if (sub) rows.splice(3, 0, '<div class="row"><span class="sw" style="color:#a99ac8;background:#a99ac8;width:8px;height:8px"></span>subcluster</div>');
+      if (this._knowCrossRepoOn) rows.splice(rows.length - 1, 0, '<div class="row"><span style="width:18px;height:1px;border-top:1px dashed #9678eb;opacity:.7;flex:none"></span>cross-repo</div>');
       legendEl.innerHTML = rows.join('');
     }
   }

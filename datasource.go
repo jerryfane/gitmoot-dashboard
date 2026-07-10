@@ -453,12 +453,14 @@ type KnowledgeFact struct {
 
 // KnowledgeEdge is one edge in the brain graph: a fact to its owner agent
 // (owner), a fact to its category/scope hub (category), a fact to its emergent
-// cluster hub (cluster, gitmoot #763), or a newer fact to the older fact it
-// supersedes (supersede).
+// cluster hub (cluster, gitmoot #763), a newer fact to the older fact it
+// supersedes (supersede), or an undirected fact-to-fact wiki link (link). Link
+// edges are emitted once per pair and carry a score in (0,1].
 type KnowledgeEdge struct {
-	Source string `json:"source"`
-	Target string `json:"target"`
-	Kind   string `json:"kind"` // owner | category | cluster | supersede
+	Source string  `json:"source"`
+	Target string  `json:"target"`
+	Kind   string  `json:"kind"` // owner | category | cluster | supersede | link
+	Score  float64 `json:"score,omitempty"`
 }
 
 // Knowledge is the data behind the Learning page's Knowledge view: the memory
