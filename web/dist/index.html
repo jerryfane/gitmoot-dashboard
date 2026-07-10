@@ -4012,6 +4012,8 @@ class Component extends DCLogic {
       "#learning-root .lr-dmd .lr-wikilink.dead{color:#868db5;background:rgba(160,168,220,0.08);border-color:rgba(160,168,220,0.18);cursor:default}",
       "#learning-root .lr-dprov{font-family:'JetBrains Mono',monospace;font-size:11px;color:#868db5;line-height:1.5;padding:9px 11px;background:rgba(10,11,22,0.5);border:1px solid rgba(160,168,220,0.08);border-left:2px solid rgba(187,154,247,0.4);border-radius:7px;margin-bottom:16px;word-break:break-word}",
       "#learning-root .lr-dprov b{color:#c7c9e5;font-weight:600}",
+      "#learning-root .lr-dparent{cursor:pointer;border-left-color:rgba(187,154,247,0.8)}",
+      "#learning-root .lr-dparent:hover{background:rgba(187,154,247,0.1)}",
       "#learning-root .lr-dcmd{display:flex;align-items:center;padding:7px 10px;background:#0a0b16;border:1px solid rgba(160,168,220,0.14);border-radius:8px;margin-bottom:14px;overflow-x:auto}",
       "#learning-root .lr-dcmd code{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#c5f882;white-space:nowrap}",
       "#learning-root .lr-dmemlist{display:flex;flex-direction:column;gap:5px}",
@@ -4035,6 +4037,9 @@ class Component extends DCLogic {
       "#learning-root .km-chev{font-size:11px;color:#5a6088;width:13px;text-align:center;flex:none}",
       "#learning-root .km-body{padding:2px 12px 12px;display:flex;flex-direction:column;gap:6px}",
       "#learning-root .km-cln{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:11px;color:#5a6088;flex:none;padding-left:8px}",
+      "#learning-root .km-cluster-group{display:flex;flex-direction:column;gap:5px}",
+      "#learning-root .km-subrow{margin-left:17px;padding-left:13px;background:rgba(187,154,247,0.035);border-left:2px solid rgba(187,154,247,0.24)}",
+      "#learning-root .km-subrow .lr-dmemdot{width:6px;height:6px;background:#a99ac8!important}",
       "@media (max-width:768px){#learning-root .lr-head{padding-left:16px;padding-right:16px}#learning-root .lr-skbody{padding-left:14px;padding-right:14px}#learning-root .lr-thead{display:none}#learning-root .lr-trow{flex-wrap:wrap;gap:6px 10px}#learning-root .lr-c-name{flex:1 1 100%;white-space:normal}#learning-root .lr-c-ver,#learning-root .lr-c-changed{width:auto;flex:none}#learning-root .lr-c-score{width:auto;flex:1}#learning-root .lr-nrow{gap:8px}#learning-root .lr-cmd{width:100%;max-width:none}#learning-root .lr-cmd code{white-space:normal;word-break:break-all}#learning-root .lr-detail{width:100%;left:0;border-left:none}}",
       "@media (pointer:coarse){#learning-root .lr-dclose{width:44px;height:44px;font-size:17px}}"
     ].join('\n');
@@ -4273,7 +4278,11 @@ class Component extends DCLogic {
     return n.superseded ? 0.4 : 0.92;                   // superseded at 40% alpha
   }
   _knowRadius(n) {
-    if (n.type === 'cluster') return 4.4;               // cluster hubs: 2nd column
+    if (n.type === 'cluster') {
+      if (n.isParent) return 5.6;                       // split parent: larger anchor behind its children
+      if (n.parentId) return 3.8;                       // child: compact leaf inside the cluster column
+      return 4.4;                                       // flat cluster hubs: original size
+    }
     if (n.type === 'agent') return 7;
     if (n.type === 'category') return 3;
     if (n.type === 'evidence') return 1.4;              // dim observation dots (input layer)
@@ -4410,6 +4419,7 @@ class Component extends DCLogic {
       if (n.type === 'evidence') return ''; // observation dots are non-interactive decoration
       if (n.type === 'agent') return '<div class="tt-title">' + esc(n.label) + '</div><div class="tt-row">agent · <b>' + (n.facts || 0) + '</b> facts</div>';
       if (n.type === 'category') return '<div class="tt-title">' + esc(this._knowCatLabel(n.id)) + '</div><div class="tt-row">category hub</div>';
+      if (n.type === 'cluster') return '<div class="tt-title">' + esc(n.label || n.id) + '</div><div class="tt-row">' + (n.isParent ? 'parent cluster' : (n.parentId ? 'subcluster' : 'cluster')) + ' · <b>' + (n.count || 0) + '</b> facts</div>';
       return '<div class="tt-title">fact</div><div class="tt-row">' + esc(String(n.content || '').slice(0, 120)) + '</div>';
     };
     // EDGE BUNDLES — the soul of the look. Every edge is a thin, low-alpha, additively
@@ -4429,6 +4439,7 @@ class Component extends DCLogic {
         case 'evidence':  { const t = l.target; return { color: (t && t.repo) ? '#7dcfff' : '#e0af68', alpha: 0.15, width: 0.55 }; } // evidence->fact in the fact's scope hue
         case 'category':  return { color: '#bb9af7', alpha: 0.22, width: 0.6 };                                                       // fact->category violet
         case 'cluster':   return { color: '#bb9af7', alpha: 0.24, width: 0.62 };                                                      // fact->cluster violet (v2)
+        case 'subcluster':return { color: '#cabff2', alpha: 0.16, width: 0.52 };                                                      // child->parent hierarchy edge
         case 'catagent':  { const c = Math.min(l.count || 1, 10); return { color: '#9ece6a', alpha: 0.16 + c * 0.04, width: 0.6 + c * 0.06 }; } // category/cluster->agent green, alpha by count
         case 'supersede': return { color: '#f7768e', alpha: 0.42, width: 0.8 };                                                       // supersede dim red
         default:          return { color: '#a0a8dc', alpha: 0.14, width: 0.5 };
@@ -4477,11 +4488,12 @@ class Component extends DCLogic {
           // the repo accordion, so this label never renders there anyway; desktop keeps
           // the right-side label toward the empty gap before the agent column.
           if (!this.state.isMobile) {
-            const fs = Math.max(3.6, 9 / scale);
+            const fs = Math.max(3.4, (n.parentId ? 8 : 9) / scale);
             ctx.globalAlpha = (hi || !sel ? 0.92 : 0.45) * (dim < 1 ? dim : 1);
-            ctx.font = '500 ' + fs + "px 'JetBrains Mono',monospace";
-            ctx.fillStyle = '#cabff2'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-            ctx.fillText(n.label || '', n.x + r + (4 / scale), n.y);
+            ctx.font = (n.isParent ? '600 ' : '500 ') + fs + "px 'JetBrains Mono',monospace";
+            ctx.fillStyle = n.parentId ? '#a99ac8' : '#cabff2'; ctx.textBaseline = 'middle';
+            if (n.parentId) { ctx.textAlign = 'right'; ctx.fillText(n.label || '', n.x - r - (4 / scale), n.y); }
+            else { ctx.textAlign = 'left'; ctx.fillText(n.label || '', n.x + r + (4 / scale), n.y); }
           }
         } else if (n.type === 'agent') {
           const fs = Math.max(4.2, 11 / scale);
@@ -4756,6 +4768,7 @@ class Component extends DCLogic {
     // Detail panels look facts/clusters up by id (member lists + [[wikilink]] jumps).
     this._knowFactById = {}; facts.forEach(f => { if (f && f.id) this._knowFactById[f.id] = f; });
     this._knowClusterById = {}; clusters.forEach(c => { if (c && c.id) this._knowClusterById[c.id] = c; });
+    this._knowHasSplits = clusters.some(c => c && c.parent_id && this._knowClusterById[c.parent_id]);
     // CLUSTERED MODE (Knowledge graph v2, gitmoot #763): a gitmoot build that emits
     // emergent clusters drives the repo -> cluster -> fact proportional layered view.
     // A pre-cluster build emits no clusters, so we fall back to the scope/category
@@ -4813,6 +4826,14 @@ class Component extends DCLogic {
   // Facts with no cluster fall into a synthesized 'unclustered' hub so they are
   // still visibly grouped (never silently dropped).
   _knowBuildClustered(raw, agents, facts, edges, clusters) {
+    if (this._knowHasSplits) return this._knowBuildClusteredSplit(raw, agents, facts, edges, clusters);
+    this._knowChildrenByParent = {};
+    return this._knowBuildClusteredFlat(raw, agents, facts, edges, clusters);
+  }
+
+  // Original no-parent implementation. Keeping this path byte-for-byte in behavior is
+  // the hierarchy regression bar: payloads without parent_id render exactly as before.
+  _knowBuildClusteredFlat(raw, agents, facts, edges, clusters) {
     const nodes = [], links = [], seen = {};
     // --- repo scopes (option A: repo swimlanes): still counted for the header pill,
     // but no longer materialized as graph nodes — each distinct CLUSTER scope becomes
@@ -4887,6 +4908,100 @@ class Component extends DCLogic {
     return { nodes: nodes, links: links, agentCount: agents.length, factCount: facts.length, clusterCount: clusterCount, repoCount: repoCount };
   }
 
+  // Split-aware clustered build (gitmoot #779). Parents and children occupy the same
+  // visual cluster column. Facts still attach to their leaf cluster, ownership fans still
+  // originate at that leaf, and each child inherits its parent's repo swimlane.
+  _knowBuildClusteredSplit(raw, agents, facts, edges, clusters) {
+    const nodes = [], links = [], seen = {};
+    const rawById = {};
+    clusters.forEach(c => { if (c && c.id) rawById[c.id] = c; });
+    const validParent = (c) => (c && c.parent_id && rawById[c.parent_id]) ? c.parent_id : '';
+    const childrenByParent = {};
+    clusters.forEach(c => { const pid = validParent(c); if (pid) (childrenByParent[pid] = childrenByParent[pid] || []).push(c.id); });
+    Object.keys(childrenByParent).forEach(pid => childrenByParent[pid].sort());
+
+    const repoScopes = {};
+    clusters.forEach(c => { if (c && !validParent(c)) repoScopes[c.repo || ''] = 1; });
+    facts.forEach(f => { if (f) repoScopes[f.repo || ''] = 1; });
+
+    const clusterById = {};
+    clusters.forEach(c => {
+      if (!c || !c.id || seen[c.id]) return;
+      const parentId = validParent(c);
+      const parent = parentId ? rawById[parentId] : null;
+      seen[c.id] = 1;
+      const node = {
+        id: c.id, type: 'cluster', label: c.label || c.id, count: c.count || 0,
+        repo: parent ? (parent.repo || '') : (c.repo || ''), medoid: c.medoid || '',
+        parentId: parentId, isParent: !!childrenByParent[c.id], childIds: (childrenByParent[c.id] || []).slice()
+      };
+      clusterById[c.id] = node; nodes.push(node);
+    });
+    this._knowChildrenByParent = childrenByParent;
+
+    const UNCL = 'cluster:~unclustered';
+    const ensureUnclustered = () => {
+      if (seen[UNCL]) return clusterById[UNCL];
+      seen[UNCL] = 1;
+      const node = { id: UNCL, type: 'cluster', label: 'unclustered', count: 0, repo: '', medoid: '', parentId: '', isParent: false, childIds: [] };
+      clusterById[UNCL] = node; nodes.push(node); repoScopes[''] = 1;
+      return node;
+    };
+
+    agents.forEach(a => { if (a && a.name && !seen[a.name]) { seen[a.name] = 1; nodes.push({ id: a.name, type: 'agent', label: a.name, enrolled: !!a.enrolled, facts: a.facts || 0, observations: a.observations || 0 }); } });
+
+    const clusterAgent = {};
+    facts.forEach(f => {
+      if (!f || !f.id || seen[f.id]) return; seen[f.id] = 1;
+      let cid = f.cluster || '';
+      if (!cid || !clusterById[cid]) { const u = ensureUnclustered(); cid = u.id; u.count += 1; }
+      nodes.push({ id: f.id, type: 'fact', label: f.id, content: f.content || '', repo: f.repo || '', key: f.key || '', owner: f.owner || '', witnesses: f.witnesses || 0, firstSeen: f.firstSeen || 0, lastSeen: f.lastSeen || 0, superseded: !!f.superseded, cluster: cid, sourceJob: f.sourceJob || '', sourceFile: f.sourceFile || '', links: Array.isArray(f.links) ? f.links : [] });
+      links.push({ source: f.id, target: cid, kind: 'cluster' });
+      if (f.owner && seen[f.owner]) { const k = cid + '|' + f.owner; clusterAgent[k] = (clusterAgent[k] || 0) + 1; }
+    });
+    Object.keys(childrenByParent).sort().forEach(pid => {
+      childrenByParent[pid].forEach(cid => { if (clusterById[cid] && clusterById[pid]) links.push({ source: cid, target: pid, kind: 'subcluster' }); });
+    });
+    Object.keys(clusterAgent).forEach(k => { const i = k.indexOf('|'); const cid = k.slice(0, i), ag = k.slice(i + 1); if (seen[cid] && seen[ag]) links.push({ source: cid, target: ag, kind: 'catagent', count: clusterAgent[k] }); });
+    edges.forEach(e => { if (e && e.kind === 'supersede' && seen[e.source] && seen[e.target]) links.push({ source: e.source, target: e.target, kind: 'supersede' }); });
+
+    // Bands are keyed only by top-level cluster scope. Their clusterIds include the
+    // parent and children for painting, highlighting and hit-test membership, while the
+    // mobile metadata keeps a nested parent -> children shape.
+    const clusterNodesList = nodes.filter(n => n.type === 'cluster');
+    const topNodes = clusterNodesList.filter(c => !c.parentId);
+    const bandMap = {};
+    topNodes.forEach(c => {
+      const scope = c.repo || '';
+      let bm = bandMap[scope];
+      if (!bm) bm = bandMap[scope] = { scope: scope, label: this._knowRepoShort(scope), color: this._knowRepoColor(scope), general: scope === '', clusters: [], clusterIds: [], topClusterIds: [], factCount: 0 };
+      const childNodes = (childrenByParent[c.id] || []).map(id => clusterById[id]).filter(Boolean);
+      bm.clusters.push({ id: c.id, label: c.label || c.id, count: c.count || 0, isParent: childNodes.length > 0, children: childNodes.map(ch => ({ id: ch.id, label: ch.label || ch.id, count: ch.count || 0, parentId: c.id })) });
+      bm.topClusterIds.push(c.id);
+      bm.clusterIds.push(c.id);
+      childNodes.forEach(ch => bm.clusterIds.push(ch.id));
+    });
+    const clusterScope = {};
+    topNodes.forEach(c => {
+      const scope = c.repo || '';
+      clusterScope[c.id] = scope;
+      (childrenByParent[c.id] || []).forEach(cid => { clusterScope[cid] = scope; });
+    });
+    this._knowClusterScope = clusterScope;
+    nodes.forEach(n => { if (n.type !== 'fact') return; const sc = clusterScope[n.cluster]; if (sc != null && bandMap[sc]) bandMap[sc].factCount += 1; });
+    const bandList = Object.keys(bandMap).map(k => bandMap[k]);
+    bandList.sort((a, c) => {
+      if (a.factCount !== c.factCount) return c.factCount - a.factCount;
+      if (a.general !== c.general) return a.general ? 1 : -1;
+      return a.scope < c.scope ? -1 : a.scope > c.scope ? 1 : 0;
+    });
+    bandList.forEach(bm => { bm.detail = { type: 'repo', id: this._knowRepoNodeId(bm.scope), repoName: bm.scope, general: bm.general, label: bm.scope || 'general' }; });
+    this._knowRepoBands = bandList;
+    const clusterCount = clusterNodesList.length;
+    const subclusterCount = clusterNodesList.filter(c => !!c.parentId).length;
+    return { nodes: nodes, links: links, agentCount: agents.length, factCount: facts.length, clusterCount: clusterCount, subclusterCount: subclusterCount, repoCount: Object.keys(repoScopes).length };
+  }
+
   // CLUSTERED layout (option A, repo swimlanes): THREE vertical node columns —
   // facts | clusters | agents (left -> right) — laid over horizontal repo BANDS.
   // Every band's HEIGHT is proportional to its fact count (floored + normalized so
@@ -4897,6 +5012,12 @@ class Component extends DCLogic {
   // (graph units) are stashed on this._knowBands for the paint pass + hit-test.
   // Static + deterministic: positions are computed, pinned, committed — no physics.
   _knowLayoutClustered(nodes, links) {
+    if (this._knowHasSplits) return this._knowLayoutClusteredSplit(nodes, links);
+    return this._knowLayoutClusteredFlat(nodes, links);
+  }
+
+  // Original no-parent layout. Payloads without parent_id stay on this path unchanged.
+  _knowLayoutClusteredFlat(nodes, links) {
     const cb = this._knowComputeBands();
     const GH = cb.GH, W = cb.W, H = cb.H;
     const bands = this._knowRepoBands || [];
@@ -4987,6 +5108,55 @@ class Component extends DCLogic {
     ags.forEach((o, i) => { const yy = aN <= 1 ? 0 : aStart + i * aSpacing; o.a.fx = xA; o.a.fy = yy; o.a.x = xA; o.a.y = yy; o.a.vx = 0; o.a.vy = 0; });
   }
 
+  // Split layout starts from the proven three-column swimlane geometry, then tightens
+  // each hierarchy inside the existing cluster column: children shift toward facts and
+  // their slightly larger parent sits just behind them. No fourth rail is introduced.
+  _knowLayoutClusteredSplit(nodes, links) {
+    this._knowLayoutClusteredFlat(nodes, links);
+    const cb = this._knowComputeBands();
+    const GH = cb.GH, W = cb.W, H = cb.H;
+    const aspect = Math.max(0.5, Math.min(2.4, W / Math.max(1, H)));
+    const spanFactor = 0.46 * Math.max(0.6, Math.min(1, (W - 40) / 700));
+    const half = spanFactor * (GH * aspect);
+    const xC = -half * 0.10;
+    const xChild = xC - Math.min(22, half * 0.075);
+    const xParent = xC + Math.min(16, half * 0.055);
+    const lid = (v) => (v && v.id != null) ? v.id : v;
+    const clusterNodes = {}, factsByCluster = {};
+    nodes.forEach(n => {
+      if (n.type === 'cluster') clusterNodes[n.id] = n;
+      else if (n.type === 'fact') (factsByCluster[n.cluster] = factsByCluster[n.cluster] || []).push(n);
+    });
+    Object.keys(this._knowChildrenByParent || {}).sort().forEach(pid => {
+      const parent = clusterNodes[pid]; if (!parent) return;
+      const children = (this._knowChildrenByParent[pid] || []).map(id => clusterNodes[id]).filter(Boolean);
+      children.forEach(ch => {
+        const fs = factsByCluster[ch.id] || [];
+        const yy = fs.length ? fs.reduce((s, f) => s + f.y, 0) / fs.length : ch.y;
+        ch.fx = xChild; ch.fy = yy; ch.x = xChild; ch.y = yy; ch.vx = 0; ch.vy = 0;
+      });
+      const py = children.length ? children.reduce((s, ch) => s + ch.y, 0) / children.length : parent.y;
+      parent.fx = xParent; parent.fy = py; parent.x = xParent; parent.y = py; parent.vx = 0; parent.vy = 0;
+    });
+
+    // Reorder the agent rail from the adjusted leaf positions so ownership fans keep
+    // their clean barycentric flow after children move within the cluster column.
+    const agents = nodes.filter(n => n.type === 'agent');
+    const agentSet = {}; agents.forEach(a => { agentSet[a.id] = 1; });
+    const agentClY = {};
+    links.forEach(l => {
+      if (l.kind !== 'catagent') return;
+      const cid = lid(l.source), ag = lid(l.target), c = clusterNodes[cid];
+      if (c && agentSet[ag]) (agentClY[ag] = agentClY[ag] || []).push(c.y);
+    });
+    const ags = agents.map(a => { const ys = agentClY[a.id] || []; return { a: a, by: ys.length ? ys.reduce((s, v) => s + v, 0) / ys.length : 0 }; });
+    ags.sort((a, b) => a.by - b.by || (a.a.id < b.a.id ? -1 : a.a.id > b.a.id ? 1 : 0));
+    const top = -GH / 2, aN = ags.length, aTop = top + 6, aBot = top + GH - 6, aSpan = aBot - aTop, AMINGAP = 14;
+    let aSpacing = aN > 1 ? aSpan / (aN - 1) : 0, aStart = aTop;
+    if (aN > 1 && aSpacing < AMINGAP) { aSpacing = AMINGAP; aStart = -(aSpacing * (aN - 1)) / 2; }
+    ags.forEach((o, i) => { const yy = aN <= 1 ? 0 : aStart + i * aSpacing; o.a.fy = yy; o.a.y = yy; o.a.vx = 0; o.a.vy = 0; });
+  }
+
   renderKnowledge(isPoll) {
     if (!this._knowGraph) return;
     const built = this._knowBuild(this._knowRaw || { agents: [], facts: [], edges: [] });
@@ -5018,6 +5188,18 @@ class Component extends DCLogic {
     const neighbors = {}, nodeLinks = {};
     nodes.forEach(n => { neighbors[n.id] = new Set(); nodeLinks[n.id] = new Set(); });
     links.forEach(l => { const s = l.source, t = l.target, key = s + ' ' + t; if (neighbors[s]) { neighbors[s].add(t); nodeLinks[s].add(key); } if (neighbors[t]) { neighbors[t].add(s); nodeLinks[t].add(key); } });
+    // A parent selection is aggregate: include each child plus the child's facts and
+    // owning agents, while retaining the actual edge keys for the highlighted fan.
+    if (this._knowHasSplits) {
+      Object.keys(this._knowChildrenByParent || {}).forEach(pid => {
+        const pn = neighbors[pid], pl = nodeLinks[pid]; if (!pn || !pl) return;
+        (this._knowChildrenByParent[pid] || []).forEach(cid => {
+          pn.add(cid);
+          if (neighbors[cid]) neighbors[cid].forEach(id => pn.add(id));
+          if (nodeLinks[cid]) nodeLinks[cid].forEach(key => pl.add(key));
+        });
+      });
+    }
     // Repo band PSEUDO-entries (option A): a band has no graph node, so give its
     // synthetic detail id an adjacency entry covering all member clusters + their
     // facts + owning agents (and the matching cluster/catagent link keys). Selecting
@@ -5030,6 +5212,7 @@ class Component extends DCLogic {
       links.forEach(l => {
         const s = l.source, t = l.target;
         if (l.kind === 'cluster') { const sc = clScope[t]; const e = sc != null ? acc[sc] : null; if (e) { e.nb.add(s); e.lk.add(s + ' ' + t); } }
+        else if (l.kind === 'subcluster') { const sc = clScope[s]; const e = sc != null ? acc[sc] : null; if (e) e.lk.add(s + ' ' + t); }
         else if (l.kind === 'catagent') { const sc = clScope[s]; const e = sc != null ? acc[sc] : null; if (e) { e.nb.add(t); e.lk.add(s + ' ' + t); } }
       });
       Object.keys(acc).forEach(sc => { const e = acc[sc]; neighbors[e.id] = e.nb; nodeLinks[e.id] = e.lk; });
@@ -5096,9 +5279,11 @@ class Component extends DCLogic {
     this._knowChromeMode = 'clustered';
     const bold = (v) => '<b>' + v + '</b>';
     const countEl = root.querySelector('#lr-know-count');
-    if (countEl) countEl.innerHTML = 'showing ' + bold(built.repoCount || 0) + ' repos / ' + bold(built.clusterCount || 0) + ' clusters / ' + bold(built.factCount || 0) + ' facts';
+    const sub = built.subclusterCount || 0;
+    if (countEl) countEl.innerHTML = 'showing ' + bold(built.repoCount || 0) + ' repos / ' + bold(built.clusterCount || 0) + ' clusters' + (sub ? ' (' + bold(sub) + ' sub)' : '') + ' / ' + bold(built.factCount || 0) + ' facts';
     const legendEl = root.querySelector('#lr-know-legend');
-    if (legendEl) legendEl.innerHTML = [
+    if (legendEl) {
+      const rows = [
       '<div class="h">columns · left → right</div>',
       '<div class="row"><span style="display:inline-block;width:17px;height:11px;border-radius:2px;background:rgba(125,207,255,0.12);box-shadow:inset 2.5px 0 0 #7dcfff;flex:0 0 auto"></span>repo lane</div>',
       '<div class="row"><span class="sw" style="color:#bb9af7;background:#bb9af7"></span>cluster hub</div>',
@@ -5106,7 +5291,10 @@ class Component extends DCLogic {
       '<div class="row"><span class="sw" style="color:#e0af68;background:#e0af68;width:7px;height:7px"></span>general fact</div>',
       '<div class="row"><span class="sw" style="color:#5a6088;background:#5a6088;width:7px;height:7px"></span>superseded</div>',
       '<div class="row"><span class="sw" style="color:#bb9af7;background:#bb9af7"></span>agent</div>'
-    ].join('');
+      ];
+      if (sub) rows.splice(3, 0, '<div class="row"><span class="sw" style="color:#a99ac8;background:#a99ac8;width:8px;height:8px"></span>subcluster</div>');
+      legendEl.innerHTML = rows.join('');
+    }
   }
 
   // MOBILE (option A): at phone widths the canvas can't render swimlanes legibly, so
@@ -5156,12 +5344,27 @@ class Component extends DCLogic {
     if (!this._knowMobOpen) { this._knowMobOpen = {}; if (bands.length) this._knowMobOpen[bands[0].scope] = true; }
     const html = bands.map(bd => {
       const open = !!this._knowMobOpen[bd.scope];
-      const rows = (bd.clusters || []).map(c =>
-        '<div class="lr-dmember" data-kcluster="' + esc(c.id) + '" title="' + esc(c.label) + '">' +
-          '<span class="lr-dmemdot" style="background:#bb9af7"></span>' +
-          '<span class="lr-dmemtext">' + esc(c.label) + '</span>' +
-          '<span class="km-cln">' + (c.count || 0) + '</span>' +
-        '</div>').join('') || '<div class="lr-dmute">no clusters</div>';
+      const rows = this._knowHasSplits
+        ? ((bd.clusters || []).map(c => {
+            const parentRow = '<div class="lr-dmember" data-kcluster="' + esc(c.id) + '" title="' + esc(c.label) + '">' +
+              '<span class="lr-dmemdot" style="background:#bb9af7"></span>' +
+              '<span class="lr-dmemtext">' + esc(c.label) + '</span>' +
+              '<span class="km-cln">' + (c.count || 0) + '</span>' +
+            '</div>';
+            const childRows = (c.children || []).map(ch =>
+              '<div class="lr-dmember km-subrow" data-kcluster="' + esc(ch.id) + '" title="' + esc(ch.label) + '">' +
+                '<span class="lr-dmemdot"></span>' +
+                '<span class="lr-dmemtext">' + esc(ch.label) + '</span>' +
+                '<span class="km-cln">' + (ch.count || 0) + '</span>' +
+              '</div>').join('');
+            return '<div class="km-cluster-group">' + parentRow + childRows + '</div>';
+          }).join('') || '<div class="lr-dmute">no clusters</div>')
+        : ((bd.clusters || []).map(c =>
+            '<div class="lr-dmember" data-kcluster="' + esc(c.id) + '" title="' + esc(c.label) + '">' +
+              '<span class="lr-dmemdot" style="background:#bb9af7"></span>' +
+              '<span class="lr-dmemtext">' + esc(c.label) + '</span>' +
+              '<span class="km-cln">' + (c.count || 0) + '</span>' +
+            '</div>').join('') || '<div class="lr-dmute">no clusters</div>');
       return '<div class="km-sec">' +
         '<div class="km-head" data-ktog="' + esc(bd.scope) + '">' +
           '<span class="km-bar" style="background:' + bd.color + '"></span>' +
@@ -5191,7 +5394,15 @@ class Component extends DCLogic {
     try { const ns = (this._knowGraph.graphData() || {}).nodes || []; node = ns.find(n => n.id === cid && n.type === 'cluster') || null; } catch (e) {}
     if (!node) {
       // Fall back to a synthetic cluster node from the band metadata.
-      for (const bd of (this._knowRepoBands || [])) { const c = (bd.clusters || []).find(x => x.id === cid); if (c) { node = { id: c.id, type: 'cluster', label: c.label, count: c.count, repo: bd.scope }; break; } }
+      for (const bd of (this._knowRepoBands || [])) {
+        const c = (bd.clusters || []).find(x => x.id === cid);
+        if (c) { node = { id: c.id, type: 'cluster', label: c.label, count: c.count, repo: bd.scope, isParent: !!c.isParent, childIds: (c.children || []).map(ch => ch.id) }; break; }
+        for (const parent of (bd.clusters || [])) {
+          const ch = (parent.children || []).find(x => x.id === cid);
+          if (ch) { node = { id: ch.id, type: 'cluster', label: ch.label, count: ch.count, repo: bd.scope, parentId: parent.id }; break; }
+        }
+        if (node) break;
+      }
     }
     if (node) this.openKnowledgeDetail(node);
   }
@@ -5214,7 +5425,10 @@ class Component extends DCLogic {
     if (this._knowAdj) this._knowSelected = { id: node.id, neighbors: this._knowAdj.neighbors[node.id] || new Set(), links: this._knowAdj.nodeLinks[node.id] || new Set() };
     else this._knowSelected = { id: node.id, neighbors: new Set(), links: new Set() };
     if (node.type === 'repo') this.renderKnowledgeHubDetail(node, 'repo');
-    else if (node.type === 'cluster') this.renderKnowledgeHubDetail(node, 'cluster');
+    else if (node.type === 'cluster') {
+      if (node.isParent || (this._knowChildrenByParent && (this._knowChildrenByParent[node.id] || []).length)) this.renderKnowledgeParentDetail(node);
+      else this.renderKnowledgeHubDetail(node, 'cluster');
+    }
     else if (node.type === 'agent') { if (this._knowClustered) this.renderKnowledgeHubDetail(node, 'agent'); else this.renderKnowledgeAgentDetail(node); }
     else if (node.type === 'category') this.renderKnowledgeCategoryDetail(node);
     else this.renderKnowledgeFactDetail(node);
@@ -5231,6 +5445,15 @@ class Component extends DCLogic {
     // Fall back to a synthetic node carrying the raw fact so the panel still renders
     // even if the fact is not currently a graph node (e.g. filtered/superseded edge case).
     this.openKnowledgeDetail(node || this._knowFactNode(f));
+  }
+  selectKnowledgeClusterById(id) {
+    let node = null;
+    try { const nodes = (this._knowGraph.graphData() || {}).nodes || []; node = nodes.find(n => n.id === id && n.type === 'cluster') || null; } catch (e) {}
+    if (!node) {
+      const c = this._knowClusterById && this._knowClusterById[id];
+      if (c) node = { id: c.id, type: 'cluster', label: c.label || c.id, count: c.count || 0, repo: c.repo || '', medoid: c.medoid || '', parentId: c.parent_id || '', isParent: !!(this._knowChildrenByParent && (this._knowChildrenByParent[c.id] || []).length), childIds: (this._knowChildrenByParent && this._knowChildrenByParent[c.id]) || [] };
+    }
+    if (node) this.openKnowledgeDetail(node);
   }
   // Build a graph-shaped fact node object from a raw fact (for panel rendering).
   _knowFactNode(f) {
@@ -5301,6 +5524,12 @@ class Component extends DCLogic {
   _knowWireDetailLinks(el) {
     el.querySelectorAll('[data-fact]').forEach(a => {
       a.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); this.selectKnowledgeFactById(a.getAttribute('data-fact')); });
+    });
+  }
+
+  _knowWireClusterLinks(el) {
+    el.querySelectorAll('[data-kcluster]').forEach(a => {
+      a.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); this.selectKnowledgeClusterById(a.getAttribute('data-kcluster')); });
     });
   }
 
@@ -5399,6 +5628,56 @@ class Component extends DCLogic {
     return out.join('');
   }
 
+  // A split parent has no direct fact fan. Its panel summarizes the hierarchy and
+  // lets each child open the normal cluster panel, while preserving the rename command
+  // on the stable parent id.
+  renderKnowledgeParentDetail(node) {
+    const el = this.ensureKnowledgeDetailEl();
+    const esc = (s) => this._galaxyEsc(s);
+    const childIds = (node.childIds && node.childIds.length)
+      ? node.childIds.slice()
+      : ((this._knowChildrenByParent && this._knowChildrenByParent[node.id]) || []).slice();
+    childIds.sort();
+    const allFacts = this._knowFactById ? Object.keys(this._knowFactById).map(k => this._knowFactById[k]) : [];
+    const graphNodes = {};
+    try { ((this._knowGraph.graphData() || {}).nodes || []).forEach(n => { graphNodes[n.id] = n; }); } catch (e) {}
+    let totalFacts = 0;
+    const children = childIds.map(id => {
+      const raw = this._knowClusterById && this._knowClusterById[id];
+      const ch = graphNodes[id] || raw || { id: id, label: id, count: 0 };
+      const count = allFacts.reduce((n, f) => n + ((f.cluster || '') === id ? 1 : 0), 0);
+      totalFacts += count;
+      return { id: id, label: ch.label || id, count: count };
+    });
+    const scope = node.repo || ((this._knowClusterById && this._knowClusterById[node.id] && this._knowClusterById[node.id].repo) || '');
+    const scopeLabel = scope || 'general';
+    const scopeCol = scope ? '#7dcfff' : '#e0af68';
+    const rows = children.length
+      ? children.map(ch => '<div class="lr-dmember" data-kcluster="' + esc(ch.id) + '" title="' + esc(ch.id) + '">' +
+          '<span class="lr-dmemdot" style="background:#a99ac8"></span>' +
+          '<span class="lr-dmemtext">' + esc(ch.label) + '</span>' +
+          '<span class="km-cln">' + ch.count + ' fact' + (ch.count === 1 ? '' : 's') + '</span>' +
+        '</div>').join('')
+      : '<div class="lr-dmute">no subclusters</div>';
+    el.innerHTML = [
+      '<div class="lr-dhead"><div class="lr-drow">',
+      '<span class="lr-ddot" style="width:13px;height:13px;background:#bb9af7;box-shadow:0 0 12px #bb9af7"></span>',
+      '<div style="flex:1;min-width:0"><div class="lr-dtitle">' + esc(node.label || node.id) + '</div><div class="lr-dsub">parent cluster</div></div>',
+      '<button class="lr-dclose" title="close">✕</button>',
+      '</div><div class="lr-dbadges">',
+      '<span class="lr-dbadge" style="color:' + scopeCol + ';background:color-mix(in srgb,' + scopeCol + ' 12%, transparent);border:1px solid color-mix(in srgb,' + scopeCol + ' 30%, transparent)">' + esc(scopeLabel) + '</span>',
+      '<span class="lr-dbadge" style="color:#bb9af7;background:rgba(187,154,247,0.1);border:1px solid rgba(187,154,247,0.28)">' + totalFacts + ' facts</span>',
+      '</div></div>',
+      '<div class="lr-dbody">',
+      '<div class="lr-dcmd"><code>gitmoot memory cluster rename ' + esc(node.id) + ' &lt;label&gt;</code></div>',
+      '<div class="lr-dsec">' + children.length + ' subcluster' + (children.length === 1 ? '' : 's') + ' · ' + totalFacts + ' total facts</div>',
+      '<div class="lr-dmemlist">' + rows + '</div>',
+      '</div>'
+    ].join('');
+    el.querySelector('.lr-dclose').addEventListener('click', () => this.closeKnowledgeDetail());
+    this._knowWireClusterLinks(el);
+  }
+
   // Unified hub detail (repo / cluster / agent): header + a member-fact list
   // (first line each, newest-first, with per-repo count badges). Clicking a row
   // selects that fact. Members are gathered from the raw facts by the hub kind.
@@ -5458,6 +5737,10 @@ class Component extends DCLogic {
     const renameHint = (kind === 'cluster')
       ? '<div class="lr-dcmd"><code>gitmoot memory cluster rename ' + esc(node.id) + ' &lt;label&gt;</code></div>'
       : '';
+    const parent = (kind === 'cluster' && node.parentId) ? (this._knowClusterById && this._knowClusterById[node.parentId]) : null;
+    const parentLine = parent
+      ? '<div class="lr-dprov lr-dparent" data-kcluster="' + esc(parent.id) + '">parent: <b>' + esc(parent.label || parent.id) + '</b></div>'
+      : '';
     el.innerHTML = [
       '<div class="lr-dhead"><div class="lr-drow">',
       '<span class="lr-ddot" style="background:' + meta.dot + ';box-shadow:0 0 10px ' + meta.dot + '"></span>',
@@ -5465,6 +5748,7 @@ class Component extends DCLogic {
       '<button class="lr-dclose" title="close">✕</button>',
       '</div><div class="lr-dbadges">' + badges + '</div></div>',
       '<div class="lr-dbody">',
+      parentLine,
       renameHint,
       '<div class="lr-dsec">' + facts.length + ' fact' + (facts.length === 1 ? '' : 's') + ' · newest first</div>',
       '<div class="lr-dmemlist">' + rows + '</div>',
@@ -5473,6 +5757,7 @@ class Component extends DCLogic {
     ].join('');
     el.querySelector('.lr-dclose').addEventListener('click', () => this.closeKnowledgeDetail());
     this._knowWireDetailLinks(el);
+    this._knowWireClusterLinks(el);
     const go = el.querySelector('[data-goagent]');
     if (go) go.addEventListener('click', () => this._learningGotoAgent(go.getAttribute('data-goagent')));
   }

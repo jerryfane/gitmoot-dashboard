@@ -408,17 +408,19 @@ type KnowledgeAgent struct {
 // so the client renders Label verbatim); Count is the number of member facts;
 // Repo is the cluster's dominant repo scope ("" = general/mixed) so the client
 // can nest repo -> cluster -> fact; Medoid anchors the label to a representative
-// fact for stability across recomputes.
+// fact for stability across recomputes. ParentID is additive hierarchy metadata:
+// facts attach to leaf clusters, while a parent aggregates its direct children.
 //
 // Additive contract: Track A (the gitmoot bridge) fills this. A gitmoot build
 // that predates clusters simply omits the enclosing Clusters slice and leaves
 // each fact's Cluster empty, so the client falls back to its pre-cluster view.
 type KnowledgeCluster struct {
-	ID     string `json:"id"`               // stable unique id (e.g. "cluster:<n>")
-	Label  string `json:"label"`            // display label (owner override wins server-side)
-	Count  int    `json:"count"`            // member-fact count
-	Repo   string `json:"repo,omitempty"`   // dominant repo scope, "" = general/mixed
-	Medoid string `json:"medoid,omitempty"` // anchor fact id (label stability)
+	ID       string `json:"id"`                  // stable unique id (e.g. "cluster:<n>")
+	Label    string `json:"label"`               // display label (owner override wins server-side)
+	Count    int    `json:"count"`               // direct member count for leaves; aggregate for parents
+	Repo     string `json:"repo,omitempty"`      // dominant repo scope, "" = general/mixed
+	Medoid   string `json:"medoid,omitempty"`    // anchor fact id (label stability)
+	ParentID string `json:"parent_id,omitempty"` // parent cluster id; empty for top-level clusters
 }
 
 // KnowledgeFact is a single confirmed memory. Repo scopes the fact ("" = general

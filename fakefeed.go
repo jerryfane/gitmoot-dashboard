@@ -45,8 +45,9 @@ const (
 //
 // FakeDataSource is safe for concurrent use.
 type FakeDataSource struct {
-	interval time.Duration
-	broker   *broker
+	interval             time.Duration
+	broker               *broker
+	flatKnowledgeFixture bool
 
 	mu      sync.Mutex
 	st      State
@@ -57,10 +58,22 @@ type FakeDataSource struct {
 // NewFakeDataSource returns a FakeDataSource seeded with the noted run and
 // starts the background goroutine that advances it.
 func NewFakeDataSource() *FakeDataSource {
+	return newFakeDataSource(false)
+}
+
+// NewFakeDataSourceFlatKnowledge returns the same fake dashboard feed with the
+// pre-hierarchy Knowledge fixture. It is intended for visual regression checks
+// that must prove a payload without parent_id still takes the original path.
+func NewFakeDataSourceFlatKnowledge() *FakeDataSource {
+	return newFakeDataSource(true)
+}
+
+func newFakeDataSource(flatKnowledgeFixture bool) *FakeDataSource {
 	f := &FakeDataSource{
-		interval: fakeTickInterval,
-		broker:   newBroker(),
-		st:       initialFakeState(),
+		interval:             fakeTickInterval,
+		broker:               newBroker(),
+		flatKnowledgeFixture: flatKnowledgeFixture,
+		st:                   initialFakeState(),
 	}
 	f.start()
 	return f
@@ -1341,10 +1354,55 @@ func fakeKnowledge() Knowledge {
 	return Knowledge{Agents: agents, Facts: facts, Clusters: clusters, Edges: edges}
 }
 
-// Knowledge implements DataSource. It returns the fixed fakeKnowledge fixture;
-// output is deterministic and byte-stable across calls.
+// fakeKnowledgeWithSubclusters derives the hierarchy fixture from the original
+// flat fixture. cluster:4 becomes a parent with two leaf children; the children
+// deliberately omit Repo so the dashboard must inherit the parent's lane.
+func fakeKnowledgeWithSubclusters() Knowledge {
+	k := fakeKnowledge()
+	leafByFact := map[string]string{
+		"fact:4": "cluster:4:storage",
+		"fact:5": "cluster:4:storage",
+		"fact:6": "cluster:4:safety",
+		"fact:7": "cluster:4:safety",
+	}
+	for i := range k.Facts {
+		if leaf := leafByFact[k.Facts[i].ID]; leaf != "" {
+			k.Facts[i].Cluster = leaf
+		}
+	}
+	k.Clusters = append(k.Clusters,
+		KnowledgeCluster{ID: "cluster:4:safety", Label: "limits & deletion", Count: 2, Medoid: "fact:7", ParentID: "cluster:4"},
+		KnowledgeCluster{ID: "cluster:4:storage", Label: "exports & search", Count: 2, Medoid: "fact:5", ParentID: "cluster:4"},
+	)
+	for i := range k.Edges {
+		if k.Edges[i].Kind != "cluster" {
+			continue
+		}
+		if leaf := leafByFact[k.Edges[i].Source]; leaf != "" {
+			k.Edges[i].Target = leaf
+		}
+	}
+	sort.SliceStable(k.Clusters, func(i, j int) bool { return k.Clusters[i].ID < k.Clusters[j].ID })
+	sort.SliceStable(k.Edges, func(i, j int) bool {
+		if k.Edges[i].Kind != k.Edges[j].Kind {
+			return k.Edges[i].Kind < k.Edges[j].Kind
+		}
+		if k.Edges[i].Source != k.Edges[j].Source {
+			return k.Edges[i].Source < k.Edges[j].Source
+		}
+		return k.Edges[i].Target < k.Edges[j].Target
+	})
+	return k
+}
+
+// Knowledge implements DataSource. The default fixture carries one split
+// cluster; NewFakeDataSourceFlatKnowledge keeps the no-parent regression path.
+// Both variants are deterministic and byte-stable across calls.
 func (f *FakeDataSource) Knowledge(ctx context.Context) (Knowledge, error) {
-	return fakeKnowledge(), nil
+	if f.flatKnowledgeFixture {
+		return fakeKnowledge(), nil
+	}
+	return fakeKnowledgeWithSubclusters(), nil
 }
 
 // fakePipelineRuns builds the fixed set of pipeline run details (gitmoot #681)
