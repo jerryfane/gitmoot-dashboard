@@ -409,7 +409,7 @@ type KnowledgeAgent struct {
 // Repo is the cluster's dominant repo scope ("" = general/mixed) so the client
 // can nest repo -> cluster -> fact; Medoid anchors the label to a representative
 // fact for stability across recomputes. ParentID is additive hierarchy metadata:
-// facts attach to leaf clusters, while a parent aggregates its direct children.
+// facts attach to leaf clusters, while every ancestor aggregates its descendants.
 //
 // Additive contract: Track A (the gitmoot bridge) fills this. A gitmoot build
 // that predates clusters simply omits the enclosing Clusters slice and leaves

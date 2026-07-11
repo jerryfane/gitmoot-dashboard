@@ -1025,29 +1025,43 @@ func TestHandleLearningKnowledge(t *testing.T) {
 			}
 		}
 	}
-	for _, c := range k.Clusters {
-		want := clusterMembers[c.ID]
-		if children := childrenByParent[c.ID]; len(children) != 0 {
-			want = 0
-			for _, childID := range children {
-				want += clusterMembers[childID]
-			}
+	var subtreeMembers func(string, map[string]bool) int
+	subtreeMembers = func(id string, seen map[string]bool) int {
+		if seen[id] {
+			return 0
 		}
+		seen[id] = true
+		total := clusterMembers[id]
+		for _, childID := range childrenByParent[id] {
+			total += subtreeMembers(childID, seen)
+		}
+		return total
+	}
+	for _, c := range k.Clusters {
+		want := subtreeMembers(c.ID, map[string]bool{})
 		if c.Count != want {
-			t.Fatalf("cluster %s count = %d, want hierarchy member total %d", c.ID, c.Count, want)
+			t.Fatalf("cluster %s count = %d, want recursive hierarchy member total %d", c.ID, c.Count, want)
 		}
 		if c.Count <= 0 {
 			t.Fatalf("cluster %s has non-positive count %d", c.ID, c.Count)
 		}
 		if c.Medoid != "" {
 			medoidCluster := clusterOf[c.Medoid]
-			if medoidCluster != c.ID && clusterByID[medoidCluster].ParentID != c.ID {
-				t.Fatalf("cluster %s medoid %q is not one of its direct or child facts", c.ID, c.Medoid)
+			cur, found := medoidCluster, medoidCluster == c.ID
+			for steps := 0; !found && cur != "" && steps <= len(k.Clusters); steps++ {
+				cur = clusterByID[cur].ParentID
+				found = cur == c.ID
+			}
+			if !found {
+				t.Fatalf("cluster %s medoid %q is not one of its descendant facts", c.ID, c.Medoid)
 			}
 		}
 	}
 	if got := len(childrenByParent["cluster:4"]); got != 2 {
 		t.Fatalf("cluster:4 children = %d, want 2", got)
+	}
+	if clusterByID["cluster:3:delivery:build"].ParentID != "cluster:3:delivery" || clusterByID["cluster:3:delivery"].ParentID != "cluster:3" {
+		t.Fatalf("default fixture missing depth-three chain: %+v", clusterByID)
 	}
 	// Clusters sorted by id asc (deterministic ordering for the sig-skip).
 	for i := 1; i < len(k.Clusters); i++ {
@@ -1150,13 +1164,18 @@ func TestHandleLearningKnowledgeFlatFixture(t *testing.T) {
 	if err := json.Unmarshal(getRaw(t, srv.URL+"/api/learning/knowledge"), &k); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if len(k.Clusters) != 4 {
-		t.Fatalf("flat fixture clusters = %d, want 4", len(k.Clusters))
+	if len(k.Clusters) != 7 {
+		t.Fatalf("base fixture clusters = %d, want 7", len(k.Clusters))
 	}
+	byID := map[string]KnowledgeCluster{}
 	for _, c := range k.Clusters {
-		if c.ParentID != "" {
-			t.Fatalf("flat fixture cluster %s unexpectedly has parent_id %q", c.ID, c.ParentID)
-		}
+		byID[c.ID] = c
+	}
+	if byID["cluster:3:delivery:build"].ParentID != "cluster:3:delivery" || byID["cluster:3:delivery"].ParentID != "cluster:3" {
+		t.Fatalf("base fixture missing depth-three chain: %+v", byID)
+	}
+	if byID["cluster:4"].ParentID != "" {
+		t.Fatalf("base fixture unexpectedly carries the default cluster:4 split: %+v", byID["cluster:4"])
 	}
 	for _, fct := range k.Facts {
 		if fct.ID == "fact:4" && fct.Cluster != "cluster:4" {

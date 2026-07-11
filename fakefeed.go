@@ -61,9 +61,9 @@ func NewFakeDataSource() *FakeDataSource {
 	return newFakeDataSource(false)
 }
 
-// NewFakeDataSourceFlatKnowledge returns the same fake dashboard feed with the
-// pre-hierarchy Knowledge fixture. It is intended for visual regression checks
-// that must prove a payload without parent_id still takes the original path.
+// NewFakeDataSourceFlatKnowledge returns the base Knowledge fixture without the
+// additional cluster:4 split. The base fixture still carries the issue #69
+// depth-three research chain so both dev-harness modes exercise deep ancestry.
 func NewFakeDataSourceFlatKnowledge() *FakeDataSource {
 	return newFakeDataSource(true)
 }
@@ -1263,14 +1263,14 @@ func fakeKnowledge() Knowledge {
 	// and [[fact:id]] wikilinks — so the detail panel's markdown renderer is
 	// exercised end-to-end. The wikilinks mirror the Links slice.
 	facts := []KnowledgeFact{
-		{ID: "fact:1", Content: `Build with GOTOOLCHAIN=local & GOFLAGS=-mod=mod; the pinned go1.26.4 toolchain lives under /root/.local.`, Repo: fakeRepo, Key: "build-toolchain", Owner: "researcher", Witnesses: 5, FirstSeen: dA(18), LastSeen: dA(1), Cluster: "cluster:3", SourceJob: "job:build-31", Links: []string{"fact:8"}},
+		{ID: "fact:1", Content: `Build with GOTOOLCHAIN=local & GOFLAGS=-mod=mod; the pinned go1.26.4 toolchain lives under /root/.local.`, Repo: fakeRepo, Key: "build-toolchain", Owner: "researcher", Witnesses: 5, FirstSeen: dA(18), LastSeen: dA(1), Cluster: "cluster:3:delivery:build", SourceJob: "job:build-31", Links: []string{"fact:8"}},
 		{ID: "fact:2", Content: `TestExport is flaky under -race; retry once before failing the job.`, Repo: fakeRepo, Key: "test-flake", Owner: "reviewer-kimi", Witnesses: 3, FirstSeen: dA(16), LastSeen: dA(2), Cluster: "cluster:2", SourceJob: "job:test-88"},
 		{ID: "fact:3", Content: `Auth uses <bearer> tokens & refreshes 5m before expiry; header is "Authorization".`, Repo: fakeRepo, Key: "auth-flow", Owner: "researcher", Witnesses: 7, FirstSeen: dA(15), LastSeen: dA(2), Superseded: true, Cluster: "cluster:1", SourceJob: "job:auth-12"},
 		{ID: "fact:4", Content: `Exports default to CSV; JSON is opt-in via --format json.`, Repo: "jerryfane/noted", Key: "export-format", Owner: "project-lead", Witnesses: 2, FirstSeen: dA(12), LastSeen: dA(3), Cluster: "cluster:4", SourceFile: "jerryfane/noted:docs/exports.md"},
 		{ID: "fact:5", Content: `Search index rebuilds lazily on the first query after a write.`, Repo: "jerryfane/noted", Key: "search-index", Owner: "researcher", Witnesses: 4, FirstSeen: dA(10), LastSeen: dA(1), Cluster: "cluster:4", SourceJob: "job:idx-40", Links: []string{"fact:7"}},
 		{ID: "fact:6", Content: `Bulk delete requires a confirm token & is soft-delete for 30 days.`, Repo: "jerryfane/noted", Key: "delete-safety", Owner: "reviewer-kimi", Witnesses: 1, FirstSeen: dA(9), LastSeen: dA(4), Cluster: "cluster:4", SourceFile: "jerryfane/noted:docs/deletion.md"},
 		{ID: "fact:7", Content: `Rate limiting is per-token: 100 req/min, burst 20; 429 carries Retry-After.`, Repo: "jerryfane/noted", Key: "rate-limit", Owner: "researcher", Witnesses: 4, FirstSeen: dA(7), LastSeen: dA(2), Cluster: "cluster:4", SourceJob: "job:rl-19"},
-		{ID: "fact:8", Content: "Cut GA releases only with explicit sign-off; \"deploy latest\" means build & install locally.\n\nChecklist:\n- run `make release`\n- verify the tag & sha256sums\n- see https://gitmoot.io/docs/releasing\n\n```sh\ngh release create vX.Y.Z --latest\n```\n\nRelated: [[fact:1]].", Key: "release-policy", Owner: "researcher", Witnesses: 6, FirstSeen: dA(5), LastSeen: dA(1), Cluster: "cluster:3", SourceFile: "docs/RELEASING.md", Links: []string{"fact:1"}},
+		{ID: "fact:8", Content: "Cut GA releases only with explicit sign-off; \"deploy latest\" means build & install locally.\n\nChecklist:\n- run `make release`\n- verify the tag & sha256sums\n- see https://gitmoot.io/docs/releasing\n\n```sh\ngh release create vX.Y.Z --latest\n```\n\nRelated: [[fact:1]].", Key: "release-policy", Owner: "researcher", Witnesses: 6, FirstSeen: dA(5), LastSeen: dA(1), Cluster: "cluster:3:delivery:release", SourceFile: "docs/RELEASING.md", Links: []string{"fact:1"}},
 		{ID: "fact:9", Content: "Auth migrated to <PASETO> tokens & rotating keys; refresh 10m before \"expiry\". Supersedes [[fact:3]]; **rotate keys** nightly via `authctl rotate`.", Repo: fakeRepo, Key: "auth-flow", Owner: "researcher", Witnesses: 2, FirstSeen: dA(2), LastSeen: dA(1), Cluster: "cluster:1", SourceJob: "job:auth-77", Links: []string{"fact:3"}},
 		{ID: "fact:10", Content: `Prefer table-driven tests & gofmt; avoid naked returns in long functions.`, Key: "coding-style", Owner: "project-lead", Witnesses: 3, FirstSeen: dA(4), LastSeen: dA(1), Cluster: "cluster:2", SourceFile: "CONTRIBUTING.md"},
 	}
@@ -1309,18 +1309,36 @@ func fakeKnowledge() Knowledge {
 	clusters := []KnowledgeCluster{
 		{ID: "cluster:1", Label: "auth & tokens", Repo: fakeRepo, Medoid: "fact:9"},
 		{ID: "cluster:2", Label: "testing & style", Medoid: "fact:2"},
-		{ID: "cluster:3", Label: "build & release", Medoid: "fact:1"},
+		{ID: "cluster:3", Label: "build & release"},
+		{ID: "cluster:3:delivery", Label: "delivery workflow", Medoid: "fact:1", ParentID: "cluster:3"},
+		{ID: "cluster:3:delivery:build", Label: "build toolchain", Medoid: "fact:1", ParentID: "cluster:3:delivery"},
+		{ID: "cluster:3:delivery:release", Label: "release policy", Medoid: "fact:8", ParentID: "cluster:3:delivery"},
 		{ID: "cluster:4", Label: "noted api & data", Repo: "jerryfane/noted", Medoid: "fact:7"},
 	}
-	// Count is derived from the assignments so it can never drift from the facts.
-	clusterCount := map[string]int{}
+	// Count is derived recursively from leaf assignments so intermediate/root
+	// totals cannot drift as the fixture grows deeper.
+	directCount := map[string]int{}
 	for _, fct := range facts {
 		if fct.Cluster != "" {
-			clusterCount[fct.Cluster]++
+			directCount[fct.Cluster]++
 		}
 	}
+	children := map[string][]string{}
+	for _, c := range clusters {
+		if c.ParentID != "" {
+			children[c.ParentID] = append(children[c.ParentID], c.ID)
+		}
+	}
+	var clusterCount func(string) int
+	clusterCount = func(id string) int {
+		total := directCount[id]
+		for _, child := range children[id] {
+			total += clusterCount(child)
+		}
+		return total
+	}
 	for i := range clusters {
-		clusters[i].Count = clusterCount[clusters[i].ID]
+		clusters[i].Count = clusterCount(clusters[i].ID)
 	}
 	sort.SliceStable(clusters, func(i, j int) bool { return clusters[i].ID < clusters[j].ID })
 
@@ -1367,9 +1385,9 @@ func fakeKnowledge() Knowledge {
 	return Knowledge{Agents: agents, Facts: facts, Clusters: clusters, Edges: edges}
 }
 
-// fakeKnowledgeWithSubclusters derives the hierarchy fixture from the original
-// flat fixture. cluster:4 becomes a parent with two leaf children; the children
-// deliberately omit Repo so the dashboard must inherit the parent's lane.
+// fakeKnowledgeWithSubclusters derives the default hierarchy fixture from the
+// depth-three base fixture. cluster:4 additionally becomes a parent with two
+// leaf children; the children omit Repo so the dashboard inherits the root lane.
 func fakeKnowledgeWithSubclusters() Knowledge {
 	k := fakeKnowledge()
 	leafByFact := map[string]string{
@@ -1408,9 +1426,9 @@ func fakeKnowledgeWithSubclusters() Knowledge {
 	return k
 }
 
-// Knowledge implements DataSource. The default fixture carries one split
-// cluster; NewFakeDataSourceFlatKnowledge keeps the no-parent regression path.
-// Both variants are deterministic and byte-stable across calls.
+// Knowledge implements DataSource. Both fixtures carry the issue #69 depth-three
+// chain; the default adds the existing cluster:4 split. Both remain deterministic
+// and byte-stable across calls.
 func (f *FakeDataSource) Knowledge(ctx context.Context) (Knowledge, error) {
 	if f.flatKnowledgeFixture {
 		return fakeKnowledge(), nil
