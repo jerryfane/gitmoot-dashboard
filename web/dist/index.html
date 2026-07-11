@@ -124,6 +124,11 @@
       <span style="flex:1">Health</span>
       <span style="{{ healthNavDotStyle }}"></span>
     </div>
+    <div onClick="{{ showConfig }}" title="Effective read-only configuration" style="{{ configNavStyle }}">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>
+      <span style="flex:1">Config</span>
+      <span style="{{ configNavDotStyle }}"></span>
+    </div>
 
     <div style="margin-top:auto;padding:10px;border-top:1px solid rgba(160,168,220,0.08);display:flex;align-items:center;gap:8px">
       <span style="width:6px;height:6px;border-radius:50%;background:#9ece6a"></span>
@@ -268,6 +273,10 @@
         <span style="flex:1">Learning</span>
         <span style="{{ moreLearnDotStyle }}"></span>
       </div>
+      <div onClick="{{ showConfigFromMore }}" style="display:flex;align-items:center;gap:13px;padding:12px 10px;border-radius:10px;color:#c8cce6;cursor:pointer;font-size:14px;font-weight:500">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>
+        <span style="flex:1">Config</span>
+      </div>
     </div>
   </sc-if>
 
@@ -304,7 +313,7 @@
       <span style="{{ tabLabelStyle }}">Health</span>
       <span style="{{ tabHealthAttnStyle }}"></span>
     </div>
-    <div onClick="{{ showMore }}" title="More — Galaxy, Charts, Learning" style="{{ tabMoreStyle }}">
+    <div onClick="{{ showMore }}" title="More — Galaxy, Charts, Learning, Config" style="{{ tabMoreStyle }}">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
       <span style="{{ tabLabelStyle }}">More</span>
       <span style="{{ tabMoreAttnStyle }}"></span>
@@ -349,7 +358,7 @@ class Component extends DCLogic {
 
   // ---- client-side router ----------------------------------------------------
   // Route table:  / -> graph | /galaxy | /jobs[?agent=<name>] | /agents |
-  //   /agents/<name> | /charts | /health.  Agent names are encode/decode-
+  //   /agents/<name> | /charts | /health | /config. Agent names are encode/decode-
   //   URIComponent'd and treated as one path segment after /agents/.
   _parseRoute(pathname, search) {
     let p = pathname || '/';
@@ -358,6 +367,7 @@ class Component extends DCLogic {
     if (p === '/galaxy') return { view: 'galaxy' };
     if (p === '/charts') return { view: 'charts' };
     if (p === '/health') return { view: 'health' };
+    if (p === '/config') return { view: 'config' };
     if (p === '/attention') return { view: 'attention' };
     // /learning normalizes to /learning/skills (constructor/_onPopState canonicalize).
     if (p === '/learning') return { view: 'learning', tab: 'skills' };
@@ -413,6 +423,7 @@ class Component extends DCLogic {
       case 'agents': return opts.agent ? '/agents/' + encodeURIComponent(opts.agent) : '/agents';
       case 'charts': return '/charts';
       case 'health': return '/health';
+      case 'config': return '/config';
       case 'attention': return '/attention';
       case 'learning': return '/learning/' + (opts.tab === 'knowledge' ? 'knowledge' : 'skills');
       default: {
@@ -437,6 +448,7 @@ class Component extends DCLogic {
       case 'agents': return opts.agent ? 'gitmoot · agents · ' + opts.agent : 'gitmoot · agents';
       case 'charts': return 'gitmoot · charts';
       case 'health': return 'gitmoot · health';
+      case 'config': return 'gitmoot · config';
       case 'attention': return 'gitmoot · needs a human';
       case 'learning': return 'gitmoot · learning · ' + (opts.tab === 'knowledge' ? 'knowledge' : 'skills');
       default:       return 'gitmoot · graph';
@@ -658,6 +670,7 @@ class Component extends DCLogic {
     this.stopAgentsPoll();
     this.stopChartsPoll();
     this.stopHealthPoll();
+    this.stopConfigPoll();
     this.stopAttentionPoll();
     this.stopSkillsPoll();
     this.stopKnowledgePoll();
@@ -686,6 +699,7 @@ class Component extends DCLogic {
     try { if (this._agentsRoot) this._agentsRoot.remove(); } catch (e) {}
     try { if (this._chartsRoot) this._chartsRoot.remove(); } catch (e) {}
     try { if (this._healthRoot) this._healthRoot.remove(); } catch (e) {}
+    try { if (this._configRoot) this._configRoot.remove(); } catch (e) {}
     try { if (this._attentionRoot) this._attentionRoot.remove(); } catch (e) {}
     try { if (this._learningRoot) this._learningRoot.remove(); } catch (e) {}
     try { if (this._pipelinesRoot) this._pipelinesRoot.remove(); } catch (e) {}
@@ -771,6 +785,16 @@ class Component extends DCLogic {
     } else {
       this.stopHealthPoll();
       if (this._healthRoot) this._healthRoot.style.display = 'none';
+    }
+    // Config overlay (sanitized effective config + per-agent behavior flags).
+    if (v === 'config') {
+      const root = this.ensureConfigDom();
+      root.style.display = 'block';
+      this.startConfigPoll();
+      this.fetchConfig(false);
+    } else {
+      this.stopConfigPoll();
+      if (this._configRoot) this._configRoot.style.display = 'none';
     }
     // Attention overlay ("Needs a human": blocked gates, pending synth approvals,
     // candidates awaiting promotion). Same body-appended overlay pattern.
@@ -1722,6 +1746,7 @@ class Component extends DCLogic {
   showAgents = () => { this.setState({ view: 'agents' }); this._navRoute('agents', { agent: this._agentsSelected || undefined }); };
   showCharts = () => { this.setState({ view: 'charts' }); this._navRoute('charts'); };
   showHealth = () => { this.setState({ view: 'health' }); this._navRoute('health'); };
+  showConfig = () => { this.setState({ view: 'config' }); this._navRoute('config'); };
   showAttention = () => { this.setState({ view: 'attention' }); this._navRoute('attention'); };
   showLearning = () => { this.setState({ view: 'learning' }); this._navRoute('learning', { tab: this._learningTab || 'skills' }); };
   showPipelines = () => { this.setState({ view: 'pipelines' }); this._navRoute('pipelines', { name: this._plDetailName || undefined }); };
@@ -3850,6 +3875,166 @@ class Component extends DCLogic {
       '</div>'
     ];
     return parts.join('');
+  }
+
+  // ============================================================
+  // Config page: read-only effective settings projected through a
+  // strict server-side allowlist. Body-appended and polled like Health.
+  // ============================================================
+  startConfigPoll() {
+    if (this._configPoll) return;
+    this._configPoll = setInterval(() => { if (this.state.view === 'config') this.fetchConfig(true); }, 12000);
+  }
+  stopConfigPoll() { try { clearInterval(this._configPoll); } catch (e) {} this._configPoll = null; }
+
+  ensureConfigDom() {
+    if (this._configRoot) return this._configRoot;
+    const st = document.createElement('style');
+    st.textContent = [
+      "#config-root{font-family:Inter,system-ui,sans-serif;color:#c8cce6}",
+      "#config-root .cfg-body{position:absolute;inset:0;overflow-y:auto;padding:24px 28px 36px;display:flex;flex-direction:column;gap:22px}",
+      "#config-root .cfg-head{display:flex;align-items:flex-end;gap:18px;padding-bottom:18px;border-bottom:1px solid rgba(160,168,220,.12)}",
+      "#config-root .cfg-title{font:600 19px 'Space Grotesk',sans-serif;color:#eef0ff}",
+      "#config-root .cfg-sub{margin-top:4px;font:11px 'JetBrains Mono',monospace;color:#686f98}",
+      "#config-root .cfg-search{margin-left:auto;width:min(360px,42vw);height:38px;border:1px solid rgba(160,168,220,.16);border-radius:7px;background:#0d0f1c;color:#eef0ff;padding:0 12px;font:12px 'JetBrains Mono',monospace;outline:none}",
+      "#config-root .cfg-search:focus{border-color:rgba(125,207,255,.55);box-shadow:0 0 0 2px rgba(125,207,255,.08)}",
+      "#config-root .cfg-content{display:flex;flex-direction:column;gap:22px}",
+      "#config-root .cfg-sec{border-top:1px solid rgba(160,168,220,.13)}",
+      "#config-root .cfg-sec.feature{border:1px solid rgba(224,175,104,.25);border-left:3px solid #e0af68;background:rgba(224,175,104,.035);padding:0 16px}",
+      "#config-root .cfg-sh{display:flex;align-items:center;gap:10px;padding:13px 2px 9px;font:600 10px 'JetBrains Mono',monospace;letter-spacing:.12em;text-transform:uppercase;color:#868db5}",
+      "#config-root .cfg-sec.feature .cfg-sh{color:#e0af68}",
+      "#config-root .cfg-count{font-weight:500;letter-spacing:0;color:#5a6088}",
+      "#config-root .cfg-row{display:grid;grid-template-columns:minmax(220px,1fr) minmax(240px,auto);gap:20px;align-items:center;padding:13px 2px;border-top:1px solid rgba(160,168,220,.075)}",
+      "#config-root .cfg-key{font:500 12.5px 'JetBrains Mono',monospace;color:#d7dcf2;overflow-wrap:anywhere}",
+      "#config-root .cfg-scope{color:#69709a}",
+      "#config-root .cfg-doc{font-size:12px;line-height:1.45;color:#777eaa;margin-top:5px;max-width:760px}",
+      "#config-root .cfg-r{display:flex;flex-direction:column;align-items:flex-end;gap:7px;min-width:0}",
+      "#config-root .cfg-meta{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex-wrap:wrap}",
+      "#config-root .cfg-val{font:600 12px 'JetBrains Mono',monospace;color:#eef0ff;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
+      "#config-root .cfg-flag{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border:1px solid;border-radius:5px;font:600 10px 'JetBrains Mono',monospace;letter-spacing:.04em}",
+      "#config-root .cfg-flag.on{color:#c5f882;border-color:rgba(158,206,106,.36);background:rgba(158,206,106,.11)}",
+      "#config-root .cfg-flag.off{color:#777eaa;border-color:rgba(119,126,170,.28);background:rgba(119,126,170,.07)}",
+      "#config-root .cfg-badge{padding:3px 7px;border-radius:5px;font:600 9.5px 'JetBrains Mono',monospace}",
+      "#config-root .cfg-badge.def{color:#777eaa;background:rgba(119,126,170,.09);border:1px solid rgba(119,126,170,.18)}",
+      "#config-root .cfg-badge.over{color:#ffd38a;background:rgba(224,175,104,.14);border:1px solid rgba(224,175,104,.38);box-shadow:0 0 12px rgba(224,175,104,.08)}",
+      "#config-root .cfg-default{font:10px 'JetBrains Mono',monospace;color:#5a6088}",
+      "#config-root .cfg-snippet{display:flex;align-items:center;gap:7px;max-width:440px;padding:6px 7px 6px 10px;border:1px solid rgba(160,168,220,.13);border-radius:6px;background:#090b14;cursor:pointer}",
+      "#config-root .cfg-snippet:hover{border-color:rgba(125,207,255,.3)}",
+      "#config-root .cfg-snippet code{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:10.5px 'JetBrains Mono',monospace;color:#9fb8d7}",
+      "#config-root .cfg-snippet .gm-copy{flex:none}",
+      "#config-root .cfg-tablewrap{overflow-x:auto;border-top:1px solid rgba(160,168,220,.13)}",
+      "#config-root table{width:100%;min-width:900px;border-collapse:collapse}",
+      "#config-root th{padding:10px 9px;text-align:left;font:600 9px 'JetBrains Mono',monospace;letter-spacing:.1em;color:#5a6088;text-transform:uppercase;border-bottom:1px solid rgba(160,168,220,.12)}",
+      "#config-root td{padding:12px 9px;font-size:12px;color:#aeb4d0;border-bottom:1px solid rgba(160,168,220,.07);vertical-align:middle}",
+      "#config-root td.mono{font-family:'JetBrains Mono',monospace;color:#d7dcf2}",
+      "#config-root .cfg-caps{display:flex;gap:4px;flex-wrap:wrap}",
+      "#config-root .cfg-cap{padding:3px 6px;border-radius:4px;background:rgba(125,207,255,.08);color:#96c8e8;font:9.5px 'JetBrains Mono',monospace}",
+      "#config-root .cfg-unknown{display:flex;gap:7px;flex-wrap:wrap}",
+      "#config-root .cfg-uk{padding:5px 8px;border:1px dashed rgba(160,168,220,.2);border-radius:5px;color:#777eaa;font:10.5px 'JetBrains Mono',monospace}",
+      "#config-root .cfg-foot{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-top:4px;color:#5a6088;font:10.5px 'JetBrains Mono',monospace}",
+      "#config-root .cfg-foot code{color:#8f96bb;overflow-wrap:anywhere}",
+      "#config-root .cfg-empty{min-height:calc(100vh - 150px);display:flex;align-items:center;justify-content:center;color:#5a6088;font:12px 'JetBrains Mono',monospace;text-align:center;padding:28px}",
+      "#config-root .cfg-none{padding:28px 4px;color:#5a6088;font:12px 'JetBrains Mono',monospace}",
+      "@media(max-width:768px){#config-root .cfg-body{padding:16px 14px 28px;gap:18px}#config-root .cfg-head{align-items:stretch;flex-direction:column;gap:12px}#config-root .cfg-search{margin-left:0;width:100%}#config-root .cfg-sec.feature{padding:0 11px}#config-root .cfg-row{grid-template-columns:1fr;gap:10px}#config-root .cfg-r{align-items:stretch}#config-root .cfg-meta{justify-content:flex-start}#config-root .cfg-snippet{max-width:none}#config-root .cfg-snippet code{white-space:normal;word-break:break-all}#config-root .cfg-foot{align-items:flex-start;flex-direction:column}}"
+    ].join('\n');
+    document.head.appendChild(st);
+
+    const root = document.createElement('div');
+    root.id = 'config-root';
+    root.style.cssText = 'position:fixed;left:216px;top:54px;right:0;bottom:0;z-index:40;background:#07080f;display:none';
+    root.innerHTML = '<div class="cfg-body"><div class="cfg-head"><div><div class="cfg-title">Effective configuration</div><div class="cfg-sub">read-only · allowlisted values only</div></div><input id="cfg-search" class="cfg-search" type="search" placeholder="filter keys, sections, values…" autocomplete="off" aria-label="Filter configuration"></div><div id="cfg-content" class="cfg-content"></div></div>';
+    document.body.appendChild(root);
+    this._dockOverlay(root);
+    this._configRoot = root;
+    this._configQuery = this._configQuery || '';
+    const input = root.querySelector('#cfg-search');
+    input.value = this._configQuery;
+    input.addEventListener('input', (e) => { this._configQuery = e.target.value || ''; this.renderConfig(this._configData); });
+    root.addEventListener('click', (e) => {
+      const hit = e.target && e.target.closest ? e.target.closest('[data-cfg-copy]') : null;
+      if (!hit) return;
+      const btn = hit.querySelector('.gm-copy');
+      if (btn) this._gmCopyChip(btn);
+    });
+    return root;
+  }
+
+  fetchConfig(isPoll) {
+    fetch('/api/config', { cache: 'no-store' })
+      .then(r => r.ok ? r.text() : Promise.reject(new Error('HTTP ' + r.status)))
+      .then(txt => {
+        if (isPoll && this._configSig === txt) return;
+        this._configSig = txt;
+        let json = null; try { json = JSON.parse(txt); } catch (e) {}
+        this._configData = json;
+        this.renderConfig(json);
+      })
+      .catch(() => {
+        if (isPoll && this._configData) return;
+        this._configData = null;
+        this.renderConfig(null);
+      });
+  }
+
+  _configTomlValue(value) {
+    if (Array.isArray(value)) return '[' + value.map(v => JSON.stringify(v)).join(', ') + ']';
+    if (typeof value === 'string') return JSON.stringify(value);
+    if (value == null) return '""';
+    return String(value);
+  }
+
+  renderConfig(data) {
+    const root = this._configRoot; if (!root) return;
+    const box = root.querySelector('#cfg-content'); if (!box) return;
+    if (!data || !(data.contract_version > 0) || !Array.isArray(data.sections)) {
+      box.innerHTML = '<div class="cfg-empty">config snapshot requires a newer gitmoot build</div>';
+      return;
+    }
+    const esc = (s) => this._galaxyEsc(s == null ? '' : String(s));
+    const q = String(this._configQuery || '').trim().toLowerCase();
+    const records = [];
+    data.sections.forEach(section => {
+      if (!section || !section.name) return;
+      (Array.isArray(section.knobs) ? section.knobs : []).forEach(knob => {
+        if (!knob || !knob.key) return;
+        const toml = this._configTomlValue(knob.value);
+        const hay = [section.name, knob.key, knob.doc, toml, knob.kind].join(' ').toLowerCase();
+        if (!q || hay.indexOf(q) >= 0) records.push({ section: section.name, knob: knob, toml: toml });
+      });
+    });
+    const row = (r, showScope) => {
+      const k = r.knob, full = r.section + '.' + k.key, snippet = full + ' = ' + r.toml;
+      const isFlag = k.kind === 'flag' || typeof k.value === 'boolean';
+      const value = isFlag ? '<span class="cfg-flag ' + (k.value ? 'on' : 'off') + '">' + (k.value ? 'ON' : 'OFF') + '</span>' : '<span class="cfg-val" title="' + esc(r.toml) + '">' + esc(r.toml) + '</span>';
+      const badge = k.is_default ? '<span class="cfg-badge def">default</span>' : '<span class="cfg-badge over">overridden</span>';
+      return '<div class="cfg-row"><div><div class="cfg-key">' + (showScope ? '<span class="cfg-scope">' + esc(r.section) + '.</span>' : '') + esc(k.key) + '</div><div class="cfg-doc">' + esc(k.doc || '') + '</div></div>' +
+        '<div class="cfg-r"><div class="cfg-meta">' + value + badge + '<span class="cfg-default">default ' + esc(this._configTomlValue(k.default)) + '</span></div>' +
+        '<div class="cfg-snippet" data-cfg-copy><code>' + esc(snippet) + '</code><button type="button" class="gm-copy" data-cmd="' + esc(snippet) + '" title="copy setting">copy</button></div></div></div>';
+    };
+    const flags = records.filter(r => (r.knob.kind === 'flag' || typeof r.knob.value === 'boolean') && r.knob.default === false);
+    const featureIds = {}; flags.forEach(r => { featureIds[r.section + '\u0000' + r.knob.key] = 1; });
+    const grouped = {};
+    records.forEach(r => { if (!featureIds[r.section + '\u0000' + r.knob.key]) (grouped[r.section] = grouped[r.section] || []).push(r); });
+    const out = [];
+    if (flags.length) out.push('<section class="cfg-sec feature"><div class="cfg-sh">Off-by-default feature flags <span class="cfg-count">' + flags.length + '</span></div>' + flags.map(r => row(r, true)).join('') + '</section>');
+    Object.keys(grouped).forEach(name => { const rs = grouped[name]; out.push('<section class="cfg-sec"><div class="cfg-sh">[' + esc(name) + '] <span class="cfg-count">' + rs.length + '</span></div>' + rs.map(r => row(r, false)).join('') + '</section>'); });
+
+    const aq = q;
+    const agents = (Array.isArray(data.agents) ? data.agents : []).filter(a => {
+      if (!aq) return true;
+      return [a.name, a.runtime, a.model, a.autonomy_policy].concat(Array.isArray(a.capabilities) ? a.capabilities : []).join(' ').toLowerCase().indexOf(aq) >= 0;
+    });
+    if (agents.length) {
+      const flag = v => '<span class="cfg-flag ' + (v ? 'on' : 'off') + '">' + (v ? 'ON' : 'OFF') + '</span>';
+      const trs = agents.map(a => '<tr><td class="mono">' + esc(a.name) + '</td><td>' + esc(a.runtime || '') + '</td><td class="mono">' + esc(a.model || 'default') + '</td><td>' + flag(!!a.memory) + '</td><td>' + flag(!!a.chat_autorespond) + '</td><td><div class="cfg-caps">' + (Array.isArray(a.capabilities) ? a.capabilities : []).map(c => '<span class="cfg-cap">' + esc(c) + '</span>').join('') + '</div></td><td class="mono">' + esc(a.autonomy_policy || '') + '</td><td class="mono">' + esc(a.max_background == null ? '' : a.max_background) + '</td></tr>').join('');
+      out.push('<section><div class="cfg-sh">Per-agent flags <span class="cfg-count">' + agents.length + '</span></div><div class="cfg-tablewrap"><table><thead><tr><th>Agent</th><th>Runtime</th><th>Model</th><th>Memory</th><th>Chat respond</th><th>Capabilities</th><th>Policy</th><th>Max bg</th></tr></thead><tbody>' + trs + '</tbody></table></div></section>');
+    }
+    const unknown = (Array.isArray(data.unknown_keys) ? data.unknown_keys : []).filter(k => !q || String(k).toLowerCase().indexOf(q) >= 0);
+    if (unknown.length) out.push('<section class="cfg-sec"><div class="cfg-sh">Unknown keys <span class="cfg-count">names only</span></div><div class="cfg-unknown">' + unknown.map(k => '<span class="cfg-uk">' + esc(k) + '</span>').join('') + '</div></section>');
+    if (!out.length) out.push('<div class="cfg-none">No configuration matches “' + esc(this._configQuery || '') + '”.</div>');
+    const modified = data.modified_at ? new Date(data.modified_at).toLocaleString() : 'not available';
+    out.push('<footer class="cfg-foot"><span>config <code>' + esc(data.path || 'not found') + '</code></span><span>modified ' + esc(modified) + '</span><span>contract v' + esc(data.contract_version) + '</span>' + (data.exists === false ? '<span>file not found</span>' : '') + '</footer>');
+    box.innerHTML = out.join('');
   }
 
   // ============================================================
@@ -7807,6 +7992,7 @@ class Component extends DCLogic {
   _navMoreGalaxy = () => { this.setState({ moreOpen: false }); this.showGalaxy(); };
   _navMoreCharts = () => { this.setState({ moreOpen: false }); this.showCharts(); };
   _navMoreLearning = () => { this.setState({ moreOpen: false }); this.showLearning(); };
+  _navMoreConfig = () => { this.setState({ moreOpen: false }); this.showConfig(); };
 
   // ---- Shared copy chip -----------------------------------------------------
   // Unified copy affordance (Learning / Agents / Pipelines). Reads the command from
@@ -8682,7 +8868,7 @@ class Component extends DCLogic {
     el.style.bottom = this._overlayBottom();
   }
   _redockOverlays() {
-    [this._galaxyRoot, this._jobsRoot, this._agentsRoot, this._chartsRoot, this._healthRoot, this._learningRoot, this._pipelinesRoot, this._chatRoot]
+    [this._galaxyRoot, this._jobsRoot, this._agentsRoot, this._chartsRoot, this._healthRoot, this._configRoot, this._learningRoot, this._pipelinesRoot, this._chatRoot]
       .forEach(r => this._dockOverlay(r));
   }
 
@@ -9284,6 +9470,7 @@ class Component extends DCLogic {
     const isAgents = view === 'agents';
     const isCharts = view === 'charts';
     const isHealth = view === 'health';
+    const isConfig = view === 'config';
     const isAttention = view === 'attention';
     const isLearning = view === 'learning';
     const isPipelines = view === 'pipelines';
@@ -9303,6 +9490,7 @@ class Component extends DCLogic {
     const agentsNavStyle = { ...navActive(isAgents), position: 'relative' };
     const chartsNavStyle = { ...navActive(isCharts), position: 'relative' };
     const healthNavStyle = { ...navActive(isHealth), position: 'relative' };
+    const configNavStyle = { ...navActive(isConfig), position: 'relative' };
     const attentionNavStyle = { ...navActive(isAttention), position: 'relative' };
     const learningNavStyle = { ...navActive(isLearning), position: 'relative' };
     // Nav "needs you" dot: the right-aligned rail dot is now an amber pip that lights
@@ -9353,8 +9541,8 @@ class Component extends DCLogic {
     // Graph keeps its repo › run-title (and the run-state dot); every other view shows
     // its section + a cheaply-available selected entity (chat thread / pipeline / agent),
     // falling back to its nav group + section name.
-    const NAV_GROUP = { graph: 'run', jobs: 'run', pipelines: 'run', agents: 'fleet', chat: 'fleet', galaxy: 'insight', charts: 'insight', learning: 'insight', attention: 'system', health: 'system' };
-    const SECT = { graph: 'graph', jobs: 'jobs', pipelines: 'pipelines', agents: 'agents', chat: 'chat', galaxy: 'galaxy', charts: 'charts', learning: 'learning', attention: 'attention', health: 'health' };
+    const NAV_GROUP = { graph: 'run', jobs: 'run', pipelines: 'run', agents: 'fleet', chat: 'fleet', galaxy: 'insight', charts: 'insight', learning: 'insight', attention: 'system', health: 'system', config: 'system' };
+    const SECT = { graph: 'graph', jobs: 'jobs', pipelines: 'pipelines', agents: 'agents', chat: 'chat', galaxy: 'galaxy', charts: 'charts', learning: 'learning', attention: 'attention', health: 'health', config: 'config' };
     let crumbRoot, crumbLeaf, crumbShowDot = false;
     if (isGraph) {
       crumbRoot = activeRun.repo || 'graph'; crumbLeaf = activeRun.title || 'run'; crumbShowDot = true;
@@ -9378,12 +9566,13 @@ class Component extends DCLogic {
       toggleRuns: this.toggleRuns, runsTabVisible,
       showGraph: this.showGraph, showGalaxy: this.showGalaxy,
       showJobs: this.showJobs, showAgents: this.showAgents,
-      showCharts: this.showCharts, showHealth: this.showHealth, showLearning: this.showLearning,
+      showCharts: this.showCharts, showHealth: this.showHealth, showConfig: this.showConfig, showLearning: this.showLearning,
       showPipelines: this.showPipelines, showChat: this.showChat, showAttention: this.showAttention,
-      graphNavStyle, galaxyNavStyle, jobsNavStyle, pipelinesNavStyle, chatNavStyle, agentsNavStyle, chartsNavStyle, healthNavStyle, attentionNavStyle, learningNavStyle,
+      graphNavStyle, galaxyNavStyle, jobsNavStyle, pipelinesNavStyle, chatNavStyle, agentsNavStyle, chartsNavStyle, healthNavStyle, configNavStyle, attentionNavStyle, learningNavStyle,
       graphNavDotStyle: needsDot(false), galaxyNavDotStyle: needsDot(false),
       jobsNavDotStyle: needsDot(false), agentsNavDotStyle: needsDot(false),
       chartsNavDotStyle: needsDot(false), healthNavDotStyle: needsDot(healthAttn),
+      configNavDotStyle: needsDot(false),
       attentionNavDotStyle: needsDot(attnAttn),
       learningNavDotStyle: needsDot(learningAttn), pipelinesNavDotStyle: needsDot(pipelinesAttn),
       chatNavDotStyle: needsDot(chatAttn),
@@ -9392,6 +9581,7 @@ class Component extends DCLogic {
       tabAttnAttnStyle: tabPip(attnAttn), tabMoreAttnStyle: tabPip(learningAttn),
       moreSheetVisible, closeMoreSheet: this._navCloseMore, showMore: this._navOpenMore,
       showGalaxyFromMore: this._navMoreGalaxy, showChartsFromMore: this._navMoreCharts, showLearningFromMore: this._navMoreLearning,
+      showConfigFromMore: this._navMoreConfig,
       moreLearnDotStyle: needsDot(learningAttn),
       daemonText, daemonTextStyle, liveWord, liveBadgeStyle, liveDotStyle,
       railStyle, tabBarStyle, tabLabelStyle,
@@ -9400,7 +9590,7 @@ class Component extends DCLogic {
       tabAttentionStyle: { ...tabStyle(isAttention), position: 'relative' },
             tabPipelinesStyle: { ...tabStyle(isPipelines), position: 'relative' },
       tabChatStyle: { ...tabStyle(isChat), position: 'relative' },
-      tabMoreStyle: { ...tabStyle(isGalaxy || isCharts || isLearning), position: 'relative' },
+      tabMoreStyle: { ...tabStyle(isGalaxy || isCharts || isLearning || isConfig), position: 'relative' },
       crumbRepoStyle, crumbSepStyle, liveTextStyle, detailAsideStyle, zoomCtrlStyle, footerStyle,
       crumbRepo: crumbRoot, crumbTitle: crumbLeaf,
       crumbDotStyle: crumbShowDot ? { width: '8px', height: '8px', borderRadius: '50%', flex: 'none', background: crumbCol.c, boxShadow: activeRun.state === 'running' ? '0 0 8px ' + crumbCol.g : 'none', animation: activeRun.state === 'running' ? 'dotpulse 1.4s ease-in-out infinite' : 'none' } : { display: 'none' },

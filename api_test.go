@@ -758,6 +758,131 @@ func TestHandleHealthDeterministic(t *testing.T) {
 	}
 }
 
+func TestHandleConfig(t *testing.T) {
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+
+	raw := getRaw(t, srv.URL+"/api/config")
+	var cfg ConfigSnapshot
+	if err := json.Unmarshal(raw, &cfg); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if cfg.ContractVersion != 1 {
+		t.Fatalf("contract_version = %d, want 1", cfg.ContractVersion)
+	}
+	if !cfg.Exists || cfg.Path == "" || cfg.ModifiedAt == 0 {
+		t.Fatalf("config file metadata incomplete: %+v", cfg)
+	}
+	if cfg.Sections == nil || cfg.Agents == nil || cfg.UnknownKeys == nil {
+		t.Fatalf("config slices must be non-nil: %+v", cfg)
+	}
+
+	// Every fixture knob must survive the API with its typed value, default,
+	// classification and override state intact.
+	wantKnobs := map[string]struct {
+		value, def string
+		kind       string
+		isDefault  bool
+	}{
+		"chat.auto_respond":              {"false", "false", "flag", true},
+		"github.rate_limit_per_hour":     {"4200", "4500", "int", false},
+		"memory.cluster_depth_cap":       {"3", "3", "int", true},
+		"memory.cluster_fanout":          {"6", "6", "int", true},
+		"memory.distill_enabled":         {"false", "false", "flag", true},
+		"memory.groom_split_llm":         {"true", "false", "flag", false},
+		"memory.groom_split_max_per_run": {"8", "4", "int", false},
+		"memory.groom_split_model":       {`"gpt-5.6-sol"`, `""`, "string", false},
+		"memory.groom_split_runtime":     {`"codex"`, `"codex"`, "string", true},
+		"memory.max_entries":             {"1200", "1000", "int", false},
+		"memory.token_budget":            {"12000", "12000", "int", true},
+		"orchestrate.blocked_ttl":        {`"30m"`, `"30m"`, "duration", true},
+		"skillopt.auto_promote":          {"false", "false", "flag", true},
+		"skillopt.pace_gate":             {"true", "true", "flag", true},
+	}
+	gotKnobs := map[string]bool{}
+	for si, section := range cfg.Sections {
+		if si > 0 && cfg.Sections[si-1].Name >= section.Name {
+			t.Fatalf("sections not strictly name-sorted: %+v", cfg.Sections)
+		}
+		for ki, knob := range section.Knobs {
+			if ki > 0 && section.Knobs[ki-1].Key >= knob.Key {
+				t.Fatalf("section %s knobs not strictly key-sorted: %+v", section.Name, section.Knobs)
+			}
+			id := section.Name + "." + knob.Key
+			want, ok := wantKnobs[id]
+			if !ok {
+				t.Fatalf("unexpected fixture knob %q", id)
+			}
+			value, err := json.Marshal(knob.Value)
+			if err != nil {
+				t.Fatalf("marshal %s value: %v", id, err)
+			}
+			def, err := json.Marshal(knob.Default)
+			if err != nil {
+				t.Fatalf("marshal %s default: %v", id, err)
+			}
+			if string(value) != want.value || string(def) != want.def || knob.Kind != want.kind || knob.IsDefault != want.isDefault || knob.Doc == "" {
+				t.Fatalf("knob %s did not round-trip: got=%+v value=%s default=%s want=%+v", id, knob, value, def, want)
+			}
+			gotKnobs[id] = true
+		}
+	}
+	if len(gotKnobs) != len(wantKnobs) {
+		t.Fatalf("round-tripped knobs = %d, want %d: %+v", len(gotKnobs), len(wantKnobs), gotKnobs)
+	}
+
+	if len(cfg.Agents) != 4 {
+		t.Fatalf("agents = %d, want 4", len(cfg.Agents))
+	}
+	for i, agent := range cfg.Agents {
+		if i > 0 && cfg.Agents[i-1].Name >= agent.Name {
+			t.Fatalf("agents not strictly name-sorted: %+v", cfg.Agents)
+		}
+		if agent.Name == "" || agent.Runtime == "" || agent.AutonomyPolicy == "" || agent.Capabilities == nil {
+			t.Fatalf("agent row incomplete: %+v", agent)
+		}
+		for j := 1; j < len(agent.Capabilities); j++ {
+			if agent.Capabilities[j-1] >= agent.Capabilities[j] {
+				t.Fatalf("agent %s capabilities not sorted: %+v", agent.Name, agent.Capabilities)
+			}
+		}
+	}
+	for i := 1; i < len(cfg.UnknownKeys); i++ {
+		if cfg.UnknownKeys[i-1] >= cfg.UnknownKeys[i] {
+			t.Fatalf("unknown_keys not strictly sorted: %+v", cfg.UnknownKeys)
+		}
+	}
+	if len(cfg.UnknownKeys) != 2 {
+		t.Fatalf("unknown_keys = %+v, want two fixture names", cfg.UnknownKeys)
+	}
+
+	// Unknown entries are names-only by contract: each JSON element must be a
+	// string, never an object that could grow a value field.
+	var wire map[string]any
+	if err := json.Unmarshal(raw, &wire); err != nil {
+		t.Fatalf("decode wire payload: %v", err)
+	}
+	unknown, ok := wire["unknown_keys"].([]any)
+	if !ok {
+		t.Fatalf("unknown_keys wire shape = %T, want array", wire["unknown_keys"])
+	}
+	for i, item := range unknown {
+		if _, ok := item.(string); !ok {
+			t.Fatalf("unknown_keys[%d] = %T, want name string only", i, item)
+		}
+	}
+}
+
+func TestHandleConfigDeterministic(t *testing.T) {
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+
+	url := srv.URL + "/api/config"
+	if a, b := getRaw(t, url), getRaw(t, url); !bytes.Equal(a, b) {
+		t.Fatalf("config not byte-stable across calls\nfirst:  %s\nsecond: %s", a, b)
+	}
+}
+
 // assertContinuousDays checks Days is oldest->newest with no gaps (each date is
 // exactly one UTC day after the previous).
 func assertContinuousDays(t *testing.T, days []ChartDay) {

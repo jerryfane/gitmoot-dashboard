@@ -142,6 +142,36 @@ func (s *server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, h)
 }
 
+// handleConfig serves GET /api/config -> ConfigSnapshot. Every list is coerced
+// non-nil so older/additive clients can consume the response without null checks.
+func (s *server) handleConfig(w http.ResponseWriter, r *http.Request) {
+	c, err := s.ds.Config(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), statusForError(err))
+		return
+	}
+	if c.Sections == nil {
+		c.Sections = []ConfigSection{}
+	}
+	for i := range c.Sections {
+		if c.Sections[i].Knobs == nil {
+			c.Sections[i].Knobs = []ConfigKnob{}
+		}
+	}
+	if c.Agents == nil {
+		c.Agents = []ConfigAgent{}
+	}
+	for i := range c.Agents {
+		if c.Agents[i].Capabilities == nil {
+			c.Agents[i].Capabilities = []string{}
+		}
+	}
+	if c.UnknownKeys == nil {
+		c.UnknownKeys = []string{}
+	}
+	writeJSON(w, http.StatusOK, c)
+}
+
 // handleLearningSkills serves GET /api/learning/skills -> Skills, the SkillOpt
 // evolution overview. Mirrors handleRuns; every list is coerced non-nil so the
 // client always sees JSON arrays.

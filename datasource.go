@@ -267,6 +267,53 @@ type Charts struct {
 	Totals ChartTotals  `json:"totals"`
 }
 
+// ConfigKnob is one allowlisted effective setting. Value and Default carry only
+// registered, non-secret settings projected by the datasource; implementations
+// must never reflect arbitrary config fields into this contract. Kind is one of
+// flag, int, string, duration or list.
+type ConfigKnob struct {
+	Key       string `json:"key"`
+	Value     any    `json:"value"`
+	Default   any    `json:"default"`
+	IsDefault bool   `json:"is_default"`
+	Kind      string `json:"kind"`
+	Doc       string `json:"doc"`
+}
+
+// ConfigSection groups allowlisted knobs by their config.toml section. Sections
+// and Knobs are emitted in deterministic name/key order.
+type ConfigSection struct {
+	Name  string       `json:"name"`
+	Knobs []ConfigKnob `json:"knobs"`
+}
+
+// ConfigAgent is the sanitized per-agent behavior visible in config.toml.
+// Credentials, environment and template contents are intentionally absent.
+type ConfigAgent struct {
+	Name            string   `json:"name"`
+	Runtime         string   `json:"runtime"`
+	Model           string   `json:"model"`
+	Memory          bool     `json:"memory"`
+	ChatAutorespond bool     `json:"chat_autorespond"`
+	Capabilities    []string `json:"capabilities"`
+	AutonomyPolicy  string   `json:"autonomy_policy"`
+	MaxBackground   int      `json:"max_background"`
+}
+
+// ConfigSnapshot is the read-only, sanitized effective configuration consumed
+// by the Config page. ContractVersion starts at 1 and makes future additions
+// additive. UnknownKeys contains names only: unknown values are excluded by the
+// type itself. ModifiedAt is epoch milliseconds (0 when the file is absent).
+type ConfigSnapshot struct {
+	ContractVersion int             `json:"contract_version"`
+	Path            string          `json:"path"`
+	ModifiedAt      int64           `json:"modified_at"`
+	Exists          bool            `json:"exists"`
+	Sections        []ConfigSection `json:"sections"`
+	Agents          []ConfigAgent   `json:"agents"`
+	UnknownKeys     []string        `json:"unknown_keys"`
+}
+
 // HealthDaemon reports the orchestration daemon's liveness.
 type HealthDaemon struct {
 	Running   bool   `json:"running"`
@@ -759,6 +806,10 @@ type DataSource interface {
 	// Health returns the daemon liveness, fleet totals, held locks, wedged jobs
 	// and recent failures behind the Health page.
 	Health(ctx context.Context) (Health, error)
+	// Config returns the versioned, sanitized effective configuration behind the
+	// Config page. Values are strictly allowlisted; unknown config entries surface
+	// by name only. Sections, knobs, agents and unknown keys are deterministic.
+	Config(ctx context.Context) (ConfigSnapshot, error)
 	// Skills returns the SkillOpt evolution overview behind the Learning page's
 	// Skills view: per-template version history, active canaries and pending
 	// candidates. Ordering must be deterministic (the UI polls with a
