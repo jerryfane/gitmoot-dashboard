@@ -1148,6 +1148,51 @@ func (f *FakeDataSource) Health(ctx context.Context) (Health, error) {
 	}, nil
 }
 
+// Config implements DataSource with a realistic, strictly sanitized effective
+// configuration. The fixed timestamp and explicit ordering keep the fixture
+// byte-stable across requests.
+func (f *FakeDataSource) Config(ctx context.Context) (ConfigSnapshot, error) {
+	return ConfigSnapshot{
+		ContractVersion: 1,
+		Path:            "/home/operator/.config/gitmoot/config.toml",
+		ModifiedAt:      fakeChartsNow.Add(-37 * time.Minute).UnixMilli(),
+		Exists:          true,
+		Sections: []ConfigSection{
+			{Name: "chat", Knobs: []ConfigKnob{
+				{Key: "auto_respond", Value: false, Default: false, IsDefault: true, Kind: "flag", Doc: "Allow enrolled agents to respond automatically in chat threads."},
+			}},
+			{Name: "github", Knobs: []ConfigKnob{
+				{Key: "rate_limit_per_hour", Value: 4200, Default: 4500, IsDefault: false, Kind: "int", Doc: "Reserve-aware GitHub request budget per hour."},
+			}},
+			{Name: "memory", Knobs: []ConfigKnob{
+				{Key: "cluster_depth_cap", Value: 3, Default: 3, IsDefault: true, Kind: "int", Doc: "Maximum recursive memory-cluster depth."},
+				{Key: "cluster_fanout", Value: 6, Default: 6, IsDefault: true, Kind: "int", Doc: "Target child clusters created by a split."},
+				{Key: "distill_enabled", Value: false, Default: false, IsDefault: true, Kind: "flag", Doc: "Distill confirmed memories into compact reusable facts."},
+				{Key: "groom_split_llm", Value: true, Default: false, IsDefault: false, Kind: "flag", Doc: "Use an LLM to propose coherent child clusters during grooming."},
+				{Key: "groom_split_max_per_run", Value: 8, Default: 4, IsDefault: false, Kind: "int", Doc: "Maximum LLM-assisted cluster splits per grooming run."},
+				{Key: "groom_split_model", Value: "gpt-5.6-sol", Default: "", IsDefault: false, Kind: "string", Doc: "Optional model override for LLM-assisted splits."},
+				{Key: "groom_split_runtime", Value: "codex", Default: "codex", IsDefault: true, Kind: "string", Doc: "Runtime used for LLM-assisted cluster splits."},
+				{Key: "max_entries", Value: 1200, Default: 1000, IsDefault: false, Kind: "int", Doc: "Maximum confirmed memories considered for injection."},
+				{Key: "token_budget", Value: 12000, Default: 12000, IsDefault: true, Kind: "int", Doc: "Token budget for injected memory context."},
+			}},
+			{Name: "orchestrate", Knobs: []ConfigKnob{
+				{Key: "blocked_ttl", Value: "30m", Default: "30m", IsDefault: true, Kind: "duration", Doc: "Time a blocked orchestration remains resumable."},
+			}},
+			{Name: "skillopt", Knobs: []ConfigKnob{
+				{Key: "auto_promote", Value: false, Default: false, IsDefault: true, Kind: "flag", Doc: "Promote passing template candidates without a human gate."},
+				{Key: "pace_gate", Value: true, Default: true, IsDefault: true, Kind: "flag", Doc: "Require PACE quality gates during template optimization."},
+			}},
+		},
+		Agents: []ConfigAgent{
+			{Name: "galaxy-impl", Runtime: "codex", Model: "gpt-5.6-codex", Memory: true, ChatAutorespond: false, Capabilities: []string{"ask", "implement"}, AutonomyPolicy: "workspace-write", MaxBackground: 2},
+			{Name: "lead", Runtime: "claude", Model: "opus-4.6", Memory: true, ChatAutorespond: true, Capabilities: []string{"ask", "implement", "review"}, AutonomyPolicy: "workspace-write", MaxBackground: 3},
+			{Name: "researcher", Runtime: "kimi", Model: "kimi-k2.5", Memory: true, ChatAutorespond: false, Capabilities: []string{"ask", "review"}, AutonomyPolicy: "read-only", MaxBackground: 1},
+			{Name: "reviewer", Runtime: "codex", Model: "gpt-5.6-codex", Memory: false, ChatAutorespond: false, Capabilities: []string{"review"}, AutonomyPolicy: "read-only", MaxBackground: 1},
+		},
+		UnknownKeys: []string{"experimental.scheduler_bias", "plugins.private_token"},
+	}, nil
+}
+
 // fakeSkills builds the fixed SkillOpt evolution fixture behind the Learning
 // page's Skills view. Every timestamp is anchored on fakeChartsNow (never
 // time.Now()) so the view is byte-stable across polls. It models three templates

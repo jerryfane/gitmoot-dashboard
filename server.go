@@ -25,6 +25,7 @@ func Serve(ds DataSource) http.Handler {
 	mux.HandleFunc("GET /api/agent/{name}", s.handleAgent)
 	mux.HandleFunc("GET /api/charts", s.handleCharts)
 	mux.HandleFunc("GET /api/health", s.handleHealth)
+	mux.HandleFunc("GET /api/config", s.handleConfig)
 	mux.HandleFunc("GET /api/learning/skills", s.handleLearningSkills)
 	mux.HandleFunc("GET /api/learning/knowledge", s.handleLearningKnowledge)
 	mux.HandleFunc("GET /api/pipelines", s.handlePipelines)
