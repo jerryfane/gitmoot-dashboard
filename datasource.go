@@ -527,17 +527,24 @@ type PipelineRun struct {
 // Node.Deps); Needs are the persisted blocked-needs of a parked stage. The two
 // are deliberately distinct.
 type PipelineStage struct {
-	ID         string   `json:"id"`
-	State      string   `json:"state"` // pending | queued | running | succeeded | blocked | failed | skipped | cancelled
-	Deps       []string `json:"deps,omitempty"`
-	Cmd        string   `json:"cmd,omitempty"`
-	JobID      string   `json:"jobId,omitempty"`
-	Attempt    int      `json:"attempt,omitempty"`
-	Retry      int      `json:"retry,omitempty"` // the stage's retry budget from the spec
-	Needs      []string `json:"needs,omitempty"`
-	Summary    string   `json:"summary,omitempty"`
-	StartedAt  int64    `json:"startedAt,omitempty"`  // epoch milliseconds
-	FinishedAt int64    `json:"finishedAt,omitempty"` // epoch milliseconds
+	ID      string   `json:"id"`
+	State   string   `json:"state"` // pending | queued | running | succeeded | blocked | failed | skipped | cancelled
+	Deps    []string `json:"deps,omitempty"`
+	Cmd     string   `json:"cmd,omitempty"`
+	JobID   string   `json:"jobId,omitempty"`
+	Attempt int      `json:"attempt,omitempty"`
+	Retry   int      `json:"retry,omitempty"` // the stage's retry budget from the spec
+	Needs   []string `json:"needs,omitempty"`
+	Summary string   `json:"summary,omitempty"`
+	// ProgressActivity is the sanitized last output line from gitmoot #816's
+	// latest-only progress event. It is normally absent, and is populated only
+	// for running stages after the 60-second progress threshold.
+	ProgressActivity string `json:"progressActivity,omitempty"`
+	// ProgressAt is the epoch-millisecond time of the #816 progress event.
+	// Like ProgressActivity, its absence is normal before the threshold.
+	ProgressAt int64 `json:"progressAt,omitempty"`
+	StartedAt  int64 `json:"startedAt,omitempty"`  // epoch milliseconds
+	FinishedAt int64 `json:"finishedAt,omitempty"` // epoch milliseconds
 }
 
 // PipelineStageMark is the minimal per-run stage outcome used by the history
