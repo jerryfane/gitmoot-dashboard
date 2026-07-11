@@ -932,13 +932,14 @@ func TestHandleLearningKnowledge(t *testing.T) {
 		}
 	}
 
-	// Facts: enough to fill the graph, witnesses within 1..7, exactly one
-	// superseded fact, facts span more than one repo scope plus a general scope.
+	// Facts: enough to fill the graph, witnesses within 1..7, two superseded
+	// facts, facts span more than one repo scope plus a general scope.
 	if len(k.Facts) < 8 {
 		t.Fatalf("len(Facts) = %d, want >= 8", len(k.Facts))
 	}
 	factIDs := map[string]bool{}
 	superseded, generalScope := 0, 0
+	repoUnclusteredGhost := ""
 	repos := map[string]bool{}
 	for _, fct := range k.Facts {
 		if fct.ID == "" || fct.Content == "" || fct.Owner == "" {
@@ -953,6 +954,9 @@ func TestHandleLearningKnowledge(t *testing.T) {
 		factIDs[fct.ID] = true
 		if fct.Superseded {
 			superseded++
+			if fct.Repo != "" && fct.Cluster == "" {
+				repoUnclusteredGhost = fct.ID
+			}
 		}
 		if fct.Repo == "" {
 			generalScope++
@@ -960,8 +964,11 @@ func TestHandleLearningKnowledge(t *testing.T) {
 			repos[fct.Repo] = true
 		}
 	}
-	if superseded != 1 {
-		t.Fatalf("superseded facts = %d, want exactly 1 (one chain)", superseded)
+	if superseded != 2 {
+		t.Fatalf("superseded facts = %d, want exactly 2", superseded)
+	}
+	if repoUnclusteredGhost == "" {
+		t.Fatal("fixture missing repo-scoped superseded fact without a cluster")
 	}
 	if len(repos) < 2 {
 		t.Fatalf("repo-scoped facts span %d repos, want >= 2", len(repos))
@@ -1077,6 +1084,7 @@ func TestHandleLearningKnowledge(t *testing.T) {
 	kinds := map[string]int{}
 	linkPairs := map[string]bool{}
 	crossRepoLinks := 0
+	ghostSupersede := false
 	for _, e := range k.Edges {
 		switch e.Kind {
 		case "owner", "category", "cluster", "supersede", "link":
@@ -1099,6 +1107,9 @@ func TestHandleLearningKnowledge(t *testing.T) {
 		case "supersede":
 			if !factIDs[e.Target] {
 				t.Fatalf("supersede edge target %q is not a known fact", e.Target)
+			}
+			if e.Target == repoUnclusteredGhost {
+				ghostSupersede = true
 			}
 		case "link":
 			if !factIDs[e.Target] {
@@ -1137,6 +1148,9 @@ func TestHandleLearningKnowledge(t *testing.T) {
 	}
 	if crossRepoLinks == 0 {
 		t.Fatal("expected at least one cross-repo link edge")
+	}
+	if !ghostSupersede {
+		t.Fatalf("expected supersede edge targeting repo-scoped unclustered ghost %q", repoUnclusteredGhost)
 	}
 	// One owner + one category edge per fact; one cluster edge per clustered fact.
 	if kinds["owner"] != len(k.Facts) {
