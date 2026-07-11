@@ -43,9 +43,10 @@ type Node struct {
 
 // State is a snapshot of one orchestration run.
 type State struct {
-	RunID string `json:"runId"`
-	Title string `json:"title"`
-	Nodes []Node `json:"nodes"` // edges are derived client-side from ParentID + Deps
+	RunID    string `json:"runId"`
+	Title    string `json:"title"`
+	Workflow string `json:"workflow,omitempty"` // root workflow label, when this run is labeled
+	Nodes    []Node `json:"nodes"`              // edges are derived client-side from ParentID + Deps
 }
 
 // RunSummary is a lightweight listing entry for a run. Beyond identity/state it
@@ -190,22 +191,27 @@ type AgentDetail struct {
 }
 
 // GraphNode is a node in the whole-history "galaxy" graph. Type is "job" (a real
-// job, colored by State), "repo" (a repository hub) or "agent" (an agent hub);
-// the hubs are synthetic grouping nodes that cluster jobs by repo/agent and give
-// the force-directed graph its structure.
+// job, colored by State), "repo" (a repository hub), "agent" (an agent hub), or
+// "workflow" (a label hub). The hubs are synthetic grouping nodes that cluster
+// jobs and give the force-directed graph its structure. Rollup fields are only
+// populated on workflow hubs.
 type GraphNode struct {
-	ID    string    `json:"id"`
-	Type  string    `json:"type"` // job | repo | agent
-	Label string    `json:"label"`
-	State NodeState `json:"state,omitempty"`
-	Agent string    `json:"agent,omitempty"`
-	Repo  string    `json:"repo,omitempty"`
-	Run   string    `json:"run,omitempty"`
+	ID        string    `json:"id"`
+	Type      string    `json:"type"` // job | repo | agent | workflow
+	Label     string    `json:"label"`
+	State     NodeState `json:"state,omitempty"`
+	Agent     string    `json:"agent,omitempty"`
+	Repo      string    `json:"repo,omitempty"`
+	Run       string    `json:"run,omitempty"`
+	JobCount  int       `json:"jobCount,omitempty"`
+	NoteCount int       `json:"noteCount,omitempty"`
+	TokensIn  int       `json:"tokensIn,omitempty"`
+	TokensOut int       `json:"tokensOut,omitempty"`
 }
 
 // GraphLink is an edge in the galaxy graph. Kind is "parent"/"dep" (delegation
-// and sibling links between jobs), "repo" (job -> its repo hub) or "agent"
-// (job -> its agent hub).
+// and sibling links between jobs), "repo" (job -> its repo hub), "agent"
+// (job -> its agent hub), or "workflow" (labeled job -> its workflow hub).
 type GraphLink struct {
 	Source string `json:"source"`
 	Target string `json:"target"`
@@ -218,6 +224,83 @@ type Graph struct {
 	Nodes []GraphNode `json:"nodes"`
 	Links []GraphLink `json:"links"`
 	Repos []string    `json:"repos"` // distinct repos, for the filter
+}
+
+// WorkflowSummary is the aggregate header for one workflow label. State counts
+// are job counts, and timestamps are epoch milliseconds.
+type WorkflowSummary struct {
+	Label     string `json:"label"`
+	Jobs      int    `json:"jobs"`
+	Queued    int    `json:"queued"`
+	Running   int    `json:"running"`
+	Succeeded int    `json:"succeeded"`
+	Failed    int    `json:"failed"`
+	Blocked   int    `json:"blocked"`
+	Cancelled int    `json:"cancelled"`
+	Notes     int    `json:"notes"`
+	TokensIn  int    `json:"tokensIn"`
+	TokensOut int    `json:"tokensOut"`
+	FirstAt   int64  `json:"firstAt"`
+	LastAt    int64  `json:"lastAt"`
+}
+
+// WorkflowNode is the compact job shape used by the workflow forest. Full job
+// prompt, output, and events remain available from /api/job/{id}.
+type WorkflowNode struct {
+	ID        string    `json:"id"`
+	ParentID  string    `json:"parentId,omitempty"`
+	Deps      []string  `json:"deps,omitempty"`
+	Title     string    `json:"title"`
+	Agent     string    `json:"agent"`
+	Runtime   string    `json:"runtime"`
+	Model     string    `json:"model,omitempty"`
+	State     NodeState `json:"state"`
+	StartedAt int64     `json:"startedAt,omitempty"`
+	EndedAt   int64     `json:"endedAt,omitempty"`
+}
+
+// WorkflowRun is one complete run tree in a workflow page. Pagination is by
+// these roots, so Nodes is never split across pages.
+type WorkflowRun struct {
+	RunID string         `json:"runId"`
+	Title string         `json:"title"`
+	State NodeState      `json:"state"`
+	Nodes []WorkflowNode `json:"nodes"`
+}
+
+// WorkflowNoteView is an untrusted journal note. Clients must escape Author and
+// Body before placing them in HTML.
+type WorkflowNoteView struct {
+	ID        int64  `json:"id"`
+	Author    string `json:"author"`
+	Body      string `json:"body"`
+	Repo      string `json:"repo"`
+	CreatedAt int64  `json:"createdAt"`
+}
+
+// WorkflowView is a paginated forest and independently paginated note journal.
+type WorkflowView struct {
+	Summary        WorkflowSummary    `json:"summary"`
+	Runs           []WorkflowRun      `json:"runs"`
+	Notes          []WorkflowNoteView `json:"notes"`
+	NextRunCursor  string             `json:"nextRunCursor"`
+	NextNoteCursor string             `json:"nextNoteCursor"`
+	Truncated      bool               `json:"truncated"`
+}
+
+// WorkflowQuery carries independent cursors and requested page sizes. A
+// WorkflowDataSource must default and cap non-positive or oversized maxima.
+type WorkflowQuery struct {
+	RunCursor  string
+	NoteCursor string
+	MaxRuns    int
+	MaxNotes   int
+}
+
+// WorkflowDataSource is the optional workflow visibility extension. Keeping it
+// separate preserves the core DataSource contract for older bridges.
+type WorkflowDataSource interface {
+	Workflow(ctx context.Context, label string, q WorkflowQuery) (WorkflowView, error)
 }
 
 // ChartDay is one UTC day bucket. Jobs bucket by their Started day; token sums

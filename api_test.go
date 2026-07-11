@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -10,6 +11,18 @@ import (
 	"testing"
 	"time"
 )
+
+type noWorkflowDataSource struct{ DataSource }
+
+type recordingWorkflowDataSource struct {
+	DataSource
+	query WorkflowQuery
+}
+
+func (d *recordingWorkflowDataSource) Workflow(_ context.Context, label string, q WorkflowQuery) (WorkflowView, error) {
+	d.query = q
+	return WorkflowView{Summary: WorkflowSummary{Label: label}}, nil
+}
 
 func TestHandleRuns(t *testing.T) {
 	srv := httptest.NewServer(Serve(NewFakeDataSource()))
@@ -40,6 +53,143 @@ func TestHandleRuns(t *testing.T) {
 	}
 	if runs[0].Title == "" || runs[0].State == "" {
 		t.Fatalf("run summary missing title/state: %+v", runs[0])
+	}
+}
+
+func TestHandleWorkflowUnsupportedDataSource(t *testing.T) {
+	ds := noWorkflowDataSource{DataSource: NewFakeDataSource()}
+	srv := httptest.NewServer(Serve(ds))
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/api/workflow/demo-panel")
+	if err != nil {
+		t.Fatalf("GET unsupported workflow: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", resp.StatusCode)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	if !strings.Contains(string(body), "unsupported") {
+		t.Fatalf("body = %q, want clear unsupported message", body)
+	}
+}
+
+func TestHandleWorkflowNotFound(t *testing.T) {
+	t.Setenv("FAKEFEED_WORKFLOWS", "1")
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/api/workflow/unknown")
+	if err != nil {
+		t.Fatalf("GET unknown workflow: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", resp.StatusCode)
+	}
+}
+
+func TestHandleWorkflowClampsCursorsAndLimits(t *testing.T) {
+	ds := &recordingWorkflowDataSource{DataSource: NewFakeDataSource()}
+	srv := httptest.NewServer(Serve(ds))
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/api/workflow/panel?runCursor=run-c&noteCursor=note-c&maxRuns=999&maxNotes=-4")
+	if err != nil {
+		t.Fatalf("GET workflow: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+	if ds.query.RunCursor != "run-c" || ds.query.NoteCursor != "note-c" {
+		t.Fatalf("cursors = %+v", ds.query)
+	}
+	if ds.query.MaxRuns != workflowMaxRuns || ds.query.MaxNotes != workflowMaxNotes {
+		t.Fatalf("limits = (%d,%d), want (%d,%d)", ds.query.MaxRuns, ds.query.MaxNotes, workflowMaxRuns, workflowMaxNotes)
+	}
+}
+
+func TestFakeWorkflowContractAndPagination(t *testing.T) {
+	t.Setenv("FAKEFEED_WORKFLOWS", "1")
+	ds := NewFakeDataSource()
+
+	state, err := ds.State(context.Background(), fakeRunID)
+	if err != nil {
+		t.Fatalf("State: %v", err)
+	}
+	if state.Workflow != fakeWorkflow {
+		t.Fatalf("State.Workflow = %q, want %q", state.Workflow, fakeWorkflow)
+	}
+	graph, err := ds.Graph(context.Background(), "")
+	if err != nil {
+		t.Fatalf("Graph: %v", err)
+	}
+	var hub *GraphNode
+	workflowLinks := 0
+	for i := range graph.Nodes {
+		if graph.Nodes[i].ID == "workflow::"+fakeWorkflow {
+			hub = &graph.Nodes[i]
+		}
+	}
+	for _, link := range graph.Links {
+		if link.Kind == "workflow" {
+			workflowLinks++
+		}
+	}
+	if hub == nil || hub.Type != "workflow" || hub.JobCount != 7 || hub.NoteCount != 3 || workflowLinks != 7 {
+		t.Fatalf("workflow galaxy fixture hub=%+v links=%d", hub, workflowLinks)
+	}
+
+	first, err := ds.Workflow(context.Background(), fakeWorkflow, WorkflowQuery{MaxRuns: 1, MaxNotes: 2})
+	if err != nil {
+		t.Fatalf("Workflow first page: %v", err)
+	}
+	if len(first.Runs) != 1 || len(first.Runs[0].Nodes) != 6 {
+		t.Fatalf("first run page = %+v", first.Runs)
+	}
+	if len(first.Notes) != 2 || first.NextRunCursor == "" || first.NextNoteCursor == "" || !first.Truncated {
+		t.Fatalf("first cursors/notes = %+v", first)
+	}
+	if !strings.Contains(first.Notes[0].Body, "<script>") {
+		t.Fatalf("hostile escaping fixture missing: %+v", first.Notes[0])
+	}
+	second, err := ds.Workflow(context.Background(), fakeWorkflow, WorkflowQuery{RunCursor: first.NextRunCursor, NoteCursor: first.NextNoteCursor, MaxRuns: 1, MaxNotes: 2})
+	if err != nil {
+		t.Fatalf("Workflow second page: %v", err)
+	}
+	if len(second.Runs) != 1 || len(second.Runs[0].Nodes) != 1 || len(second.Notes) != 1 || second.Truncated {
+		t.Fatalf("second page = %+v", second)
+	}
+}
+
+func TestFakeWorkflowDisabled(t *testing.T) {
+	t.Setenv("FAKEFEED_WORKFLOWS", "0")
+	ds := NewFakeDataSource()
+	state, err := ds.State(context.Background(), fakeRunID)
+	if err != nil {
+		t.Fatalf("State: %v", err)
+	}
+	if state.Workflow != "" {
+		t.Fatalf("disabled State.Workflow = %q", state.Workflow)
+	}
+	graph, err := ds.Graph(context.Background(), "")
+	if err != nil {
+		t.Fatalf("Graph: %v", err)
+	}
+	for _, node := range graph.Nodes {
+		if node.Type == "workflow" {
+			t.Fatalf("disabled graph contains workflow node: %+v", node)
+		}
+	}
+	for _, link := range graph.Links {
+		if link.Kind == "workflow" {
+			t.Fatalf("disabled graph contains workflow link: %+v", link)
+		}
+	}
+	if _, err := ds.Workflow(context.Background(), fakeWorkflow, WorkflowQuery{}); err != ErrWorkflowNotFound {
+		t.Fatalf("disabled Workflow error = %v, want %v", err, ErrWorkflowNotFound)
 	}
 }
 

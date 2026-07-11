@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"bytes"
 	"encoding/json"
 	"testing"
 )
@@ -47,6 +48,71 @@ func TestPipelineStageProgressJSON(t *testing.T) {
 		}
 		if string(got) != payload {
 			t.Fatalf("progress PipelineStage JSON = %s, want %s", got, payload)
+		}
+	})
+}
+
+func TestWorkflowAdditiveJSONContracts(t *testing.T) {
+	t.Run("legacy graph node and state omit workflow fields", func(t *testing.T) {
+		node := GraphNode{ID: "job-1", Type: "job", Label: "legacy", State: "running"}
+		got, err := json.Marshal(node)
+		if err != nil {
+			t.Fatalf("marshal legacy GraphNode: %v", err)
+		}
+		const wantNode = `{"id":"job-1","type":"job","label":"legacy","state":"running"}`
+		if string(got) != wantNode {
+			t.Fatalf("legacy GraphNode JSON = %s, want %s", got, wantNode)
+		}
+
+		const statePayload = `{"runId":"run-1","title":"legacy","nodes":[]}`
+		var state State
+		if err := json.Unmarshal([]byte(statePayload), &state); err != nil {
+			t.Fatalf("unmarshal legacy State: %v", err)
+		}
+		if state.Workflow != "" {
+			t.Fatalf("legacy State.Workflow = %q, want empty", state.Workflow)
+		}
+		stateJSON, err := json.Marshal(state)
+		if err != nil {
+			t.Fatalf("marshal legacy State: %v", err)
+		}
+		if string(stateJSON) != statePayload {
+			t.Fatalf("legacy State JSON = %s, want %s", stateJSON, statePayload)
+		}
+	})
+
+	t.Run("labeled graph node and state round trip", func(t *testing.T) {
+		const payload = `{"id":"workflow::panel","type":"workflow","label":"panel","jobCount":7,"noteCount":3,"tokensIn":22400,"tokensOut":9700}`
+		var node GraphNode
+		if err := json.Unmarshal([]byte(payload), &node); err != nil {
+			t.Fatalf("unmarshal workflow GraphNode: %v", err)
+		}
+		if node.Type != "workflow" || node.JobCount != 7 || node.NoteCount != 3 || node.TokensIn != 22400 || node.TokensOut != 9700 {
+			t.Fatalf("workflow GraphNode fields = %+v", node)
+		}
+		got, err := json.Marshal(node)
+		if err != nil {
+			t.Fatalf("marshal workflow GraphNode: %v", err)
+		}
+		if !bytes.Equal(got, []byte(payload)) {
+			t.Fatalf("workflow GraphNode JSON = %s, want %s", got, payload)
+		}
+
+		state := State{RunID: "run-1", Title: "labeled", Workflow: "panel", Nodes: []Node{}}
+		stateJSON, err := json.Marshal(state)
+		if err != nil {
+			t.Fatalf("marshal labeled State: %v", err)
+		}
+		const wantState = `{"runId":"run-1","title":"labeled","workflow":"panel","nodes":[]}`
+		if string(stateJSON) != wantState {
+			t.Fatalf("labeled State JSON = %s, want %s", stateJSON, wantState)
+		}
+		var roundTrip State
+		if err := json.Unmarshal(stateJSON, &roundTrip); err != nil {
+			t.Fatalf("unmarshal labeled State: %v", err)
+		}
+		if roundTrip.Workflow != "panel" {
+			t.Fatalf("round-trip State.Workflow = %q, want panel", roundTrip.Workflow)
 		}
 	})
 }
