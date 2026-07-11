@@ -1250,9 +1250,10 @@ func (f *FakeDataSource) Skills(ctx context.Context) (Skills, error) {
 // fakeKnowledge builds the fixed memory brain-graph fixture behind the Learning
 // page's Knowledge view. Timestamps are anchored on fakeChartsNow (never
 // time.Now()) so the view is byte-stable across polls. It models three enrolled
-// agents owning ten facts spread across two repos and two general-scope entries,
-// with witness counts varied across 1..7 and one superseded chain (an older
-// auth-flow fact replaced by a newer one). Some fact bodies carry angle brackets,
+// agents owning eleven facts spread across two repos and two general-scope entries,
+// with witness counts varied across 1..7 and two superseded chains. One historical
+// repo fact deliberately has no cluster so the client fixture exercises repo-scoped
+// unclustered placement. Some fact bodies carry angle brackets,
 // ampersands and quotes so the client's HTML-escaping is exercised.
 func fakeKnowledge() Knowledge {
 	dA := func(n int) int64 { return fakeChartsNow.AddDate(0, 0, -n).UnixMilli() }
@@ -1273,6 +1274,7 @@ func fakeKnowledge() Knowledge {
 		{ID: "fact:8", Content: "Cut GA releases only with explicit sign-off; \"deploy latest\" means build & install locally.\n\nChecklist:\n- run `make release`\n- verify the tag & sha256sums\n- see https://gitmoot.io/docs/releasing\n\n```sh\ngh release create vX.Y.Z --latest\n```\n\nRelated: [[fact:1]].", Key: "release-policy", Owner: "researcher", Witnesses: 6, FirstSeen: dA(5), LastSeen: dA(1), Cluster: "cluster:3:delivery:release", SourceFile: "docs/RELEASING.md", Links: []string{"fact:1"}},
 		{ID: "fact:9", Content: "Auth migrated to <PASETO> tokens & rotating keys; refresh 10m before \"expiry\". Supersedes [[fact:3]]; **rotate keys** nightly via `authctl rotate`.", Repo: fakeRepo, Key: "auth-flow", Owner: "researcher", Witnesses: 2, FirstSeen: dA(2), LastSeen: dA(1), Cluster: "cluster:1", SourceJob: "job:auth-77", Links: []string{"fact:3"}},
 		{ID: "fact:10", Content: `Prefer table-driven tests & gofmt; avoid naked returns in long functions.`, Key: "coding-style", Owner: "project-lead", Witnesses: 3, FirstSeen: dA(4), LastSeen: dA(1), Cluster: "cluster:2", SourceFile: "CONTRIBUTING.md"},
+		{ID: "fact:11", Content: `Builds must use the system Go toolchain; do not use a pinned local toolchain.`, Repo: fakeRepo, Key: "build-toolchain", Owner: "researcher", Witnesses: 2, FirstSeen: dA(22), LastSeen: dA(19), Superseded: true, SourceJob: "job:build-09"},
 	}
 	// Newest-first by FirstSeen (distinct across the fixture), ID tie-break.
 	sort.SliceStable(facts, func(i, j int) bool {
@@ -1285,9 +1287,9 @@ func fakeKnowledge() Knowledge {
 	// Enrolled agents. Facts is the INJECTABLE count (the real datasource fills it
 	// from CountConfirmedMemoriesForOwner, which excludes superseded_by IS NOT NULL
 	// rows), so it deliberately differs from the on-graph owned-node count where an
-	// agent has a superseded fact. researcher OWNS six fact nodes but one (fact:3,
-	// the old auth-flow entry superseded by fact:9) is excluded, so its injectable
-	// count is 5; reviewer-kimi owns 2 and project-lead owns 2 (none superseded).
+	// agent has superseded facts. researcher OWNS seven fact nodes but two (fact:3
+	// and fact:11) are excluded, so its injectable count is 5; reviewer-kimi owns 2
+	// and project-lead owns 2 (none superseded).
 	agents := []KnowledgeAgent{
 		{Name: "project-lead", Enrolled: true, Facts: 2, Observations: 3},
 		{Name: "researcher", Enrolled: true, Facts: 5, Observations: 12},
@@ -1342,8 +1344,8 @@ func fakeKnowledge() Knowledge {
 	}
 	sort.SliceStable(clusters, func(i, j int) bool { return clusters[i].ID < clusters[j].ID })
 
-	// Owner + category + cluster edges per fact, then the one supersede chain
-	// (the newer auth-flow fact supersedes the older one). Category edges stay
+	// Owner + category + cluster edges per fact, then two supersede chains.
+	// Category edges stay
 	// for the pre-cluster fallback view; cluster edges back the repo -> cluster
 	// -> fact hierarchy. Scored link edges are undirected and emitted once per
 	// pair. They deliberately cover tight in-cluster pairs, cross-cluster pairs,
@@ -1361,6 +1363,7 @@ func fakeKnowledge() Knowledge {
 		}
 	}
 	edges = append(edges, KnowledgeEdge{Source: "fact:9", Target: "fact:3", Kind: "supersede"})
+	edges = append(edges, KnowledgeEdge{Source: "fact:1", Target: "fact:11", Kind: "supersede"})
 	edges = append(edges,
 		KnowledgeEdge{Source: "fact:3", Target: "fact:9", Kind: "link", Score: 0.95},
 		KnowledgeEdge{Source: "fact:1", Target: "fact:8", Kind: "link", Score: 0.92},

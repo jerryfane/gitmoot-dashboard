@@ -4091,6 +4091,7 @@ class Component extends DCLogic {
       '      <div id="lr-know-controls" class="lr-kchip" style="display:none">',
       '        <button type="button" class="lr-ktoggle on" data-know-toggle="links" aria-pressed="true"><span class="dot"></span>fact links</button>',
       '        <button type="button" class="lr-ktoggle" data-know-toggle="cross" aria-pressed="false"><span class="dot"></span>cross-repo links</button>',
+      '        <button type="button" class="lr-ktoggle" data-know-toggle="history" aria-pressed="false"><span class="dot"></span>history</button>',
       '      </div>',
       '    </div>',
       '    <div id="lr-know-legend" class="lr-kchip">',
@@ -4117,12 +4118,23 @@ class Component extends DCLogic {
     });
     this._knowFactLinksOn = this._knowFactLinksOn !== false;
     this._knowCrossRepoOn = !!this._knowCrossRepoOn;
+    this._knowHistoryOn = !!this._knowHistoryOn;
     root.querySelector('#lr-know-chrome').addEventListener('click', (e) => {
       const b = e.target.closest && e.target.closest('[data-know-toggle]');
       if (!b) return;
       const which = b.getAttribute('data-know-toggle');
       if (which === 'links') this._knowFactLinksOn = !this._knowFactLinksOn;
       if (which === 'cross') this._knowCrossRepoOn = !this._knowCrossRepoOn;
+      if (which === 'history') {
+        this._knowHistoryOn = !this._knowHistoryOn;
+        this._knowSetHoveredFact(null);
+        if (!this._knowHistoryOn && this._knowSelected) {
+          const selectedFact = this._knowFactById && this._knowFactById[this._knowSelected.id];
+          if (selectedFact && selectedFact.superseded) this.closeKnowledgeDetail();
+        }
+        this.renderKnowledge(true);
+        return;
+      }
       this._knowSyncChrome(this._knowBuilt || { agentCount: 0, factCount: 0, factLinkCount: 0 });
       try { if (this._knowGraph && this._knowGraph.refresh) this._knowGraph.refresh(); } catch (e2) {}
     });
@@ -4694,11 +4706,20 @@ class Component extends DCLogic {
               const focused = !!(sel && sel.links && sel.links.has(key));
               if (l.factRelation === 'repo') {
                 const endpointHover = this._knowHoveredFact === sid || this._knowHoveredFact === tid;
-                if (!this._knowCrossRepoOn && !endpointHover) continue;
-                const st = edgeStyle(l), alpha = focused ? 0.72 : (sel ? 0.02 : st.alpha);
-                const aStub = bandStub(s, t, s.__knowBand), bStub = bandStub(t, s, t.__knowBand);
-                ctx.strokeStyle = rgba(st.color, alpha); ctx.lineWidth = Math.max(0.45 / scale, st.width * 0.75 / scale);
+                const endpointSelected = !!(this._knowSelected && (this._knowSelected.id === sid || this._knowSelected.id === tid));
+                const endpointFocus = endpointHover || endpointSelected;
+                if (!this._knowCrossRepoOn && !endpointFocus) continue;
+                const st = edgeStyle(l), alpha = endpointFocus ? Math.max(0.72, st.alpha + 0.48) : (focused ? 0.72 : (sel ? 0.02 : st.alpha));
+                ctx.strokeStyle = rgba(st.color, alpha); ctx.lineWidth = Math.max(0.45 / scale, (st.width + (endpointFocus ? 0.55 : 0)) * 0.75 / scale);
                 ctx.setLineDash([3 / scale, 3 / scale]);
+                if (endpointFocus) {
+                  const mx = (s.x + t.x) / 2, my = (s.y + t.y) / 2;
+                  const dx = t.x - s.x, dy = t.y - s.y, mag = Math.hypot(dx, dy) || 1, bow = Math.min(24 / scale, mag * 0.06);
+                  ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.quadraticCurveTo(mx - dy / mag * bow, my + dx / mag * bow, t.x, t.y); ctx.stroke();
+                  ctx.setLineDash([]);
+                  continue;
+                }
+                const aStub = bandStub(s, t, s.__knowBand), bStub = bandStub(t, s, t.__knowBand);
                 if (aStub) { ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(aStub.x, aStub.y); ctx.stroke(); ctx.fillStyle = rgba(st.color, Math.min(0.9, alpha + 0.2)); ctx.beginPath(); ctx.arc(aStub.x, aStub.y, 2 / scale, 0, 2 * Math.PI); ctx.fill(); }
                 if (bStub) { ctx.beginPath(); ctx.moveTo(t.x, t.y); ctx.lineTo(bStub.x, bStub.y); ctx.stroke(); ctx.fillStyle = rgba(st.color, Math.min(0.9, alpha + 0.2)); ctx.beginPath(); ctx.arc(bStub.x, bStub.y, 2 / scale, 0, 2 * Math.PI); ctx.fill(); }
                 ctx.setLineDash([]);
@@ -5054,8 +5075,13 @@ class Component extends DCLogic {
   // evidence input layer is synthesized from each fact's witness count.
   _knowBuild(raw) {
     const agents = Array.isArray(raw.agents) ? raw.agents : [];
-    const facts = Array.isArray(raw.facts) ? raw.facts : [];
-    const edges = Array.isArray(raw.edges) ? raw.edges : [];
+    const allFacts = Array.isArray(raw.facts) ? raw.facts : [];
+    const facts = this._knowHistoryOn ? allFacts : allFacts.filter(f => f && !f.superseded);
+    const visibleFact = {}; facts.forEach(f => { if (f && f.id) visibleFact[f.id] = 1; });
+    const edges = (Array.isArray(raw.edges) ? raw.edges : []).filter(e => {
+      if (!e || !visibleFact[e.source]) return false;
+      return e.kind !== 'supersede' && e.kind !== 'link' ? true : !!visibleFact[e.target];
+    });
     const clusters = Array.isArray(raw.clusters) ? raw.clusters : [];
     // Detail panels look facts/clusters up by id (member lists + [[wikilink]] jumps).
     this._knowFactById = {}; facts.forEach(f => { if (f && f.id) this._knowFactById[f.id] = f; });
@@ -5114,6 +5140,10 @@ class Component extends DCLogic {
   // Map a fact/cluster repo scope to its repo-hub node id ("" = the general bucket).
   _knowRepoNodeId(scope) { return scope ? 'repo:' + scope : 'repo:~general'; }
 
+  // Unknown-cluster facts get one synthetic hub per repo lane. The legacy id remains
+  // the general bucket so repo-less payloads preserve their existing graph identity.
+  _knowUnclusteredNodeId(scope) { return scope ? 'cluster:~unclustered:' + encodeURIComponent(scope) : 'cluster:~unclustered'; }
+
   // CLUSTERED build (Knowledge graph v2, gitmoot #763): repo -> cluster -> fact ->
   // owner-agent. Repo hubs are the leftmost column (derived from cluster/fact scopes),
   // cluster hubs the 2nd column, facts the 3rd column, agents the rightmost column.
@@ -5161,12 +5191,13 @@ class Component extends DCLogic {
       const node = { id: c.id, type: 'cluster', label: c.label || c.id, count: c.count || 0, repo: c.repo || '', medoid: c.medoid || '' };
       clusterById[c.id] = node; nodes.push(node);
     });
-    const UNCL = 'cluster:~unclustered';
-    const ensureUnclustered = () => {
-      if (seen[UNCL]) return clusterById[UNCL];
-      seen[UNCL] = 1;
-      const node = { id: UNCL, type: 'cluster', label: 'unclustered', count: 0, repo: '', medoid: '' };
-      clusterById[UNCL] = node; nodes.push(node);
+    const ensureUnclustered = (scope) => {
+      scope = scope || '';
+      const id = this._knowUnclusteredNodeId(scope);
+      if (seen[id]) return clusterById[id];
+      seen[id] = 1;
+      const node = { id: id, type: 'cluster', label: 'unclustered', count: 0, repo: scope, medoid: '' };
+      clusterById[id] = node; nodes.push(node);
       return node;
     };
     // --- agent wells (right rail) ---
@@ -5176,7 +5207,7 @@ class Component extends DCLogic {
     facts.forEach(f => {
       if (!f || !f.id || seen[f.id]) return; seen[f.id] = 1;
       let cid = f.cluster || '';
-      if (!cid || !clusterById[cid]) { const u = ensureUnclustered(); cid = u.id; u.count += 1; }
+      if (!cid || !clusterById[cid]) { const u = ensureUnclustered(f.repo || ''); cid = u.id; u.count += 1; }
       nodes.push({ id: f.id, type: 'fact', label: f.id, content: f.content || '', repo: f.repo || '', key: f.key || '', owner: f.owner || '', witnesses: f.witnesses || 0, firstSeen: f.firstSeen || 0, lastSeen: f.lastSeen || 0, superseded: !!f.superseded, cluster: cid, sourceJob: f.sourceJob || '', sourceFile: f.sourceFile || '', links: Array.isArray(f.links) ? f.links : [] });
       links.push({ source: f.id, target: cid, kind: 'cluster' });
       if (f.owner && seen[f.owner]) { const k = cid + '|' + f.owner; clusterAgent[k] = (clusterAgent[k] || 0) + 1; }
@@ -5259,12 +5290,13 @@ class Component extends DCLogic {
       clusterById[id] = node; nodes.push(node);
     });
 
-    const UNCL = 'cluster:~unclustered';
-    const ensureUnclustered = () => {
-      if (seen[UNCL]) return clusterById[UNCL];
-      seen[UNCL] = 1;
-      const node = { id: UNCL, type: 'cluster', label: 'unclustered', count: 0, repo: '', medoid: '', parentId: '', isParent: false, childIds: [], __knowRole: 'root', __knowVisible: true, __knowRootId: UNCL, __knowExpandCount: 0 };
-      clusterById[UNCL] = node; nodes.push(node); repoScopes[''] = 1;
+    const ensureUnclustered = (scope) => {
+      scope = scope || '';
+      const id = this._knowUnclusteredNodeId(scope);
+      if (seen[id]) return clusterById[id];
+      seen[id] = 1;
+      const node = { id: id, type: 'cluster', label: 'unclustered', count: 0, repo: scope, medoid: '', parentId: '', isParent: false, childIds: [], __knowRole: 'root', __knowVisible: true, __knowRootId: id, __knowExpandCount: 0 };
+      clusterById[id] = node; nodes.push(node); repoScopes[scope] = 1;
       return node;
     };
 
@@ -5274,7 +5306,7 @@ class Component extends DCLogic {
     facts.forEach(f => {
       if (!f || !f.id || seen[f.id]) return; seen[f.id] = 1;
       let cid = f.cluster || '';
-      if (!cid || !clusterById[cid]) { const u = ensureUnclustered(); cid = u.id; u.count += 1; }
+      if (!cid || !clusterById[cid]) { const u = ensureUnclustered(f.repo || ''); cid = u.id; u.count += 1; }
       const displayCid = displayByCluster[cid] || cid, rootId = h.root[cid] || cid;
       nodes.push({ id: f.id, type: 'fact', label: f.id, content: f.content || '', repo: f.repo || '', key: f.key || '', owner: f.owner || '', witnesses: f.witnesses || 0, firstSeen: f.firstSeen || 0, lastSeen: f.lastSeen || 0, superseded: !!f.superseded, cluster: cid, displayCluster: displayCid, sourceJob: f.sourceJob || '', sourceFile: f.sourceFile || '', links: Array.isArray(f.links) ? f.links : [] });
       links.push({ source: f.id, target: displayCid, kind: 'cluster' });
@@ -5728,7 +5760,7 @@ class Component extends DCLogic {
     // re-layout. Endpoints may be raw string ids (fresh from _knowBuild) or resolved
     // node objects, so normalize with the (v && v.id != null) ? v.id : v pattern.
     for (let i = 0; i < links.length; i++) { const l = links[i]; const sv = l.source, tv = l.target; const s = (sv && sv.id != null) ? sv.id : sv; const t = (tv && tv.id != null) ? tv.id : tv; const str = '~' + s + '>' + t + ':' + (l.kind || '') + ':' + (l.score == null ? '' : l.score); for (let j = 0; j < str.length; j++) h = (h * 31 + str.charCodeAt(j)) | 0; }
-    const sig = nodes.length + '/' + links.length + '/' + h;
+    const sig = (this._knowHistoryOn ? 'history/' : 'current/') + nodes.length + '/' + links.length + '/' + h;
     // sig-skip: leave the COMMITTED graph (its pinned node objects) untouched. No instance
     // map holds node-object references (adjacency/selection are id strings), so returning
     // here can never strand a map on the position-less rebuild.
@@ -5863,7 +5895,8 @@ class Component extends DCLogic {
     if (controlsEl) {
       controlsEl.style.display = 'flex';
       controlsEl.querySelectorAll('[data-know-toggle]').forEach(b => {
-        const on = b.getAttribute('data-know-toggle') === 'links' ? this._knowFactLinksOn : this._knowCrossRepoOn;
+        const which = b.getAttribute('data-know-toggle');
+        const on = which === 'links' ? this._knowFactLinksOn : (which === 'cross' ? this._knowCrossRepoOn : this._knowHistoryOn);
         b.classList.toggle('on', !!on); b.setAttribute('aria-pressed', on ? 'true' : 'false');
       });
     }
