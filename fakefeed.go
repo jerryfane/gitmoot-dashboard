@@ -3,6 +3,7 @@ package dashboard
 import (
 	"context"
 	"errors"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -25,11 +26,14 @@ var (
 	ErrPipelineNotFound = errors.New("pipeline not found")
 	// ErrChatThreadNotFound indicates the requested chat thread does not exist.
 	ErrChatThreadNotFound = errors.New("chat thread not found")
+	// ErrWorkflowNotFound indicates the requested workflow label does not exist.
+	ErrWorkflowNotFound = errors.New("workflow not found")
 )
 
 const (
 	fakeRunID    = "run-noted-001"
 	fakeRunTitle = "noted: add note search, delete, and export"
+	fakeWorkflow = "demo-panel"
 	// fakeRepo is the repository the fake run operates on (shared by Jobs/Graph).
 	fakeRepo = "acme/webapp"
 	// fakeTickInterval is how often the background goroutine advances the run.
@@ -48,6 +52,7 @@ type FakeDataSource struct {
 	interval             time.Duration
 	broker               *broker
 	flatKnowledgeFixture bool
+	workflowsEnabled     bool
 
 	mu      sync.Mutex
 	st      State
@@ -69,11 +74,13 @@ func NewFakeDataSourceFlatKnowledge() *FakeDataSource {
 }
 
 func newFakeDataSource(flatKnowledgeFixture bool) *FakeDataSource {
+	workflowsEnabled := os.Getenv("FAKEFEED_WORKFLOWS") != "0"
 	f := &FakeDataSource{
 		interval:             fakeTickInterval,
 		broker:               newBroker(),
 		flatKnowledgeFixture: flatKnowledgeFixture,
-		st:                   initialFakeState(),
+		workflowsEnabled:     workflowsEnabled,
+		st:                   initialFakeState(workflowsEnabled),
 	}
 	f.start()
 	return f
@@ -81,9 +88,9 @@ func newFakeDataSource(flatKnowledgeFixture bool) *FakeDataSource {
 
 // initialFakeState builds the seeded graph with the coordinator running and
 // every downstream node queued.
-func initialFakeState() State {
+func initialFakeState(workflowsEnabled bool) State {
 	now := time.Now().UnixMilli()
-	return State{
+	st := State{
 		RunID: fakeRunID,
 		Title: fakeRunTitle,
 		Nodes: []Node{
@@ -162,6 +169,10 @@ func initialFakeState() State {
 			},
 		},
 	}
+	if workflowsEnabled {
+		st.Workflow = fakeWorkflow
+	}
+	return st
 }
 
 // fakeStep mutates the run for a single tick. Each step is applied with f.mu held.
@@ -260,7 +271,7 @@ func isTerminal(s NodeState) bool {
 // cloneStateLocked returns a deep copy of the current run state so callers can
 // read/encode it without holding f.mu. Must be called with f.mu held.
 func (f *FakeDataSource) cloneStateLocked() State {
-	out := State{RunID: f.st.RunID, Title: f.st.Title}
+	out := State{RunID: f.st.RunID, Title: f.st.Title, Workflow: f.st.Workflow}
 	out.Nodes = make([]Node, len(f.st.Nodes))
 	for i, n := range f.st.Nodes {
 		cp := n
@@ -329,6 +340,9 @@ func (f *FakeDataSource) Job(ctx context.Context, jobID string) (Node, error) {
 			return cp, nil
 		}
 	}
+	if f.workflowsEnabled && jobID == "demo-single-job" {
+		return fakeWorkflowSingleNode(f.st.Nodes[0].StartedAt), nil
+	}
 	return Node{}, ErrJobNotFound
 }
 
@@ -360,6 +374,7 @@ func (f *FakeDataSource) Subscribe(ctx context.Context, runID string) (<-chan St
 func (f *FakeDataSource) Graph(ctx context.Context, repo string) (Graph, error) {
 	f.mu.Lock()
 	snap := f.cloneStateLocked()
+	workflowsEnabled := f.workflowsEnabled
 	f.mu.Unlock()
 	g := Graph{Nodes: []GraphNode{}, Links: []GraphLink{}, Repos: []string{fakeRepo}}
 	if repo != "" && repo != fakeRepo {
@@ -390,7 +405,178 @@ func (f *FakeDataSource) Graph(ctx context.Context, repo string) (Graph, error) 
 	for a := range agents {
 		g.Nodes = append(g.Nodes, GraphNode{ID: "agent::" + a, Type: "agent", Label: a, Agent: a})
 	}
+	if workflowsEnabled {
+		extra := fakeWorkflowSingleNode(snap.Nodes[0].StartedAt)
+		g.Nodes = append(g.Nodes, GraphNode{ID: extra.ID, Type: "job", Label: extra.Title, State: extra.State, Agent: extra.Agent, Repo: fakeRepo, Run: "run-demo-single"})
+		g.Links = append(g.Links,
+			GraphLink{Source: extra.ID, Target: "repo::" + fakeRepo, Kind: "repo"},
+			GraphLink{Source: extra.ID, Target: "agent::" + extra.Agent, Kind: "agent"},
+		)
+		if !agents[extra.Agent] {
+			g.Nodes = append(g.Nodes, GraphNode{ID: "agent::" + extra.Agent, Type: "agent", Label: extra.Agent, Agent: extra.Agent})
+		}
+		for _, n := range append(snap.Nodes, extra) {
+			g.Links = append(g.Links, GraphLink{Source: n.ID, Target: "workflow::" + fakeWorkflow, Kind: "workflow"})
+		}
+		g.Nodes = append(g.Nodes, GraphNode{
+			ID: "workflow::" + fakeWorkflow, Type: "workflow", Label: fakeWorkflow,
+			JobCount: len(snap.Nodes) + 1, NoteCount: 3, TokensIn: 22_400, TokensOut: 9_700,
+		})
+	}
 	return g, nil
+}
+
+func fakeWorkflowSingleNode(anchor int64) Node {
+	started := anchor - int64(2*time.Hour/time.Millisecond)
+	ended := started + int64(7*time.Minute/time.Millisecond)
+	return Node{
+		ID: "demo-single-job", Title: "review: workflow panel accessibility",
+		Agent: "reviewer-kimi", Runtime: "kimi", Model: "kimi-k2.5",
+		State: "succeeded", StartedAt: started, EndedAt: ended,
+		Events: []Event{{T: started, Label: "started"}, {T: ended, Label: "review complete"}},
+	}
+}
+
+func compactWorkflowNode(n Node) WorkflowNode {
+	return WorkflowNode{
+		ID: n.ID, ParentID: n.ParentID, Deps: append([]string(nil), n.Deps...),
+		Title: n.Title, Agent: n.Agent, Runtime: n.Runtime, Model: n.Model,
+		State: n.State, StartedAt: n.StartedAt, EndedAt: n.EndedAt,
+	}
+}
+
+func fakeWorkflowNotes(anchor int64) []WorkflowNoteView {
+	return []WorkflowNoteView{
+		{ID: 103, Author: "panel-synth", Body: "render <script>window.__workflowScriptExecuted=true</script> literally & safely", Repo: fakeRepo, CreatedAt: anchor + int64(3*time.Minute/time.Millisecond)},
+		{ID: 102, Author: "reviewer-kimi", Body: "The single-node accessibility pass is complete.", Repo: fakeRepo, CreatedAt: anchor - int64(90*time.Minute/time.Millisecond)},
+		{ID: 101, Author: "project-lead", Body: "Workflow demo-panel created from the issue panel.", Repo: fakeRepo, CreatedAt: anchor - int64(3*time.Hour/time.Millisecond)},
+	}
+}
+
+func cursorStartRun(runs []WorkflowRun, cursor string) int {
+	if cursor == "" {
+		return 0
+	}
+	for i := range runs {
+		if runs[i].RunID == cursor {
+			return i + 1
+		}
+	}
+	return len(runs)
+}
+
+func workflowNoteCursor(n WorkflowNoteView) string {
+	return strconv.FormatInt(n.CreatedAt, 10) + ":" + strconv.FormatInt(n.ID, 10)
+}
+
+func cursorStartNote(notes []WorkflowNoteView, cursor string) int {
+	if cursor == "" {
+		return 0
+	}
+	for i := range notes {
+		if workflowNoteCursor(notes[i]) == cursor {
+			return i + 1
+		}
+	}
+	return len(notes)
+}
+
+// Workflow implements WorkflowDataSource with two complete run trees and an
+// independently paginated, newest-first note journal.
+func (f *FakeDataSource) Workflow(ctx context.Context, label string, q WorkflowQuery) (WorkflowView, error) {
+	if !f.workflowsEnabled || label != fakeWorkflow {
+		return WorkflowView{}, ErrWorkflowNotFound
+	}
+	f.mu.Lock()
+	snap := f.cloneStateLocked()
+	f.mu.Unlock()
+
+	if q.MaxRuns <= 0 || q.MaxRuns > workflowMaxRuns {
+		q.MaxRuns = workflowMaxRuns
+	}
+	if q.MaxNotes <= 0 || q.MaxNotes > workflowMaxNotes {
+		q.MaxNotes = workflowMaxNotes
+	}
+
+	nodes := make([]WorkflowNode, len(snap.Nodes))
+	for i, n := range snap.Nodes {
+		nodes[i] = compactWorkflowNode(n)
+	}
+	rootState, _ := f.overallStateLockedForSnapshot(snap)
+	extra := fakeWorkflowSingleNode(snap.Nodes[0].StartedAt)
+	runs := []WorkflowRun{
+		{RunID: snap.RunID, Title: snap.Title, State: rootState, Nodes: nodes},
+		{RunID: "run-demo-single", Title: "workflow panel accessibility review", State: extra.State, Nodes: []WorkflowNode{compactWorkflowNode(extra)}},
+	}
+	notes := fakeWorkflowNotes(snap.Nodes[0].StartedAt)
+
+	summary := WorkflowSummary{Label: fakeWorkflow, Jobs: len(nodes) + 1, Notes: len(notes), TokensIn: 22_400, TokensOut: 9_700}
+	for _, run := range runs {
+		for _, n := range run.Nodes {
+			switch n.State {
+			case "queued":
+				summary.Queued++
+			case "running":
+				summary.Running++
+			case "succeeded":
+				summary.Succeeded++
+			case "failed":
+				summary.Failed++
+			case "blocked":
+				summary.Blocked++
+			case "cancelled":
+				summary.Cancelled++
+			}
+			if summary.FirstAt == 0 || (n.StartedAt > 0 && n.StartedAt < summary.FirstAt) {
+				summary.FirstAt = n.StartedAt
+			}
+			if n.EndedAt > summary.LastAt {
+				summary.LastAt = n.EndedAt
+			}
+			if n.StartedAt > summary.LastAt {
+				summary.LastAt = n.StartedAt
+			}
+		}
+	}
+	for _, n := range notes {
+		if n.CreatedAt > summary.LastAt {
+			summary.LastAt = n.CreatedAt
+		}
+	}
+
+	runStart := cursorStartRun(runs, q.RunCursor)
+	runEnd := runStart + q.MaxRuns
+	if runEnd > len(runs) {
+		runEnd = len(runs)
+	}
+	noteStart := cursorStartNote(notes, q.NoteCursor)
+	noteEnd := noteStart + q.MaxNotes
+	if noteEnd > len(notes) {
+		noteEnd = len(notes)
+	}
+	view := WorkflowView{Summary: summary, Runs: runs[runStart:runEnd], Notes: notes[noteStart:noteEnd]}
+	if runEnd < len(runs) && runEnd > runStart {
+		view.NextRunCursor = runs[runEnd-1].RunID
+	}
+	if noteEnd < len(notes) && noteEnd > noteStart {
+		view.NextNoteCursor = workflowNoteCursor(notes[noteEnd-1])
+	}
+	view.Truncated = view.NextRunCursor != "" || view.NextNoteCursor != ""
+	return view, nil
+}
+
+func (f *FakeDataSource) overallStateLockedForSnapshot(snap State) (NodeState, int64) {
+	state := NodeState("running")
+	var updated int64
+	for _, n := range snap.Nodes {
+		if n.ParentID == "" {
+			state = n.State
+		}
+		if u := nodeUpdated(n); u > updated {
+			updated = u
+		}
+	}
+	return state, updated
 }
 
 // nodeUpdatedLocked returns a node's most-recent activity time (epoch ms): its

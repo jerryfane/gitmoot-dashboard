@@ -341,6 +341,7 @@ class Component extends DCLogic {
       if (r.view === 'learning') this._learningTab = r.tab || 'skills';
       if (r.view === 'pipelines') this._pendingPipelineDetail = r.name || null;
       if (r.view === 'chat') this._pendingChatThread = r.name || null;
+      if (r.view === 'workflows') this._pendingWorkflowLabel = r.name || null;
       // Normalize unknown paths to '/' (graph). Also tidy a non-canonical known
       // path (e.g. a trailing slash). Never rewrite a graph URL, so a
       // '/?run=<id>' deep-link survives to connectLive().
@@ -381,6 +382,12 @@ class Component extends DCLogic {
       try { name = decodeURIComponent(raw); } catch (e) { name = raw; }
       return name ? { view: 'pipelines', name: name } : { view: 'pipelines' };
     }
+    if (p.indexOf('/workflows/') === 0) {
+      const raw = p.slice(11); // '/workflows/'.length
+      let name = raw;
+      try { name = decodeURIComponent(raw); } catch (e) { name = raw; }
+      return name ? { view: 'workflows', name: name } : { view: 'graph', unknown: true };
+    }
     if (p === '/chat') return { view: 'chat' };
     if (p.indexOf('/chat/') === 0) {
       const raw = p.slice(6); // '/chat/'.length
@@ -419,6 +426,7 @@ class Component extends DCLogic {
       case 'galaxy': return '/galaxy';
       case 'jobs':   return opts.agent ? '/jobs?agent=' + encodeURIComponent(opts.agent) : '/jobs';
       case 'pipelines': return opts.name ? '/pipelines/' + encodeURIComponent(opts.name) : '/pipelines';
+      case 'workflows': return opts.name ? '/workflows/' + encodeURIComponent(opts.name) : '/';
       case 'chat': return opts.name ? '/chat/' + encodeURIComponent(opts.name) : '/chat';
       case 'agents': return opts.agent ? '/agents/' + encodeURIComponent(opts.agent) : '/agents';
       case 'charts': return '/charts';
@@ -444,6 +452,7 @@ class Component extends DCLogic {
       case 'galaxy': return 'gitmoot · galaxy';
       case 'jobs':   return opts.agent ? 'gitmoot · jobs · ' + opts.agent : 'gitmoot · jobs';
       case 'pipelines': return opts.name ? 'gitmoot · pipelines · ' + opts.name : 'gitmoot · pipelines';
+      case 'workflows': return opts.name ? 'gitmoot · workflow · ' + opts.name : 'gitmoot · workflows';
       case 'chat': return opts.name ? 'gitmoot · chat · ' + opts.name : 'gitmoot · chat';
       case 'agents': return opts.agent ? 'gitmoot · agents · ' + opts.agent : 'gitmoot · agents';
       case 'charts': return 'gitmoot · charts';
@@ -486,6 +495,14 @@ class Component extends DCLogic {
         } else {
           // not mounted yet: applyView opens the detail after it mounts.
           this._pendingPipelineDetail = r.name || null;
+        }
+      } else if (r.view === 'workflows') {
+        this._workflowLabel = r.name || '';
+        if (this.state.view === 'workflows' && this._workflowRoot && r.name) {
+          this._pendingWorkflowLabel = null;
+          this.fetchWorkflow(r.name, 'initial');
+        } else {
+          this._pendingWorkflowLabel = r.name || null;
         }
       } else if (r.view === 'chat') {
         if (this._chatRoot) {
@@ -693,6 +710,7 @@ class Component extends DCLogic {
     try { document.removeEventListener('keydown', this._learningKeydown); } catch (e) {}
     try { document.removeEventListener('keydown', this._pipelinesKeydown); } catch (e) {}
     try { document.removeEventListener('keydown', this._chatKeydown); } catch (e) {}
+    try { document.removeEventListener('keydown', this._workflowKeydown); } catch (e) {}
     try { window.removeEventListener('resize', this._knowResize); } catch (e) {}
     try { if (this._galaxyRoot) this._galaxyRoot.remove(); } catch (e) {}
     try { if (this._jobsRoot) this._jobsRoot.remove(); } catch (e) {}
@@ -704,6 +722,8 @@ class Component extends DCLogic {
     try { if (this._learningRoot) this._learningRoot.remove(); } catch (e) {}
     try { if (this._pipelinesRoot) this._pipelinesRoot.remove(); } catch (e) {}
     try { if (this._chatRoot) this._chatRoot.remove(); } catch (e) {}
+    try { if (this._workflowRoot) this._workflowRoot.remove(); } catch (e) {}
+    try { if (this._workflowStrip) this._workflowStrip.remove(); } catch (e) {}
   }
 
   // ============================================================
@@ -715,6 +735,18 @@ class Component extends DCLogic {
   // ============================================================
   showGraph = () => { this.setState({ view: 'graph' }); this._navRoute('graph'); };
   showGalaxy = () => { this.setState({ view: 'galaxy' }); this._navRoute('galaxy'); };
+  showWorkflow = (label) => {
+    if (!label) return;
+    this._workflowLabel = label;
+    if (this.state.view === 'workflows' && this._workflowRoot) {
+      this._pendingWorkflowLabel = null;
+      this.fetchWorkflow(label, 'initial');
+    } else {
+      this._pendingWorkflowLabel = label;
+      this.setState({ view: 'workflows' });
+    }
+    this._navRoute('workflows', { name: label });
+  };
 
   applyView() {
     const v = this.state.view;
@@ -727,6 +759,20 @@ class Component extends DCLogic {
     } else {
       this.stopGalaxyPoll();
       if (this._galaxyRoot) this._galaxyRoot.style.display = 'none';
+    }
+    // Workflow forest + journal overlay. There is no global nav entry: the page
+    // is reached from a galaxy workflow hub or a labeled run's context strip.
+    if (v === 'workflows') {
+      const root = this.ensureWorkflowDom();
+      root.style.display = 'block';
+      const label = this._pendingWorkflowLabel || this._workflowLabel;
+      this._pendingWorkflowLabel = null;
+      if (label) this.fetchWorkflow(label, 'initial');
+    } else if (this._workflowRoot) {
+      this._workflowRoot.style.display = 'none';
+      this._workflowNavToken = (this._workflowNavToken || 0) + 1;
+      try { if (this._workflowController) this._workflowController.abort(); } catch (e) {}
+      this._workflowController = null;
     }
     // Jobs overlay (imperative table) — same body-appended overlay pattern as galaxy.
     if (v === 'jobs') {
@@ -863,6 +909,261 @@ class Component extends DCLogic {
       this.stopChatThreadPoll();
       if (this._chatRoot) this._chatRoot.style.display = 'none';
     }
+  }
+
+  // ============================================================
+  // Workflow page: a paginated forest of complete run trees and an
+  // independently paginated chronological note journal.
+  // ============================================================
+  ensureWorkflowDom() {
+    if (this._workflowRoot) return this._workflowRoot;
+    const st = document.createElement('style');
+    st.textContent = [
+      "#workflow-root{font-family:Inter,system-ui,sans-serif;color:#c8cce6}",
+      "#workflow-root .wf-scroll{position:absolute;inset:0;overflow:auto;padding:22px 24px 34px}",
+      "#workflow-root .wf-head{display:flex;align-items:flex-start;gap:14px;margin-bottom:16px}",
+      "#workflow-root .wf-back{width:34px;height:34px;border-radius:9px;border:1px solid rgba(160,168,220,.14);background:#0d0f1c;color:#a8aecf;cursor:pointer;font-size:18px}",
+      "#workflow-root .wf-title{font-family:'Space Grotesk',sans-serif;font-size:24px;font-weight:700;color:#eef0ff;letter-spacing:-.02em}",
+      "#workflow-root .wf-title b{color:#2dd4bf}",
+      "#workflow-root .wf-sub{margin-top:4px;color:#7f86ad;font-size:12.5px}",
+      "#workflow-root .wf-summary{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 18px}",
+      "#workflow-root .wf-stat{padding:8px 11px;border-radius:9px;background:#0d0f1c;border:1px solid rgba(160,168,220,.1);font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#868db5}",
+      "#workflow-root .wf-stat b{display:block;margin-bottom:2px;font-family:'Space Grotesk',sans-serif;font-size:17px;color:#eef0ff}",
+      "#workflow-root .wf-grid{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(280px,.8fr);gap:16px;align-items:start}",
+      "#workflow-root .wf-panel{background:#0b0d18;border:1px solid rgba(160,168,220,.1);border-radius:13px;overflow:hidden}",
+      "#workflow-root .wf-ph{display:flex;align-items:center;gap:9px;padding:12px 14px;border-bottom:1px solid rgba(160,168,220,.09);font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:#868db5}",
+      "#workflow-root .wf-ph span{color:#5a6088;letter-spacing:0;text-transform:none}",
+      "#workflow-root .wf-forest{overflow:auto;min-height:280px;background:#07080f;background-image:radial-gradient(rgba(160,168,220,.07) 1px,transparent 1px);background-size:22px 22px}",
+      "#workflow-root .wf-node{cursor:pointer}",
+      "#workflow-root .wf-node:hover rect{stroke-width:2}",
+      "#workflow-root .wf-journal{padding:12px;display:flex;flex-direction:column;gap:9px}",
+      "#workflow-root .wf-note{padding:11px 12px;border-radius:10px;background:#0d0f1c;border:1px solid rgba(160,168,220,.09)}",
+      "#workflow-root .wf-note-head{display:flex;gap:8px;align-items:baseline;font-family:'JetBrains Mono',monospace;font-size:10px;color:#5a6088}",
+      "#workflow-root .wf-note-author{color:#2dd4bf;font-weight:600}",
+      "#workflow-root .wf-note-body{margin-top:7px;color:#c7c9e5;font-size:12.5px;line-height:1.55;white-space:pre-wrap;word-break:break-word}",
+      "#workflow-root .wf-more{display:block;width:calc(100% - 24px);margin:0 12px 12px;padding:8px;border-radius:8px;border:1px dashed rgba(45,212,191,.3);background:rgba(45,212,191,.06);color:#5eead4;font-family:'JetBrains Mono',monospace;font-size:10.5px;cursor:pointer}",
+      "#workflow-root .wf-more[hidden]{display:none}",
+      "#workflow-root .wf-empty{padding:28px 16px;text-align:center;color:#5a6088;font-size:12px}",
+      "#workflow-root .wf-error{display:none;margin-bottom:14px;padding:10px 12px;border-radius:9px;background:rgba(247,118,142,.1);border:1px solid rgba(247,118,142,.3);color:#f7a2b0;font-size:12px}",
+      "@media(max-width:900px){#workflow-root .wf-grid{grid-template-columns:1fr}#workflow-root .wf-scroll{padding:16px 14px calc(80px + env(safe-area-inset-bottom))}}"
+    ].join('\n');
+    document.head.appendChild(st);
+    const root = document.createElement('div');
+    root.id = 'workflow-root';
+    root.style.cssText = 'position:fixed;left:216px;top:54px;right:0;bottom:0;z-index:42;background:#07080f;display:none';
+    root.innerHTML = [
+      '<div class="wf-scroll">',
+      '  <div class="wf-head"><button class="wf-back" title="Back to graph">‹</button><div><div class="wf-title">workflow <b id="wf-label"></b></div><div class="wf-sub">complete run trees and their shared journal</div></div></div>',
+      '  <div class="wf-error" id="wf-error"></div>',
+      '  <div class="wf-summary" id="wf-summary"></div>',
+      '  <div class="wf-grid">',
+      '    <section class="wf-panel"><div class="wf-ph">Forest <span id="wf-run-count"></span></div><div class="wf-forest" id="wf-forest"></div><button class="wf-more" id="wf-more-runs" hidden>load more runs</button></section>',
+      '    <section class="wf-panel"><div class="wf-ph">Journal <span id="wf-note-count"></span></div><div class="wf-journal" id="wf-journal"></div><button class="wf-more" id="wf-more-notes" hidden>load more notes</button></section>',
+      '  </div>',
+      '</div>'
+    ].join('\n');
+    document.body.appendChild(root);
+    this._dockOverlay(root);
+    root.querySelector('.wf-back').addEventListener('click', () => this.showGraph());
+    root.querySelector('#wf-more-runs').addEventListener('click', () => this.fetchWorkflow(this._workflowLabel, 'runs'));
+    root.querySelector('#wf-more-notes').addEventListener('click', () => this.fetchWorkflow(this._workflowLabel, 'notes'));
+    root.querySelector('#wf-forest').addEventListener('click', (e) => {
+      const node = e.target.closest && e.target.closest('.wf-node[data-job]');
+      if (node) this.openWorkflowJob(node.getAttribute('data-job'));
+    });
+    this._workflowKeydown = (e) => { if (e.key === 'Escape' && this.state.view === 'workflows') this.showGraph(); };
+    document.addEventListener('keydown', this._workflowKeydown);
+    this._workflowRoot = root;
+    return root;
+  }
+
+  openWorkflowJob(id) {
+    if (!id) return;
+    this._pendingJobDetail = id;
+    this.setState({ view: 'jobs' });
+    this._navRoute('jobs');
+  }
+
+  fetchWorkflow(label, mode) {
+    if (!label) return;
+    mode = mode || 'initial';
+    if (mode !== 'initial') {
+      if (label !== this._workflowLabel) return;
+      this._workflowPageLoading = this._workflowPageLoading || {};
+      if (this._workflowPageLoading[mode]) return;
+      this._workflowPageLoading[mode] = true;
+    }
+    let navToken = this._workflowNavToken || 0;
+    let controller = null;
+    if (mode === 'initial') {
+      navToken = (this._workflowNavToken || 0) + 1;
+      this._workflowNavToken = navToken;
+      try { if (this._workflowController) this._workflowController.abort(); } catch (e) {}
+      controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      this._workflowController = controller;
+      this._workflowLabel = label;
+      this._workflowData = { summary: { label: label }, runs: [], notes: [] };
+      this._workflowRunCursor = '';
+      this._workflowNoteCursor = '';
+      this._workflowPageLoading = {};
+      this.renderWorkflowLoading(label);
+    }
+    const q = ['maxRuns=1', 'maxNotes=2'];
+    if (mode === 'runs' && this._workflowRunCursor) q.push('runCursor=' + encodeURIComponent(this._workflowRunCursor));
+    if (mode === 'notes' && this._workflowNoteCursor) q.push('noteCursor=' + encodeURIComponent(this._workflowNoteCursor));
+    const errEl = this._workflowRoot && this._workflowRoot.querySelector('#wf-error');
+    if (errEl) errEl.style.display = 'none';
+    const requestOptions = { cache: 'no-store' };
+    if (controller) requestOptions.signal = controller.signal;
+    fetch('/api/workflow/' + encodeURIComponent(label) + '?' + q.join('&'), requestOptions)
+      .then(r => r.ok ? r.json() : r.text().then(t => Promise.reject(new Error(t.trim() || ('HTTP ' + r.status)))))
+      .then(json => {
+        if (navToken !== this._workflowNavToken || label !== this._workflowLabel) return;
+        const responseLabel = json && json.summary && json.summary.label;
+        if (responseLabel !== label) throw new Error('workflow response label mismatch');
+        const old = this._workflowData || { runs: [], notes: [] };
+        if (mode === 'initial') {
+          this._workflowData = json || { summary: { label: label }, runs: [], notes: [] };
+          this._workflowRunCursor = (json && json.nextRunCursor) || '';
+          this._workflowNoteCursor = (json && json.nextNoteCursor) || '';
+        } else {
+          const runs = (old.runs || []).slice(), runIDs = new Set(runs.map(r => r.runId));
+          (json.runs || []).forEach(r => { if (!runIDs.has(r.runId)) { runIDs.add(r.runId); runs.push(r); } });
+          const notes = (old.notes || []).slice(), noteIDs = new Set(notes.map(n => String(n.id)));
+          (json.notes || []).forEach(n => { if (!noteIDs.has(String(n.id))) { noteIDs.add(String(n.id)); notes.push(n); } });
+          this._workflowData = { summary: json.summary || old.summary, runs: runs, notes: notes };
+          if (mode === 'runs') this._workflowRunCursor = json.nextRunCursor || '';
+          if (mode === 'notes') this._workflowNoteCursor = json.nextNoteCursor || '';
+        }
+        this.renderWorkflow(this._workflowData);
+      })
+      .catch(err => {
+        if (navToken !== this._workflowNavToken || label !== this._workflowLabel) return;
+        if (err && err.name === 'AbortError') return;
+        this.renderWorkflowError(label, err);
+      })
+      .finally(() => {
+        if (mode !== 'initial' && navToken === this._workflowNavToken) {
+          this._workflowPageLoading = this._workflowPageLoading || {};
+          this._workflowPageLoading[mode] = false;
+        }
+        if (mode === 'initial' && navToken === this._workflowNavToken && this._workflowController === controller) this._workflowController = null;
+      });
+  }
+
+  renderWorkflowLoading(label) {
+    if (!this._workflowRoot) return;
+    this._workflowRoot.querySelector('#wf-label').textContent = label || '';
+    const errEl = this._workflowRoot.querySelector('#wf-error');
+    if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
+    this._workflowRoot.querySelector('#wf-summary').innerHTML = '<div class="wf-stat"><b>…</b>loading</div>';
+    this._workflowRoot.querySelector('#wf-run-count').textContent = '';
+    this._workflowRoot.querySelector('#wf-note-count').textContent = '';
+    this._workflowRoot.querySelector('#wf-forest').innerHTML = '<div class="wf-empty">loading workflow forest…</div>';
+    this._workflowRoot.querySelector('#wf-journal').innerHTML = '<div class="wf-empty">loading journal…</div>';
+    this._workflowRoot.querySelector('#wf-more-runs').hidden = true;
+    this._workflowRoot.querySelector('#wf-more-notes').hidden = true;
+  }
+
+  renderWorkflowError(label, err) {
+    if (!this._workflowRoot) return;
+    const message = 'Could not load workflow ' + label + ': ' + (err && err.message ? err.message : 'unknown error');
+    this._workflowData = { summary: { label: label }, runs: [], notes: [] };
+    this._workflowRunCursor = '';
+    this._workflowNoteCursor = '';
+    this._workflowRoot.querySelector('#wf-label').textContent = label || '';
+    this._workflowRoot.querySelector('#wf-summary').innerHTML = '';
+    this._workflowRoot.querySelector('#wf-run-count').textContent = '';
+    this._workflowRoot.querySelector('#wf-note-count').textContent = '';
+    this._workflowRoot.querySelector('#wf-forest').innerHTML = '<div class="wf-empty">workflow unavailable</div>';
+    this._workflowRoot.querySelector('#wf-journal').innerHTML = '<div class="wf-empty">journal unavailable</div>';
+    this._workflowRoot.querySelector('#wf-more-runs').hidden = true;
+    this._workflowRoot.querySelector('#wf-more-notes').hidden = true;
+    const errEl = this._workflowRoot.querySelector('#wf-error');
+    if (errEl) { errEl.textContent = message; errEl.style.display = 'block'; }
+  }
+
+  _workflowStateColor(state) {
+    return ({ succeeded:'#9ece6a', running:'#7aa2f7', failed:'#f7768e', blocked:'#e0af68', cancelled:'#5a6088', queued:'#5a6088' })[state] || '#5a6088';
+  }
+
+  _workflowForestSVG(runs, label) {
+    const esc = (s) => this._galaxyEsc(s);
+    if (!runs.length) return '<div class="wf-empty">no runs in this workflow</div>';
+    let nextY = 38, maxDepth = 0;
+    const groups = [];
+    (runs || []).forEach((run, ri) => {
+      const nodes = run.nodes || [], by = {};
+      nodes.forEach(n => { by[n.id] = n; });
+      const depthMemo = {};
+      const depthOf = (n, seen) => {
+        if (depthMemo[n.id] != null) return depthMemo[n.id];
+        seen = seen || {};
+        if (seen[n.id]) return 0;
+        seen[n.id] = true;
+        const p = n.parentId && by[n.parentId];
+        return (depthMemo[n.id] = p ? depthOf(p, seen) + 1 : 0);
+      };
+      const pos = {}, startY = nextY + 34;
+      nodes.forEach((n, i) => {
+        const d = depthOf(n, {}); maxDepth = Math.max(maxDepth, d);
+        pos[n.id] = { x: 250 + d * 205, y: startY + i * 64, node: n };
+      });
+      const height = Math.max(112, nodes.length * 64 + 38);
+      groups.push({ run: run, ri: ri, pos: pos, start: nextY, roots: nodes.filter(n => !n.parentId || !by[n.parentId]) });
+      nextY += height + 24;
+    });
+    const width = Math.max(820, 470 + maxDepth * 205), height = Math.max(320, nextY + 10), hub = { x: 78, y: height / 2 };
+    const out = ['<svg viewBox="0 0 ' + width + ' ' + height + '" width="100%" height="' + height + '" style="display:block;min-width:' + Math.min(width, 980) + 'px" role="img" aria-label="workflow forest">'];
+    out.push('<g class="wf-synthetic"><circle cx="' + hub.x + '" cy="' + hub.y + '" r="24" fill="#102923" stroke="#2dd4bf" stroke-width="2"/><text x="' + hub.x + '" y="' + (hub.y - 2) + '" text-anchor="middle" fill="#5eead4" font-family="Space Grotesk" font-size="9" font-weight="700">WORKFLOW</text><text x="' + hub.x + '" y="' + (hub.y + 11) + '" text-anchor="middle" fill="#99f6e4" font-family="JetBrains Mono" font-size="7">' + esc(label) + '</text></g>');
+    groups.forEach(g => {
+      out.push('<g class="wf-run" data-run="' + esc(g.run.runId || '') + '"><text x="176" y="' + (g.start + 12) + '" fill="#7f86ad" font-family="JetBrains Mono" font-size="9">' + esc(g.run.title || g.run.runId || 'run') + '</text>');
+      g.roots.forEach(root => { const p = g.pos[root.id]; if (p) out.push('<path d="M ' + (hub.x + 24) + ' ' + hub.y + ' C 150 ' + hub.y + ', 170 ' + p.y + ', ' + (p.x - 86) + ' ' + p.y + '" fill="none" stroke="#2dd4bf" stroke-opacity=".32" stroke-width="1.3"/>'); });
+      Object.keys(g.pos).forEach(id => {
+        const p = g.pos[id], n = p.node;
+        if (n.parentId && g.pos[n.parentId]) {
+          const a = g.pos[n.parentId]; out.push('<path d="M ' + (a.x + 86) + ' ' + a.y + ' C ' + (a.x + 112) + ' ' + a.y + ', ' + (p.x - 112) + ' ' + p.y + ', ' + (p.x - 86) + ' ' + p.y + '" fill="none" stroke="#a0a8dc" stroke-opacity=".32"/>');
+        }
+        (n.deps || []).forEach(dep => { const a = g.pos[dep]; if (a) out.push('<path d="M ' + (a.x + 80) + ' ' + (a.y + 18) + ' C ' + (a.x + 110) + ' ' + (a.y + 22) + ', ' + (p.x - 110) + ' ' + (p.y + 22) + ', ' + (p.x - 80) + ' ' + (p.y + 18) + '" fill="none" stroke="#e0af68" stroke-opacity=".48" stroke-dasharray="4 4"/>'); });
+      });
+      Object.keys(g.pos).forEach(id => {
+        const p = g.pos[id], n = p.node, col = this._workflowStateColor(n.state), title = String(n.title || n.id || '').slice(0, 25);
+        out.push('<g class="wf-node" data-job="' + esc(n.id) + '" transform="translate(' + (p.x - 86) + ',' + (p.y - 22) + ')"><rect width="172" height="44" rx="8" fill="#0d0f1c" stroke="' + col + '" stroke-opacity=".72"/><circle cx="13" cy="14" r="4" fill="' + col + '"/><text x="23" y="17" fill="#eef0ff" font-family="Inter" font-size="10" font-weight="600">' + esc(title) + '</text><text x="13" y="33" fill="#7f86ad" font-family="JetBrains Mono" font-size="8">' + esc((n.agent || 'agent') + ' · ' + (n.state || 'queued')) + '</text></g>');
+      });
+      out.push('</g>');
+    });
+    out.push('</svg>');
+    return out.join('');
+  }
+
+  renderWorkflow(data) {
+    if (!this._workflowRoot) return;
+    data = data || {};
+    const esc = (s) => this._galaxyEsc(s), sum = data.summary || {}, runs = data.runs || [], notes = data.notes || [];
+    const label = sum.label || this._workflowLabel || '';
+    const errEl = this._workflowRoot.querySelector('#wf-error');
+    if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
+    this._workflowRoot.querySelector('#wf-label').textContent = label;
+    const fmt = (n) => Number(n || 0).toLocaleString('en-US');
+    const date = (n) => n ? new Date(n).toLocaleString([], { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '—';
+    const stats = [
+      ['jobs', sum.jobs], ['running', sum.running], ['queued', sum.queued], ['succeeded', sum.succeeded],
+      ['failed', sum.failed], ['blocked', sum.blocked], ['cancelled', sum.cancelled], ['notes', sum.notes],
+      ['tokens in', sum.tokensIn], ['tokens out', sum.tokensOut], ['first', date(sum.firstAt)], ['last', date(sum.lastAt)]
+    ];
+    this._workflowRoot.querySelector('#wf-summary').innerHTML = stats.map(s => '<div class="wf-stat"><b>' + esc(typeof s[1] === 'number' ? fmt(s[1]) : s[1]) + '</b>' + esc(s[0]) + '</div>').join('');
+    this._workflowRoot.querySelector('#wf-run-count').textContent = runs.length + ' of ' + (sum.jobs ? 'member runs' : 'runs');
+    this._workflowRoot.querySelector('#wf-forest').innerHTML = this._workflowForestSVG(runs, label);
+    const sortedNotes = notes.slice().sort((a, b) => (a.createdAt - b.createdAt) || (a.id - b.id));
+    this._workflowRoot.querySelector('#wf-note-count').textContent = sortedNotes.length + ' of ' + fmt(sum.notes || sortedNotes.length);
+    this._workflowRoot.querySelector('#wf-journal').innerHTML = sortedNotes.length ? sortedNotes.map(n => [
+      '<article class="wf-note" data-note="' + esc(n.id) + '">',
+      '<div class="wf-note-head"><span class="wf-note-author">' + esc(n.author || 'unknown') + '</span><span>' + esc(date(n.createdAt)) + '</span>' + (n.repo ? '<span>· ' + esc(n.repo) + '</span>' : '') + '</div>',
+      '<div class="wf-note-body">' + esc(n.body || '') + '</div></article>'
+    ].join('')).join('') : '<div class="wf-empty">no notes yet</div>';
+    const moreRuns = this._workflowRoot.querySelector('#wf-more-runs'), moreNotes = this._workflowRoot.querySelector('#wf-more-notes');
+    moreRuns.hidden = !this._workflowRunCursor;
+    moreNotes.hidden = !this._workflowNoteCursor;
   }
 
   // Feature 4: live auto-refresh while the Galaxy view is active.
@@ -1020,12 +1321,13 @@ class Component extends DCLogic {
   buildGalaxyGraph() {
     if (this._galaxyGraph) return; // guard: only ever mount one ForceGraph instance
     const STATE_COLOR = { succeeded:'#9ece6a', running:'#7aa2f7', failed:'#f7768e', blocked:'#e0af68', cancelled:'#5a6088', queued:'#5a6088' };
-    const nodeColor = (n) => n.type === 'repo' ? '#7dcfff' : n.type === 'agent' ? '#bb9af7' : (STATE_COLOR[n.state] || '#5a6088');
-    const nodeRadius = (n) => n.type === 'repo' ? 8.5 : n.type === 'agent' ? 4.6 : 3.0;
+    const nodeColor = (n) => n.type === 'repo' ? '#7dcfff' : n.type === 'agent' ? '#bb9af7' : n.type === 'workflow' ? '#2dd4bf' : (STATE_COLOR[n.state] || '#5a6088');
+    const nodeRadius = (n) => n.type === 'repo' ? 8.5 : n.type === 'workflow' ? 7.0 : n.type === 'agent' ? 4.6 : 3.0;
     const linkStyle = (kind) => {
       switch (kind) {
         case 'repo':  return { color:'#7dcfff', alpha:0.16, width:0.5 };
         case 'agent': return { color:'#bb9af7', alpha:0.13, width:0.5 };
+        case 'workflow': return { color:'#2dd4bf', alpha:0.10, width:0.45 };
         case 'dep':   return { color:'#a0a8dc', alpha:0.55, width:0.9 };
         default:      return { color:'#a0a8dc', alpha:0.35, width:0.7 };
       }
@@ -1037,6 +1339,11 @@ class Component extends DCLogic {
       let parts = '<div class="tt-title">' + esc(n.label || n.id) + '</div>';
       if (n.type === 'repo') parts += '<div class="tt-row">type <b>repo hub</b></div>';
       else if (n.type === 'agent') parts += '<div class="tt-row">type <b>agent hub</b></div>';
+      else if (n.type === 'workflow') {
+        parts += '<div class="tt-row">type <b>workflow hub</b></div>';
+        parts += '<div class="tt-row">jobs <b>' + esc(n.jobCount || 0) + '</b> · notes <b>' + esc(n.noteCount || 0) + '</b></div>';
+        parts += '<div class="tt-row">tokens <b>' + esc((n.tokensIn || 0).toLocaleString('en-US')) + ' in · ' + esc((n.tokensOut || 0).toLocaleString('en-US')) + ' out</b></div>';
+      }
       else {
         parts += '<div class="tt-row">type <b>job</b> · state <b style="color:' + nodeColor(n) + '">' + esc(n.state) + '</b></div>';
         parts += '<div class="tt-row">agent <b>' + esc(n.agent) + '</b></div>';
@@ -1079,7 +1386,7 @@ class Component extends DCLogic {
         // additive 'lighter' blend is set ONCE per frame in onRenderFramePre/Post below.
         // Only touch per-element state (fillStyle/globalAlpha), and shadowBlur solely
         // for the small-graph glow path (reset to 0 right after the glow fill).
-        let blur = this._galaxyBig ? 0 : (n.type === 'repo' ? 26 : n.type === 'agent' ? 15 : 9);
+        let blur = this._galaxyBig ? 0 : (n.type === 'repo' ? 26 : n.type === 'workflow' ? 20 : n.type === 'agent' ? 15 : 9);
         if (isRun) blur = (this._galaxyBig ? 16 : 20) * (0.6 + 0.7 * pulse);
         if (hi) blur = Math.max(blur, this._galaxyBig ? 8 : 16);
         // BEACON BLOOM: a big, soft, pulsing halo around each running node — floored to a
@@ -1102,7 +1409,7 @@ class Component extends DCLogic {
         }
         if (n.type !== 'job' && scale > 1.5) {
           ctx.globalAlpha = Math.min(1, (scale - 1.5) / 1.2) * dim;
-          ctx.font = (n.type === 'repo' ? '600 ' : '500 ') + (n.type === 'repo' ? 4.4 : 3.4) + "px 'Space Grotesk',sans-serif";
+          ctx.font = (n.type === 'repo' || n.type === 'workflow' ? '600 ' : '500 ') + (n.type === 'repo' ? 4.4 : n.type === 'workflow' ? 4.0 : 3.4) + "px 'Space Grotesk',sans-serif";
           ctx.fillStyle = col; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
           const txt = n.type === 'repo' ? (n.label || '').split('/').pop() : n.label;
           ctx.fillText(txt || '', n.x, n.y + r + 1.5);
@@ -1409,7 +1716,7 @@ class Component extends DCLogic {
       if (!G.d3Force('link') && saved.link) G.d3Force('link', saved.link);
       if (!G.d3Force('center') && saved.center) G.d3Force('center', saved.center);
       G.d3Force('charge').strength(-70).distanceMax(360);
-      G.d3Force('link').distance((l) => l.kind === 'repo' ? 26 : l.kind === 'agent' ? 22 : 18).strength(0.5);
+      G.d3Force('link').distance((l) => l.kind === 'repo' ? 26 : l.kind === 'workflow' ? 30 : l.kind === 'agent' ? 22 : 18).strength((l) => l.kind === 'workflow' ? 0.2 : 0.5);
     } catch (e) {}
   }
 
@@ -1445,20 +1752,14 @@ class Component extends DCLogic {
     if (!this._galaxyGraph) return;
     const raw = this._galaxyRaw || { nodes: [], links: [] };
     // fresh clones so force-graph can mutate x/y and resolve source/target refs
-    const nodes = (raw.nodes || []).map(n => ({ id: n.id, type: n.type, label: n.label, state: n.state, agent: n.agent, repo: n.repo, run: n.run }));
+    const nodes = (raw.nodes || []).map(n => ({ id: n.id, type: n.type, label: n.label, state: n.state, agent: n.agent, repo: n.repo, run: n.run, jobCount: n.jobCount, noteCount: n.noteCount, tokensIn: n.tokensIn, tokensOut: n.tokensOut }));
     const links = (raw.links || []).map(l => ({ source: (l.source && l.source.id) || l.source, target: (l.target && l.target.id) || l.target, kind: l.kind }));
-    // FIX-4: cheap signature of the fetched graph (counts + a rolling hash over each
-    // node's id+state). On a poll refresh, if it matches the last rendered signature the
-    // data is unchanged — skip graphData() entirely so the sim isn't reheated / re-laid-out
-    // every 12s (which was keeping the rAF loop hot). State transitions (e.g. queued→running)
-    // change the hash, so live updates still render. First load / repo-filter change (isPoll
-    // false) always renders. id+state also covers particle/pulse-relevant changes.
-    let h = 0;
-    for (let i = 0; i < nodes.length; i++) {
-      const str = (nodes[i].id || '') + ':' + (nodes[i].state || '');
-      for (let j = 0; j < str.length; j++) { h = (h * 31 + str.charCodeAt(j)) | 0; }
-    }
-    const sig = nodes.length + '/' + links.length + '/' + h;
+    this.syncGalaxyWorkflowLegend(nodes.some(n => n.type === 'workflow'));
+    // FIX-4: the legacy prefix is byte-identical to the original counts + id:state
+    // signature. Workflow rollups and workflow-link identity live in an optional suffix,
+    // which is exactly empty for legacy payloads. Equal-count workflow rewires therefore
+    // render, while FAKEFEED_WORKFLOWS=0 retains the old signature bytes.
+    const sig = this._galaxySignature(nodes, links);
     if (isPoll && this._galaxySig === sig) return; // unchanged — leave the layout (and the idle loop) alone
     this._galaxySig = sig;
     // Feature 4: preserve layout across poll refreshes — copy live positions onto matching
@@ -1543,6 +1844,34 @@ class Component extends DCLogic {
     if (!isPoll) setTimeout(() => { if (!this._galaxyFitDone) { try { this._galaxyGraph.zoomToFit(700, 60); } catch (e) {} } }, 1600);
   }
 
+  _galaxySignature(nodes, links) {
+    let legacyHash = 0;
+    for (let i = 0; i < nodes.length; i++) {
+      const str = (nodes[i].id || '') + ':' + (nodes[i].state || '');
+      for (let j = 0; j < str.length; j++) legacyHash = (legacyHash * 31 + str.charCodeAt(j)) | 0;
+    }
+    const legacy = nodes.length + '/' + links.length + '/' + legacyHash;
+    let workflowHash = 0, workflowNodes = 0, workflowLinks = 0;
+    const addWorkflow = (str) => {
+      for (let i = 0; i < str.length; i++) workflowHash = (workflowHash * 31 + str.charCodeAt(i)) | 0;
+    };
+    for (let i = 0; i < nodes.length; i++) {
+      const n = nodes[i];
+      if (n.type !== 'workflow') continue;
+      workflowNodes++;
+      addWorkflow('n:' + (n.id || '') + ':' + (n.jobCount || 0) + ':' + (n.noteCount || 0) + ':' + (n.tokensIn || 0) + ':' + (n.tokensOut || 0));
+    }
+    for (let i = 0; i < links.length; i++) {
+      const l = links[i];
+      if (l.kind !== 'workflow') continue;
+      workflowLinks++;
+      const source = (l.source && l.source.id) || l.source || '';
+      const target = (l.target && l.target.id) || l.target || '';
+      addWorkflow('l:' + source + ':' + target + ':' + l.kind);
+    }
+    return workflowNodes || workflowLinks ? legacy + '/w/' + workflowNodes + '/' + workflowLinks + '/' + workflowHash : legacy;
+  }
+
   // ============================================================
   // FIX-B: Galaxy node-detail panel — built imperatively inside the
   // #galaxy-root overlay (which covers the per-run detail aside), styled
@@ -1556,6 +1885,20 @@ class Component extends DCLogic {
   _galaxyEsc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : c === '"' ? '&quot;' : '&#39;'); }
   // Only allow http/https hrefs; server-sourced URLs (e.g. prUrl) could carry a javascript: scheme.
   _galaxySafeUrl(u) { const s = String(u == null ? '' : u); return /^https?:\/\//i.test(s) ? s : ''; }
+
+  syncGalaxyWorkflowLegend(show) {
+    if (!this._galaxyRoot) return;
+    let row = this._galaxyRoot.querySelector('#g-workflow-legend');
+    if (!show) { if (row) row.remove(); return; }
+    if (row) return;
+    const grp = this._galaxyRoot.querySelector('#g-legend .grp');
+    if (!grp) return;
+    row = document.createElement('div');
+    row.id = 'g-workflow-legend';
+    row.className = 'row';
+    row.innerHTML = '<span class="swatch" style="color:#2dd4bf;background:#2dd4bf"></span>workflow hub';
+    grp.appendChild(row);
+  }
 
   ensureGalaxyDetailEl() {
     // reuse one panel element so repeated clicks never stack panels.
@@ -1577,6 +1920,11 @@ class Component extends DCLogic {
 
   openGalaxyDetail(node) {
     if (!node) { this.closeGalaxyDetail(); return; }
+    if (node.type === 'workflow') {
+      this.closeGalaxyDetail();
+      this.showWorkflow(node.label || String(node.id || '').replace(/^workflow::/, ''));
+      return;
+    }
     // keep the clicked node lit via the hover-highlight mechanism.
     if (this._galaxyAdj) {
       this._galaxySelected = {
@@ -6676,6 +7024,33 @@ class Component extends DCLogic {
       this.setState({ listLoading: false, listError: false });
     }).catch(() => this.setState({ listLoading: false, listError: !this.runs.length }));  // keep the list on a transient poll failure
   }
+  renderWorkflowContext(label) {
+    this.currentWorkflow = label || '';
+    if (!label) {
+      try { if (this._workflowStrip) this._workflowStrip.remove(); } catch (e) {}
+      this._workflowStrip = null;
+      return;
+    }
+    if (!this._canvas || !this._canvas.parentNode) return;
+    let el = this._workflowStrip;
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'run-workflow-context';
+      el.style.cssText = "position:absolute;top:16px;left:50%;transform:translateX(-50%);z-index:8;display:flex;align-items:center;gap:7px;padding:7px 11px;border-radius:9px;background:rgba(13,15,28,.9);border:1px solid rgba(45,212,191,.28);box-shadow:0 8px 24px rgba(0,0,0,.35);font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#868db5;backdrop-filter:blur(8px)";
+      const prefix = document.createElement('span');
+      prefix.textContent = 'part of workflow';
+      const link = document.createElement('a');
+      link.href = '#';
+      link.style.cssText = 'color:#5eead4;text-decoration:none;font-weight:600';
+      link.addEventListener('click', (e) => { e.preventDefault(); this.showWorkflow(this.currentWorkflow); });
+      el.appendChild(prefix);
+      el.appendChild(link);
+      this._canvas.parentNode.appendChild(el);
+      this._workflowStrip = el;
+    }
+    const link = el.querySelector('a');
+    if (link) { link.textContent = label; link.setAttribute('aria-label', 'Open workflow ' + label); }
+  }
   applyState(s) {
     if (!s || !Array.isArray(s.nodes)) return;
     const nodes = s.nodes.map(n => ({
@@ -6701,6 +7076,7 @@ class Component extends DCLogic {
     if (s.runId) this.currentRunId = s.runId;
     this.baseRunId = s.runId || this.currentRunId;   // which run this.base belongs to
     if (s.title) this.runTitleLive = s.title;
+    this.renderWorkflowContext(s.workflow || '');
     // structural change (new run or new nodes) => pre-place synchronously so the
     // switched-to graph never piles at 0,0, then let elk refine + re-fit.
     const structural = setChanged || runChanged;
@@ -8868,7 +9244,7 @@ class Component extends DCLogic {
     el.style.bottom = this._overlayBottom();
   }
   _redockOverlays() {
-    [this._galaxyRoot, this._jobsRoot, this._agentsRoot, this._chartsRoot, this._healthRoot, this._configRoot, this._learningRoot, this._pipelinesRoot, this._chatRoot]
+    [this._galaxyRoot, this._workflowRoot, this._jobsRoot, this._agentsRoot, this._chartsRoot, this._healthRoot, this._configRoot, this._learningRoot, this._pipelinesRoot, this._chatRoot]
       .forEach(r => this._dockOverlay(r));
   }
 
@@ -9475,6 +9851,7 @@ class Component extends DCLogic {
     const isLearning = view === 'learning';
     const isPipelines = view === 'pipelines';
     const isChat = view === 'chat';
+    const isWorkflows = view === 'workflows';
     // shared nav-item base; active items pick up the green highlight
     const navBase = { display: 'flex', alignItems: 'center', gap: '11px', padding: '9px 11px', borderRadius: '9px', fontSize: '13.5px', fontWeight: 500, cursor: 'pointer', marginTop: '2px' };
     const navActive = (on) => ({ ...navBase, background: on ? 'rgba(158,206,106,0.11)' : 'transparent', color: on ? '#eef0ff' : '#a8aecf', border: '1px solid ' + (on ? 'rgba(158,206,106,0.2)' : 'transparent') });
@@ -9541,8 +9918,8 @@ class Component extends DCLogic {
     // Graph keeps its repo › run-title (and the run-state dot); every other view shows
     // its section + a cheaply-available selected entity (chat thread / pipeline / agent),
     // falling back to its nav group + section name.
-    const NAV_GROUP = { graph: 'run', jobs: 'run', pipelines: 'run', agents: 'fleet', chat: 'fleet', galaxy: 'insight', charts: 'insight', learning: 'insight', attention: 'system', health: 'system', config: 'system' };
-    const SECT = { graph: 'graph', jobs: 'jobs', pipelines: 'pipelines', agents: 'agents', chat: 'chat', galaxy: 'galaxy', charts: 'charts', learning: 'learning', attention: 'attention', health: 'health', config: 'config' };
+    const NAV_GROUP = { graph: 'run', jobs: 'run', pipelines: 'run', workflows: 'workflow', agents: 'fleet', chat: 'fleet', galaxy: 'insight', charts: 'insight', learning: 'insight', attention: 'system', health: 'system', config: 'system' };
+    const SECT = { graph: 'graph', jobs: 'jobs', pipelines: 'pipelines', workflows: 'workflow', agents: 'agents', chat: 'chat', galaxy: 'galaxy', charts: 'charts', learning: 'learning', attention: 'attention', health: 'health', config: 'config' };
     let crumbRoot, crumbLeaf, crumbShowDot = false;
     if (isGraph) {
       crumbRoot = activeRun.repo || 'graph'; crumbLeaf = activeRun.title || 'run'; crumbShowDot = true;
@@ -9552,6 +9929,7 @@ class Component extends DCLogic {
       else if (isPipelines && this._plDetailName) entity = this._plDetailName;
       else if (isAgents && this._agentsSelected) entity = this._agentsSelected;
       else if (isJobs && this._jobsFacetAgent) entity = this._jobsFacetAgent;
+      else if (isWorkflows && this._workflowLabel) entity = this._workflowLabel;
       else if (view === 'learning') entity = (this._learningTab === 'knowledge') ? 'knowledge' : 'skills';
       if (entity) { crumbRoot = SECT[view] || view; crumbLeaf = entity; }
       else { crumbRoot = NAV_GROUP[view] || 'gitmoot'; crumbLeaf = SECT[view] || view; }

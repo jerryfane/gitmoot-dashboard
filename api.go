@@ -4,6 +4,12 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
+)
+
+const (
+	workflowMaxRuns  = 50
+	workflowMaxNotes = 200
 )
 
 // writeJSON encodes v as indented JSON with the given status code. Encoding
@@ -23,10 +29,64 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 // statusForError maps a DataSource error to an HTTP status code: not-found
 // sentinels become 404, everything else 500.
 func statusForError(err error) int {
-	if errors.Is(err, ErrRunNotFound) || errors.Is(err, ErrJobNotFound) || errors.Is(err, ErrAgentNotFound) || errors.Is(err, ErrPipelineRunNotFound) || errors.Is(err, ErrPipelineNotFound) || errors.Is(err, ErrChatThreadNotFound) {
+	if errors.Is(err, ErrRunNotFound) || errors.Is(err, ErrJobNotFound) || errors.Is(err, ErrAgentNotFound) || errors.Is(err, ErrPipelineRunNotFound) || errors.Is(err, ErrPipelineNotFound) || errors.Is(err, ErrChatThreadNotFound) || errors.Is(err, ErrWorkflowNotFound) {
 		return http.StatusNotFound
 	}
 	return http.StatusInternalServerError
+}
+
+func workflowLimit(raw string, cap int) int {
+	n, err := strconv.Atoi(raw)
+	if err != nil || n <= 0 {
+		return cap
+	}
+	if n > cap {
+		return cap
+	}
+	return n
+}
+
+// handleWorkflow serves GET /api/workflow/{label}. Workflows are an optional
+// datasource extension so older bridges remain source-compatible.
+func (s *server) handleWorkflow(w http.ResponseWriter, r *http.Request) {
+	label := r.PathValue("label")
+	if label == "" {
+		http.Error(w, "missing workflow label", http.StatusBadRequest)
+		return
+	}
+	ds, ok := s.ds.(WorkflowDataSource)
+	if !ok {
+		http.Error(w, "workflow view unsupported by data source", http.StatusNotFound)
+		return
+	}
+	q := WorkflowQuery{
+		RunCursor:  r.URL.Query().Get("runCursor"),
+		NoteCursor: r.URL.Query().Get("noteCursor"),
+		MaxRuns:    workflowLimit(r.URL.Query().Get("maxRuns"), workflowMaxRuns),
+		MaxNotes:   workflowLimit(r.URL.Query().Get("maxNotes"), workflowMaxNotes),
+	}
+	view, err := ds.Workflow(r.Context(), label, q)
+	if err != nil {
+		http.Error(w, err.Error(), statusForError(err))
+		return
+	}
+	if view.Runs == nil {
+		view.Runs = []WorkflowRun{}
+	}
+	for i := range view.Runs {
+		if view.Runs[i].Nodes == nil {
+			view.Runs[i].Nodes = []WorkflowNode{}
+		}
+		for j := range view.Runs[i].Nodes {
+			if view.Runs[i].Nodes[j].Deps == nil {
+				view.Runs[i].Nodes[j].Deps = []string{}
+			}
+		}
+	}
+	if view.Notes == nil {
+		view.Notes = []WorkflowNoteView{}
+	}
+	writeJSON(w, http.StatusOK, view)
 }
 
 // handleRuns serves GET /api/runs -> []RunSummary.
