@@ -6387,16 +6387,29 @@ class Component extends DCLogic {
   // that carry a jobId open the shared job-detail panel (_jobDetailHTML).
   // ============================================================
   startPipelinesPoll() {
-    if (this._pipelinesPoll) return;
-    this._pipelinesPoll = setInterval(() => {
-      if (this.state.view !== 'pipelines') return;
-      this.fetchPipelines(true);
-      // next-due countdowns are derived from a fixed epoch, so the signature-skip
-      // would freeze them; refresh them every tick regardless of a data change.
-      this.refreshPipelineCountdowns();
-    }, 12000);
+    if (!this._plLiveTick) {
+      // Stage progress ages are derived locally. Keep them moving even when the
+      // 12s API poll receives an identical response and skips a full re-render.
+      this._plLiveTick = setInterval(() => {
+        if (this.state.view === 'pipelines') this.refreshPipelineStageProgress();
+      }, 1000);
+    }
+    if (!this._pipelinesPoll) {
+      this._pipelinesPoll = setInterval(() => {
+        if (this.state.view !== 'pipelines') return;
+        this.fetchPipelines(true);
+        // next-due countdowns are derived from a fixed epoch, so the signature-skip
+        // would freeze them; refresh them every tick regardless of a data change.
+        this.refreshPipelineCountdowns();
+      }, 12000);
+    }
   }
-  stopPipelinesPoll() { try { clearInterval(this._pipelinesPoll); } catch (e) {} this._pipelinesPoll = null; }
+  stopPipelinesPoll() {
+    try { clearInterval(this._pipelinesPoll); } catch (e) {}
+    try { clearInterval(this._plLiveTick); } catch (e) {}
+    this._pipelinesPoll = null;
+    this._plLiveTick = null;
+  }
   // Second poll: while a run detail is open, refresh JUST that run so an in-flight
   // run's stages flip live. Self-guarded (no-ops on the list / other views).
   startPipelineRunPoll() {
@@ -6425,6 +6438,14 @@ class Component extends DCLogic {
     const days = Math.floor(h / 24), rh = h % 24;
     return rh ? (days + 'd ' + rh + 'h') : (days + 'd');
   }
+  _plFmtLiveAge(d) {
+    const total = Math.max(0, Math.floor(d / 1000));
+    const s = total % 60;
+    const m = Math.floor(total / 60);
+    if (m < 60) return m ? (m + 'm ' + s + 's') : (s + 's');
+    const h = Math.floor(m / 60), rm = m % 60;
+    return h + 'h ' + rm + 'm ' + s + 's';
+  }
   _plFmtCountdown(ms, now) {
     if (!ms || ms <= 0) return '—';
     const d = ms - (now || Date.now());
@@ -6442,6 +6463,30 @@ class Component extends DCLogic {
     this._pipelinesRoot.querySelectorAll('.pl-nextdue').forEach(el => {
       const due = +el.getAttribute('data-due');
       el.textContent = this._plNextRunLabel(due, now);
+    });
+  }
+  refreshPipelineStageProgress() {
+    if (!this._pipelinesRoot) return;
+    const stages = (this._plRun && Array.isArray(this._plRun.stages)) ? this._plRun.stages : [];
+    const byId = {};
+    stages.forEach(stage => { if (stage && stage.id) byId[stage.id] = stage; });
+    const now = Date.now();
+    this._pipelinesRoot.querySelectorAll('.pl-node-progress').forEach(el => {
+      const node = el.closest && el.closest('.pl-node');
+      const stage = node && byId[node.getAttribute('data-stage')];
+      if (!stage || stage.state !== 'running') { el.textContent = ''; return; }
+      const activity = typeof stage.progressActivity === 'string' ? stage.progressActivity : '';
+      const progressAt = Number(stage.progressAt) || 0;
+      if (activity) {
+        const ageMs = progressAt > 0 ? Math.max(0, now - progressAt) : 0;
+        const stale = progressAt > 0 && ageMs > 90000;
+        const age = progressAt > 0 ? (this._plFmtLiveAge(ageMs) + ' ago') : 'unknown';
+        el.textContent = 'last activity ' + age + (stale ? ' (stale)' : '') + ': ' + activity;
+        el.classList.toggle('stale', stale);
+        return;
+      }
+      el.classList.remove('stale');
+      el.textContent = stage.startedAt > 0 ? ('running ' + this._plFmtLiveAge(Math.max(0, now - stage.startedAt))) : '';
     });
   }
 
@@ -6565,6 +6610,8 @@ class Component extends DCLogic {
       "#pipelines-root .pl-node-try{font-family:'JetBrains Mono',monospace;font-size:9px;color:#e0af68;background:rgba(224,175,104,0.12);border:1px solid rgba(224,175,104,0.3);border-radius:5px;padding:1px 5px;flex:none;white-space:nowrap}",
       "#pipelines-root .pl-node-slbl{font-family:'JetBrains Mono',monospace;font-size:8.5px;text-transform:uppercase;letter-spacing:0.05em;flex:none;white-space:nowrap}",
       "#pipelines-root .pl-node-sum{font-size:11.5px;line-height:1.35;color:#7c83a8;margin-top:6px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}",
+      "#pipelines-root .pl-node-progress{font-family:'JetBrains Mono',monospace;font-size:9.5px;color:#868db5;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
+      "#pipelines-root .pl-node-progress.stale{color:#5a6088;opacity:0.72}",
       "#pipelines-root .pl-node-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:auto;padding-top:6px}",
       "#pipelines-root .pl-node-dur{font-family:'JetBrains Mono',monospace;font-size:11px}",
       "#pipelines-root .pl-node-job{font-family:'JetBrains Mono',monospace;font-size:10px;color:#7dcfff;white-space:nowrap}",
@@ -7045,6 +7092,7 @@ class Component extends DCLogic {
       '<div class="pl-sg-wrap">' + this._pipelineStageDag(stages) + '<div class="pl-sg-fade"></div></div>';
     const tally = stages.length ? '<div class="pl-tally">' + this._plTallyHtml(stages) + '</div>' : '';
     area.innerHTML = banner + caption + sg + tally;
+    this.refreshPipelineStageProgress();
     this._plRenderMainHead();
     this._plUpdateScrollCue();
   }
@@ -7071,6 +7119,9 @@ class Component extends DCLogic {
 
   // Hand-rolled inline-SVG stage DAG: depth-column layout from stage deps (the
   // fallbackLayout algorithm), node chips as foreignObjects, bezier edges L->R.
+  _plStageHasProgress(s) {
+    return !!(s && ((typeof s.progressActivity === 'string' && s.progressActivity.length > 0) || Number(s.progressAt) > 0));
+  }
   _pipelineStageDag(stages) {
     const list = Array.isArray(stages) ? stages : [];
     if (!list.length) return '<div class="pl-empty">this run has no stages</div>';
@@ -7089,17 +7140,21 @@ class Component extends DCLogic {
     list.forEach(s => getDepth(s, {}));
     const cols = {};
     list.forEach(s => { (cols[depth[s.id]] = cols[depth[s.id]] || []).push(s.id); }); // spec order within a column
-    const NW = 196, NH = 100, GX = 66, GY = 26, pad = 16;
+    const NW = 196, LEGACY_NH = 100, PROGRESS_NH = 118, GX = 66, GY = 26, pad = 16;
+    const nodeH = (s) => (s && s.state === 'running' && this._plStageHasProgress(s)) ? PROGRESS_NH : LEGACY_NH;
     const depthKeys = Object.keys(cols).map(Number);
     const maxDepth = Math.max.apply(null, depthKeys);
-    let maxRows = 0; depthKeys.forEach(k => { maxRows = Math.max(maxRows, cols[k].length); });
-    const totalH = maxRows * NH + (maxRows - 1) * GY;
+    const colHeight = (col) => col.reduce((sum, id) => sum + nodeH(byId[id]), 0) + Math.max(0, col.length - 1) * GY;
+    let totalH = 0; depthKeys.forEach(k => { totalH = Math.max(totalH, colHeight(cols[k])); });
     const pos = {};
     depthKeys.forEach(k => {
       const col = cols[k];
-      const colH = col.length * NH + (col.length - 1) * GY;
-      const y0 = pad + (totalH - colH) / 2;
-      col.forEach((id, i) => { pos[id] = { x: pad + k * (NW + GX), y: y0 + i * (NH + GY) }; });
+      let y = pad + (totalH - colHeight(col)) / 2;
+      col.forEach(id => {
+        const h = nodeH(byId[id]);
+        pos[id] = { x: pad + k * (NW + GX), y: y, h: h };
+        y += h + GY;
+      });
     });
     const svgW = pad * 2 + (maxDepth + 1) * NW + maxDepth * GX;
     const svgH = pad * 2 + totalH;
@@ -7108,7 +7163,7 @@ class Component extends DCLogic {
       (s.deps || []).forEach(dep => {
         if (!ids[dep] || !pos[dep] || !pos[s.id]) return;
         const a = pos[dep], b = pos[s.id];
-        const sx = a.x + NW, sy = a.y + NH / 2, tx = b.x, ty = b.y + NH / 2;
+        const sx = a.x + NW, sy = a.y + a.h / 2, tx = b.x, ty = b.y + b.h / 2;
         const dx = Math.max(24, (tx - sx) / 2);
         const running = s.state === 'running';
         const stroke = running ? '#7aa2f7' : 'rgba(160,168,220,0.2)';
@@ -7120,7 +7175,7 @@ class Component extends DCLogic {
     let nodes = '';
     list.forEach(s => {
       const p = pos[s.id]; if (!p) return;
-      nodes += '<foreignObject x="' + p.x + '" y="' + p.y + '" width="' + NW + '" height="' + NH + '">' + this._pipelineStageChip(s) + '</foreignObject>';
+      nodes += '<foreignObject x="' + p.x + '" y="' + p.y + '" width="' + NW + '" height="' + p.h + '">' + this._pipelineStageChip(s) + '</foreignObject>';
     });
     return '<div class="pl-dagwrap"><svg class="pl-dag" width="' + svgW + '" height="' + svgH + '" viewBox="0 0 ' + svgW + ' ' + svgH + '" xmlns="http://www.w3.org/2000/svg">' + edges + nodes + '</svg></div>';
   }
@@ -7157,6 +7212,7 @@ class Component extends DCLogic {
         '<span class="pl-node-slbl" style="color:' + col + '">' + esc(state) + '</span>' +
       '</div>' +
       '<div class="pl-node-sum">' + esc(summary) + '</div>' +
+      (running && this._plStageHasProgress(s) ? '<div class="pl-node-progress"></div>' : '') +
       '<div class="pl-node-foot">' +
         '<span class="pl-node-dur" style="color:' + col + '">' + esc(elapsed || '—') + '</span>' +
         (clickable ? '<span class="pl-node-job">job ▸</span>' : '') +
