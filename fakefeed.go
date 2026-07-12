@@ -606,6 +606,132 @@ func (f *FakeDataSource) Workflows(ctx context.Context) ([]WorkflowIndexEntry, e
 	return fakeWorkflowIndex(anchor), nil
 }
 
+// Overview implements the optional operator-first landing-page contract. Every
+// value is anchored to the fake run start so repeated reads are byte-stable.
+func (f *FakeDataSource) Overview(ctx context.Context) (Overview, error) {
+	return Overview{
+		NeedsYou: []OverviewNeedsYou{
+			{Kind: "pr_awaiting_merge", Repo: "jerryfane/vetrina", Ref: "#77", Title: "Charlotte selfimprove pass 3 — layout tokens", AgeS: 11 * 3600, CI: "pending", Link: "https://github.com/jerryfane/vetrina/pull/77"},
+			{Kind: "stalled_workflow", Repo: "jerryfane/arxiv-post-agent", Ref: "40m", Title: "1 run failed · coordinator silent", AgeS: 40 * 60, Link: "/workflows/fable%2Farxiv-retry-hardening", Label: fakeStalledWorkflow, Pane: "fable", SessionID: "a3f19c", LastNote: "synthesized temp JSON + env var; 16KiB caps"},
+			{Kind: "pr_awaiting_merge", Repo: "jerryfane/gitmoot", Ref: "#892", Title: "Add memory-groom split heuristics to nightly propose pass", AgeS: 2 * 3600, CI: "green", Link: "https://github.com/jerryfane/gitmoot/pull/892"},
+			{Kind: "blocked_job", Repo: "jerryfane/gitmoot", Ref: "planner", Title: "Job blocked · needs writable /root/.gitmoot", AgeS: 5 * 86400, Link: "/attention"},
+			{Kind: "groom_proposal", Repo: "gitmoot · joltra", Ref: "12 facts", Title: "3 memory-groom proposals await review", AgeS: 4 * 3600, Link: "/attention"},
+			{Kind: "pr_awaiting_merge", Repo: "jerryfane/arxiv-post-agent", Ref: "#418", Title: "Fix arxiv summary pipeline retry backoff on 429", AgeS: 6 * 3600, CI: "red", Link: "https://github.com/jerryfane/arxiv-post-agent/pull/418"},
+		},
+		Activity: OverviewActivity{
+			Workflows: []OverviewWorkflowActivity{
+				{Label: "sol/dashboard-redesign", Running: 2, Agents: []string{"sol-impl-a", "ui-designer-researcher"}, StartedAgoS: 4 * 60},
+				{Label: "fable/smart-groomer", Running: 3, Agents: []string{"researcher", "research-sol", "wave-impl"}, StartedAgoS: 25 * 60},
+			},
+			UnattendedNote: "pipeline/… + adhoc/… · 4 more jobs running",
+			Queued:         8,
+		},
+		Today: OverviewToday{
+			Completed: 142, Failed: 14, Cancelled: 6, TokensIn: 38_100_000, TokensOut: 9_100_000,
+			PerHour: [24]int{8, 7, 5, 5, 4, 4, 3, 5, 10, 18, 30, 42, 51, 56, 49, 44, 38, 45, 52, 43, 36, 25, 19, 17},
+			Notable: []OverviewNotable{
+				{Agent: "researcher", Title: "Design review for gitmoot #863 — end-to-end pipeline run", Outcome: "succeeded", ElapsedS: 516, AgeS: 12 * 60},
+				{Agent: "research-fable", Title: "Independent design research for gitmoot #864: workflow", Outcome: "failed", ElapsedS: 15, AgeS: 34 * 60},
+				{Agent: "wave-impl", Title: "FEATURE: gitmoot server half of dashboard #75", Outcome: "succeeded", ElapsedS: 608, AgeS: 3600},
+				{Agent: "btc-coordinator", Title: "Price model backtest sweep r8", Outcome: "succeeded", ElapsedS: 276, AgeS: 5400},
+				{Agent: "planner", Title: "Plan MOOT for jerryfane/gitmoot #779", Outcome: "cancelled", ElapsedS: 0, AgeS: 2 * 3600},
+			},
+		},
+		Scheduled: []OverviewScheduled{
+			{Name: "arxiv-paper-summary", Schedule: "every 6h +30m", LastStatus: "failed", NextInS: 2*3600 + 9*60},
+			{Name: "memory-groom-propose", Schedule: "every 24h", LastStatus: "succeeded", NextInS: 19*3600 + 32*60},
+			{Name: "memory-ingest-sweep", Schedule: "every 24h +30m", LastStatus: "succeeded", NextInS: 21*3600 + 27*60},
+		},
+		Fleet: []OverviewFleet{
+			{Agent: "researcher", Runtime: "claude", Running: true, JobsToday: 22},
+			{Agent: "btc-coordinator", Runtime: "codex", Running: true, JobsToday: 41},
+			{Agent: "lead", Runtime: "claude", JobsToday: 28},
+			{Agent: "planner", Runtime: "codex", JobsToday: 12},
+			{Agent: "researcher-kimi", Runtime: "kimi", JobsToday: 9},
+		},
+	}, nil
+}
+
+func fakeTaskTitles() []string {
+	return []string{
+		"Add memory-groom split heuristics to nightly propose pass",
+		"Fix arxiv summary pipeline retry backoff on 429 responses",
+		"Implement the ENGINE half of gitmoot #779 orchestration loop",
+		"Baseline repo reconciliation for GitHub fleet sync",
+		"Messaging, approvals and agent delivery for waybread",
+		"Charlotte selfimprove pass 3 — vetrina layout tokens",
+		"Wire gitmoot activepieces support end to end",
+		"Refactor orchestrator core.mjs runner into staged pipeline",
+		"Design review for dashboard #78 information architecture",
+		"Backtest sweep r8 for the bitcoin price model",
+		"Cluster store migration to internal memory index",
+		"Health page locks-aging amber thresholds",
+	}
+}
+
+func fakeTaskRepo(i int) string {
+	repos := []string{"jerryfane/gitmoot", "jerryfane/arxiv-post-agent", "jerryfane/bitcoin-price-pred", "jerryfane/vetrina", "jerryfane/waybread", "jerryfane/sentient-arena", "jerryfane/joltra"}
+	return repos[i%len(repos)]
+}
+
+func fakeTaskAgent(i int) string {
+	agents := []string{"researcher", "project-lead", "planner", "btc-coordinator", "wave-impl", "reviewer-kimi", "implementer"}
+	return agents[i%len(agents)]
+}
+
+// Tasks implements the optional task-board contract with the mockup's target
+// volumes: 23 planned, 11 implementing, 10 PR-open, 5 blocked, and 4 merged.
+func (f *FakeDataSource) Tasks(ctx context.Context) ([]TaskSummary, error) {
+	f.mu.Lock()
+	anchor := f.st.Nodes[0].StartedAt
+	f.mu.Unlock()
+	titles := fakeTaskTitles()
+	counts := []struct {
+		state string
+		count int
+	}{{"planned", 23}, {"implementing", 11}, {"pr_open", 10}, {"blocked", 5}, {"merged", 4}}
+	tasks := make([]TaskSummary, 0, 53)
+	serial := 0
+	for _, group := range counts {
+		for i := 0; i < group.count; i++ {
+			serial++
+			age := int64((serial*7 + 3) * 60)
+			if group.state == "blocked" {
+				age = int64(i+1) * 86400
+			} else if group.state == "merged" {
+				age = int64(i+1) * 86400
+			}
+			title := titles[(serial-1)%len(titles)]
+			if serial > len(titles) {
+				title += " · pass " + strconv.Itoa((serial-1)/len(titles)+1)
+			}
+			task := TaskSummary{
+				ID: "task-" + strconv.Itoa(serial), Title: title, Repo: fakeTaskRepo(serial - 1), State: group.state,
+				Agent: fakeTaskAgent(serial - 1), UpdatedAt: anchor - age*1000, AgeS: age,
+			}
+			switch group.state {
+			case "planned":
+				task.Agent = ""
+			case "pr_open":
+				task.PRNumber = 620 + i*7
+				ci := []string{"green", "green", "red", "pending"}
+				task.CI = ci[i%len(ci)]
+			case "blocked":
+				reasons := []string{"CI red on main — 3 failing e2e specs", "needs writable /root/.gitmoot", "awaiting owner decision on API shape", "merge conflict after upstream refactor", "local toolchain unavailable on worker"}
+				task.BlockedReason = reasons[i%len(reasons)]
+				if i == 0 {
+					task.Agent = "implementer"
+				}
+			case "merged":
+				task.PRNumber = 700 + i
+				task.CI = "green"
+			}
+			tasks = append(tasks, task)
+		}
+	}
+	return tasks, nil
+}
+
 // Workflow implements WorkflowDataSource with complete run trees and an
 // independently paginated, newest-first note journal.
 func (f *FakeDataSource) Workflow(ctx context.Context, label string, q WorkflowQuery) (WorkflowView, error) {

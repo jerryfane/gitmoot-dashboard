@@ -69,6 +69,145 @@ func workflowStateRank(state string) int {
 	}
 }
 
+func overviewNeedRank(kind string) int {
+	switch kind {
+	case "stalled_workflow":
+		return 0
+	case "pr_awaiting_merge":
+		return 1
+	case "blocked_job":
+		return 2
+	case "groom_proposal":
+		return 3
+	default:
+		return 4
+	}
+}
+
+func taskStateRank(state string) int {
+	switch state {
+	case "planned":
+		return 0
+	case "implementing":
+		return 1
+	case "pr_open":
+		return 2
+	case "blocked":
+		return 3
+	case "merged":
+		return 4
+	default:
+		return 5
+	}
+}
+
+// handleOverview serves GET /api/overview. The aggregate is optional so a
+// dashboard built ahead of the gitmoot server half remains source-compatible.
+func (s *server) handleOverview(w http.ResponseWriter, r *http.Request) {
+	ds, ok := s.ds.(OverviewDataSource)
+	if !ok {
+		http.Error(w, "overview unsupported by data source", http.StatusNotFound)
+		return
+	}
+	o, err := ds.Overview(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), statusForError(err))
+		return
+	}
+	if o.NeedsYou == nil {
+		o.NeedsYou = []OverviewNeedsYou{}
+	}
+	if o.Activity.Workflows == nil {
+		o.Activity.Workflows = []OverviewWorkflowActivity{}
+	}
+	for i := range o.Activity.Workflows {
+		o.Activity.Workflows[i].Namespace, o.Activity.Workflows[i].Campaign = splitWorkflowLabel(o.Activity.Workflows[i].Label)
+		if o.Activity.Workflows[i].Agents == nil {
+			o.Activity.Workflows[i].Agents = []string{}
+		}
+		sort.Strings(o.Activity.Workflows[i].Agents)
+	}
+	if o.Today.Notable == nil {
+		o.Today.Notable = []OverviewNotable{}
+	}
+	if o.Scheduled == nil {
+		o.Scheduled = []OverviewScheduled{}
+	}
+	if o.Fleet == nil {
+		o.Fleet = []OverviewFleet{}
+	}
+	sort.SliceStable(o.NeedsYou, func(i, j int) bool {
+		ri, rj := overviewNeedRank(o.NeedsYou[i].Kind), overviewNeedRank(o.NeedsYou[j].Kind)
+		if ri != rj {
+			return ri < rj
+		}
+		if o.NeedsYou[i].AgeS != o.NeedsYou[j].AgeS {
+			return o.NeedsYou[i].AgeS < o.NeedsYou[j].AgeS
+		}
+		return o.NeedsYou[i].Ref < o.NeedsYou[j].Ref
+	})
+	sort.SliceStable(o.Activity.Workflows, func(i, j int) bool {
+		if o.Activity.Workflows[i].Running != o.Activity.Workflows[j].Running {
+			return o.Activity.Workflows[i].Running > o.Activity.Workflows[j].Running
+		}
+		return o.Activity.Workflows[i].Label < o.Activity.Workflows[j].Label
+	})
+	sort.SliceStable(o.Today.Notable, func(i, j int) bool {
+		if o.Today.Notable[i].AgeS != o.Today.Notable[j].AgeS {
+			return o.Today.Notable[i].AgeS < o.Today.Notable[j].AgeS
+		}
+		return o.Today.Notable[i].Title < o.Today.Notable[j].Title
+	})
+	if len(o.Today.Notable) > 5 {
+		o.Today.Notable = o.Today.Notable[:5]
+	}
+	sort.SliceStable(o.Scheduled, func(i, j int) bool {
+		if o.Scheduled[i].NextInS != o.Scheduled[j].NextInS {
+			return o.Scheduled[i].NextInS < o.Scheduled[j].NextInS
+		}
+		return o.Scheduled[i].Name < o.Scheduled[j].Name
+	})
+	sort.SliceStable(o.Fleet, func(i, j int) bool {
+		if o.Fleet[i].Running != o.Fleet[j].Running {
+			return o.Fleet[i].Running
+		}
+		if o.Fleet[i].JobsToday != o.Fleet[j].JobsToday {
+			return o.Fleet[i].JobsToday > o.Fleet[j].JobsToday
+		}
+		return o.Fleet[i].Agent < o.Fleet[j].Agent
+	})
+	writeJSON(w, http.StatusOK, o)
+}
+
+// handleTasks serves GET /api/tasks. Ordering is normalized for byte-stable
+// polling: lifecycle columns first, then most-recently-updated within a column.
+func (s *server) handleTasks(w http.ResponseWriter, r *http.Request) {
+	ds, ok := s.ds.(TasksDataSource)
+	if !ok {
+		http.Error(w, "tasks unsupported by data source", http.StatusNotFound)
+		return
+	}
+	tasks, err := ds.Tasks(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), statusForError(err))
+		return
+	}
+	if tasks == nil {
+		tasks = []TaskSummary{}
+	}
+	sort.SliceStable(tasks, func(i, j int) bool {
+		ri, rj := taskStateRank(tasks[i].State), taskStateRank(tasks[j].State)
+		if ri != rj {
+			return ri < rj
+		}
+		if tasks[i].UpdatedAt != tasks[j].UpdatedAt {
+			return tasks[i].UpdatedAt > tasks[j].UpdatedAt
+		}
+		return tasks[i].ID < tasks[j].ID
+	})
+	writeJSON(w, http.StatusOK, tasks)
+}
+
 // handleWorkflows serves GET /api/workflows. The handler normalizes the
 // first-slash label split and ordering so optional data sources share one
 // deterministic wire contract.

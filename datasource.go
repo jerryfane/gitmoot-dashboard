@@ -367,6 +367,114 @@ type WorkflowDataSource interface {
 	Workflow(ctx context.Context, label string, q WorkflowQuery) (WorkflowView, error)
 }
 
+// OverviewNeedsYou is one operator-attention card on GET /api/overview.
+// Link is either a dashboard path or an external URL. Stalled workflow cards
+// additionally carry the read-only coordinator handoff fields.
+type OverviewNeedsYou struct {
+	Kind      string `json:"kind"` // pr_awaiting_merge | blocked_job | groom_proposal | stalled_workflow
+	Repo      string `json:"repo,omitempty"`
+	Ref       string `json:"ref,omitempty"`
+	Title     string `json:"title"`
+	AgeS      int64  `json:"age_s"`
+	CI        string `json:"ci,omitempty"` // green | red | pending | ""
+	Link      string `json:"link,omitempty"`
+	Label     string `json:"label,omitempty"`
+	Pane      string `json:"pane,omitempty"`
+	SessionID string `json:"session_id,omitempty"`
+	LastNote  string `json:"last_note,omitempty"`
+}
+
+// OverviewWorkflowActivity is one active workflow row. Namespace and Campaign
+// are the first-slash split of Label; Agents is a stable display-order list.
+type OverviewWorkflowActivity struct {
+	Label       string   `json:"label"`
+	Namespace   string   `json:"namespace"`
+	Campaign    string   `json:"campaign"`
+	Running     int      `json:"running"`
+	Agents      []string `json:"agents"`
+	StartedAgoS int64    `json:"started_ago_s"`
+}
+
+// OverviewActivity is the live fleet block on the Overview page.
+type OverviewActivity struct {
+	Workflows      []OverviewWorkflowActivity `json:"workflows"`
+	UnattendedNote string                     `json:"unattended_note,omitempty"`
+	Queued         int                        `json:"queued"`
+}
+
+// OverviewNotable is one of the five most-recent terminal jobs shown today.
+type OverviewNotable struct {
+	Agent    string `json:"agent"`
+	Title    string `json:"title"`
+	Outcome  string `json:"outcome"` // succeeded | failed | cancelled
+	ElapsedS int64  `json:"elapsed_s"`
+	AgeS     int64  `json:"age_s"`
+}
+
+// OverviewToday is the rolling 24-hour summary. PerHour is oldest-to-newest.
+type OverviewToday struct {
+	Completed int               `json:"completed"`
+	Failed    int               `json:"failed"`
+	Cancelled int               `json:"cancelled"`
+	TokensIn  int               `json:"tokens_in"`
+	TokensOut int               `json:"tokens_out"`
+	PerHour   [24]int           `json:"per_hour"`
+	Notable   []OverviewNotable `json:"notable"`
+}
+
+// OverviewScheduled is one upcoming declared pipeline.
+type OverviewScheduled struct {
+	Name       string `json:"name"`
+	Schedule   string `json:"schedule"`
+	LastStatus string `json:"last_status"`
+	NextInS    int64  `json:"next_in_s"`
+}
+
+// OverviewFleet is one registered agent's compact daily rollup.
+type OverviewFleet struct {
+	Agent     string `json:"agent"`
+	Runtime   string `json:"runtime"`
+	Running   bool   `json:"running"`
+	JobsToday int    `json:"jobs_today"`
+}
+
+// Overview is the additive operator-first landing-page snapshot.
+type Overview struct {
+	NeedsYou  []OverviewNeedsYou  `json:"needs_you"`
+	Activity  OverviewActivity    `json:"activity"`
+	Today     OverviewToday       `json:"today"`
+	Scheduled []OverviewScheduled `json:"scheduled"`
+	Fleet     []OverviewFleet     `json:"fleet"`
+}
+
+// OverviewDataSource is an optional extension so older gitmoot bridges remain
+// source-compatible while the dashboard can degrade to a quiet teaching state.
+type OverviewDataSource interface {
+	Overview(ctx context.Context) (Overview, error)
+}
+
+// TaskSummary is one read-only lifecycle card on GET /api/tasks. UpdatedAt is
+// epoch milliseconds; AgeS is the server-computed display age. Merged entries
+// are limited to the most recent seven days by the data source.
+type TaskSummary struct {
+	ID            string `json:"id"`
+	Title         string `json:"title"`
+	Repo          string `json:"repo"`
+	State         string `json:"state"` // planned | implementing | pr_open | blocked | merged
+	Agent         string `json:"agent,omitempty"`
+	PRNumber      int    `json:"pr_number,omitempty"`
+	CI            string `json:"ci,omitempty"` // green | red | pending | ""
+	BlockedReason string `json:"blocked_reason,omitempty"`
+	UpdatedAt     int64  `json:"updated_at"`
+	AgeS          int64  `json:"age_s"`
+}
+
+// TasksDataSource is the optional task-board extension. Keeping it separate
+// preserves the core DataSource contract for older bridges.
+type TasksDataSource interface {
+	Tasks(ctx context.Context) ([]TaskSummary, error)
+}
+
 // ChartDay is one UTC day bucket. Jobs bucket by their Started day; token sums
 // are that day's jobs' usage. Explicit state fields keep the JSON deterministic.
 type ChartDay struct {
