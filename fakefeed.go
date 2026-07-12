@@ -1813,22 +1813,22 @@ func fakePipelineRuns() map[string]PipelineRun {
 	ago := func(d time.Duration) int64 { return fakeChartsNow.Add(-d).UnixMilli() }
 
 	return map[string]PipelineRun{
-		// Healthy linear scheduled run: source -> build -> deploy, all succeeded.
+		// Healthy linear bridge-triggered run: source -> build -> deploy, all succeeded.
 		// The most recent nightly-deploy run (StartedAt 6h ago), so it is the
 		// pipeline's LastRun.
 		"prun-nightly-deploy-0001": {
 			ID:         "prun-nightly-deploy-0001",
 			Pipeline:   "nightly-deploy",
 			Repo:       "acme/webapp",
-			Trigger:    "schedule",
+			Trigger:    "bridge",
 			State:      "succeeded",
 			SpecHash:   "sha256:9c1f0ade",
 			StartedAt:  ago(6 * h),
 			FinishedAt: ago(6*h - 13*m),
 			Stages: []PipelineStage{
-				{ID: "source", State: "succeeded", Cmd: "git fetch --all && git checkout main", JobID: "job-nd1-source", Summary: "checked out main @ a1b2c3d", StartedAt: ago(6 * h), FinishedAt: ago(6*h - 3*m)},
-				{ID: "build", State: "succeeded", Deps: []string{"source"}, Cmd: "make build", JobID: "job-nd1-build", Summary: "built 42 packages, 0 warnings", StartedAt: ago(6*h - 3*m), FinishedAt: ago(6*h - 10*m)},
-				{ID: "deploy", State: "succeeded", Deps: []string{"build"}, Cmd: "./scripts/deploy.sh --env prod", JobID: "job-nd1-deploy", Summary: "deployed to prod, health green", StartedAt: ago(6*h - 10*m), FinishedAt: ago(6*h - 13*m)},
+				{ID: "source", State: "succeeded", Kind: "shell", Cmd: "git fetch --all && git checkout main", JobID: "job-nd1-source", Summary: "checked out main @ a1b2c3d", StartedAt: ago(6 * h), FinishedAt: ago(6*h - 3*m)},
+				{ID: "build", State: "succeeded", Kind: "agent_ask", AgentRuntime: "codex", Deps: []string{"source"}, Cmd: "make build", JobID: "job-nd1-build", Summary: "built 42 packages, 0 warnings", StartedAt: ago(6*h - 3*m), FinishedAt: ago(6*h - 10*m)},
+				{ID: "deploy", State: "succeeded", Kind: "gate", Deps: []string{"build"}, Cmd: "./scripts/deploy.sh --env prod", JobID: "job-nd1-deploy", Summary: "deployed to prod, health green", StartedAt: ago(6*h - 10*m), FinishedAt: ago(6*h - 13*m)},
 			},
 		},
 		// In-flight run: source succeeded, build running, deploy pending (no job
@@ -1838,17 +1838,17 @@ func fakePipelineRuns() map[string]PipelineRun {
 			ID:        "prun-nightly-deploy-0002",
 			Pipeline:  "nightly-deploy",
 			Repo:      "acme/webapp",
-			Trigger:   "schedule",
+			Trigger:   "bridge",
 			State:     "running",
 			SpecHash:  "sha256:9c1f0ade",
 			StartedAt: ago(30 * h),
 			Stages: []PipelineStage{
-				{ID: "source", State: "succeeded", Cmd: "git fetch --all && git checkout main", JobID: "job-nd2-source", Summary: "checked out main @ b2c3d4e", StartedAt: ago(30 * h), FinishedAt: ago(30*h - 4*m)},
-				{ID: "build", State: "running", Deps: []string{"source"}, Cmd: "make build", JobID: "job-nd2-build", Summary: "compiling packages", StartedAt: ago(30*h - 4*m)},
-				{ID: "deploy", State: "pending", Deps: []string{"build"}, Cmd: "./scripts/deploy.sh --env prod"},
+				{ID: "source", State: "succeeded", Kind: "shell", Cmd: "git fetch --all && git checkout main", JobID: "job-nd2-source", Summary: "checked out main @ b2c3d4e", StartedAt: ago(30 * h), FinishedAt: ago(30*h - 4*m)},
+				{ID: "build", State: "running", Kind: "agent_ask", AgentRuntime: "codex", Deps: []string{"source"}, Cmd: "make build", JobID: "job-nd2-build", Summary: "compiling packages", StartedAt: ago(30*h - 4*m)},
+				{ID: "deploy", State: "pending", Kind: "gate", Deps: []string{"build"}, Cmd: "./scripts/deploy.sh --env prod"},
 			},
 		},
-		// Older failed run for run-history/sparkline variety (StartedAt 3 days ago):
+		// Older scheduled run for hybrid run-history/sparkline variety (StartedAt 3 days ago):
 		// source + build succeeded, deploy failed.
 		"prun-nightly-deploy-0000": {
 			ID:         "prun-nightly-deploy-0000",
@@ -1862,9 +1862,9 @@ func fakePipelineRuns() map[string]PipelineRun {
 			StartedAt:  ago(3 * 24 * h),
 			FinishedAt: ago(3*24*h - 9*m),
 			Stages: []PipelineStage{
-				{ID: "source", State: "succeeded", Cmd: "git fetch --all && git checkout main", JobID: "job-nd0-source", Summary: "checked out main @ 0f1e2d3", StartedAt: ago(3 * 24 * h), FinishedAt: ago(3*24*h - 2*m)},
-				{ID: "build", State: "succeeded", Deps: []string{"source"}, Cmd: "make build", JobID: "job-nd0-build", Summary: "built 41 packages", StartedAt: ago(3*24*h - 2*m), FinishedAt: ago(3*24*h - 7*m)},
-				{ID: "deploy", State: "failed", Deps: []string{"build"}, Cmd: "./scripts/deploy.sh --env prod", JobID: "job-nd0-deploy", Summary: "deploy script exited 1: prod healthcheck failed", StartedAt: ago(3*24*h - 7*m), FinishedAt: ago(3*24*h - 9*m)},
+				{ID: "source", State: "succeeded", Kind: "shell", Cmd: "git fetch --all && git checkout main", JobID: "job-nd0-source", Summary: "checked out main @ 0f1e2d3", StartedAt: ago(3 * 24 * h), FinishedAt: ago(3*24*h - 2*m)},
+				{ID: "build", State: "succeeded", Kind: "agent_ask", AgentRuntime: "codex", Deps: []string{"source"}, Cmd: "make build", JobID: "job-nd0-build", Summary: "built 41 packages", StartedAt: ago(3*24*h - 2*m), FinishedAt: ago(3*24*h - 7*m)},
+				{ID: "deploy", State: "failed", Kind: "gate", Deps: []string{"build"}, Cmd: "./scripts/deploy.sh --env prod", JobID: "job-nd0-deploy", Summary: "deploy script exited 1: prod healthcheck failed", StartedAt: ago(3*24*h - 7*m), FinishedAt: ago(3*24*h - 9*m)},
 			},
 		},
 		// Parked-blocked diamond: fetch -> {score, dedupe} -> publish. score is
@@ -1884,10 +1884,10 @@ func fakePipelineRuns() map[string]PipelineRun {
 			Needs:      []string{"set R2 token: gitmoot config set r2.token"},
 			StartedAt:  ago(2 * h),
 			Stages: []PipelineStage{
-				{ID: "fetch", State: "succeeded", Cmd: "gitmoot listings fetch --source noted", JobID: "job-lr1-fetch", Summary: "fetched 128 listings", StartedAt: ago(2 * h), FinishedAt: ago(2*h - 3*m)},
-				{ID: "score", State: "blocked", Deps: []string{"fetch"}, Cmd: "gitmoot listings score --model r2", JobID: "job-lr1-score", Retry: 2, Needs: []string{"set R2 token: gitmoot config set r2.token"}, Summary: "blocked: scoring needs the R2 token & <credentials> before it can run", StartedAt: ago(2*h - 3*m)},
-				{ID: "dedupe", State: "succeeded", Deps: []string{"fetch"}, Cmd: "gitmoot listings dedupe", JobID: "job-lr1-dedupe", Summary: "removed 9 duplicates", StartedAt: ago(2*h - 3*m), FinishedAt: ago(2*h - 6*m)},
-				{ID: "publish", State: "skipped", Deps: []string{"score", "dedupe"}, Cmd: "gitmoot listings publish", Summary: "skipped: upstream stage score is blocked"},
+				{ID: "fetch", State: "succeeded", Kind: "shell", Cmd: "gitmoot listings fetch --source noted", JobID: "job-lr1-fetch", Summary: "fetched 128 listings", StartedAt: ago(2 * h), FinishedAt: ago(2*h - 3*m)},
+				{ID: "score", State: "blocked", Kind: "agent_ask", AgentRuntime: "codex", Deps: []string{"fetch"}, Cmd: "gitmoot listings score --model r2", JobID: "job-lr1-score", Retry: 2, Needs: []string{"set R2 token: gitmoot config set r2.token"}, Summary: "blocked: scoring needs the R2 token & <credentials> before it can run", StartedAt: ago(2*h - 3*m)},
+				{ID: "dedupe", State: "succeeded", Kind: "shell", Deps: []string{"fetch"}, Cmd: "gitmoot listings dedupe", JobID: "job-lr1-dedupe", Summary: "removed 9 duplicates", StartedAt: ago(2*h - 3*m), FinishedAt: ago(2*h - 6*m)},
+				{ID: "publish", State: "skipped", Kind: "gate", Deps: []string{"score", "dedupe"}, Cmd: "gitmoot listings publish", Summary: "skipped: upstream stage score is blocked"},
 			},
 		},
 		// Failed run with a retried stage: setup succeeded, bench FAILED on attempt
@@ -1905,9 +1905,9 @@ func fakePipelineRuns() map[string]PipelineRun {
 			StartedAt:  ago(26 * h),
 			FinishedAt: ago(26*h - 34*m),
 			Stages: []PipelineStage{
-				{ID: "setup", State: "succeeded", Cmd: "make bench-setup", JobID: "job-bs1-setup", Summary: "warmed caches, seeded 10k rows", StartedAt: ago(26 * h), FinishedAt: ago(26*h - 4*m)},
-				{ID: "bench", State: "failed", Deps: []string{"setup"}, Cmd: `./scripts/bench.sh --filter "p<95> && q>1"`, JobID: "job-bs1-bench", Attempt: 2, Retry: 2, Summary: "benchmark timeout after 2 retries (filter p<95> && q>1)", StartedAt: ago(26*h - 4*m), FinishedAt: ago(26*h - 34*m)},
-				{ID: "report", State: "skipped", Deps: []string{"bench"}, Cmd: "./scripts/report.sh", Summary: "skipped: upstream stage bench failed"},
+				{ID: "setup", State: "succeeded", Kind: "shell", Cmd: "make bench-setup", JobID: "job-bs1-setup", Summary: "warmed caches, seeded 10k rows", StartedAt: ago(26 * h), FinishedAt: ago(26*h - 4*m)},
+				{ID: "bench", State: "failed", Kind: "shell", Deps: []string{"setup"}, Cmd: `./scripts/bench.sh --filter "p<95> && q>1"`, JobID: "job-bs1-bench", Attempt: 2, Retry: 2, Summary: "benchmark timeout after 2 retries (filter p<95> && q>1)", StartedAt: ago(26*h - 4*m), FinishedAt: ago(26*h - 34*m)},
+				{ID: "report", State: "skipped", Kind: "shell", Deps: []string{"bench"}, Cmd: "./scripts/report.sh", Summary: "skipped: upstream stage bench failed"},
 			},
 		},
 	}
@@ -1971,6 +1971,7 @@ func fakePipelines() []PipelineSummary {
 			Name:       "nightly-deploy",
 			Repo:       "acme/webapp",
 			Enabled:    true,
+			Mode:       "email-triggered (bound), scheduled 24h",
 			Interval:   "24h",
 			Jitter:     "15m",
 			StageCount: 3,
@@ -1984,6 +1985,7 @@ func fakePipelines() []PipelineSummary {
 			Name:       "listing-refresh",
 			Repo:       "jerryfane/noted",
 			Enabled:    true,
+			Mode:       "manual",
 			StageCount: 4,
 			LastRunID:  "prun-listing-refresh-0001",
 			LastStatus: "blocked",
@@ -1994,6 +1996,7 @@ func fakePipelines() []PipelineSummary {
 			Name:       "bench-suite",
 			Repo:       "acme/api",
 			Enabled:    false,
+			Mode:       "scheduled 168h",
 			Interval:   "168h",
 			StageCount: 3,
 			LastRunID:  "prun-bench-suite-0001",
@@ -2119,9 +2122,9 @@ func fakePipelineDetail(name string) (PipelineDetail, bool) {
 	switch name {
 	case "nightly-deploy":
 		declared := []PipelineStage{
-			{ID: "source", State: "pending", Cmd: "git fetch --all && git checkout main"},
-			{ID: "build", State: "pending", Deps: []string{"source"}, Cmd: "make build"},
-			{ID: "deploy", State: "pending", Deps: []string{"build"}, Cmd: "./scripts/deploy.sh --env prod"},
+			{ID: "source", State: "pending", Kind: "shell", Cmd: "git fetch --all && git checkout main"},
+			{ID: "build", State: "pending", Kind: "agent_ask", AgentRuntime: "codex", Deps: []string{"source"}, Cmd: "make build"},
+			{ID: "deploy", State: "pending", Kind: "gate", Deps: []string{"build"}, Cmd: "./scripts/deploy.sh --env prod"},
 		}
 		ok := []PipelineStageMark{sm("source", "succeeded"), sm("build", "succeeded"), sm("deploy", "succeeded")}
 		history := []PipelineRunHistoryEntry{
@@ -2138,10 +2141,10 @@ func fakePipelineDetail(name string) (PipelineDetail, bool) {
 
 	case "listing-refresh":
 		declared := []PipelineStage{
-			{ID: "fetch", State: "pending", Cmd: "gitmoot listings fetch --source noted"},
-			{ID: "score", State: "pending", Deps: []string{"fetch"}, Cmd: "gitmoot listings score --model r2", Retry: 2},
-			{ID: "dedupe", State: "pending", Deps: []string{"fetch"}, Cmd: "gitmoot listings dedupe"},
-			{ID: "publish", State: "pending", Deps: []string{"score", "dedupe"}, Cmd: "gitmoot listings publish"},
+			{ID: "fetch", State: "pending", Kind: "shell", Cmd: "gitmoot listings fetch --source noted"},
+			{ID: "score", State: "pending", Kind: "agent_ask", AgentRuntime: "codex", Deps: []string{"fetch"}, Cmd: "gitmoot listings score --model r2", Retry: 2},
+			{ID: "dedupe", State: "pending", Kind: "shell", Deps: []string{"fetch"}, Cmd: "gitmoot listings dedupe"},
+			{ID: "publish", State: "pending", Kind: "gate", Deps: []string{"score", "dedupe"}, Cmd: "gitmoot listings publish"},
 		}
 		// okRun returns a fresh all-succeeded diamond in spec order.
 		okRun := func() []PipelineStageMark {
@@ -2164,9 +2167,9 @@ func fakePipelineDetail(name string) (PipelineDetail, bool) {
 
 	case "bench-suite":
 		declared := []PipelineStage{
-			{ID: "setup", State: "pending", Cmd: "make bench-setup"},
-			{ID: "bench", State: "pending", Deps: []string{"setup"}, Cmd: `./scripts/bench.sh --filter "p<95> && q>1"`, Retry: 2},
-			{ID: "report", State: "pending", Deps: []string{"bench"}, Cmd: "./scripts/report.sh"},
+			{ID: "setup", State: "pending", Kind: "shell", Cmd: "make bench-setup"},
+			{ID: "bench", State: "pending", Kind: "shell", Deps: []string{"setup"}, Cmd: `./scripts/bench.sh --filter "p<95> && q>1"`, Retry: 2},
+			{ID: "report", State: "pending", Kind: "shell", Deps: []string{"bench"}, Cmd: "./scripts/report.sh"},
 		}
 		history := []PipelineRunHistoryEntry{
 			entry("prun-bench-suite-0001"), // the single failed run
