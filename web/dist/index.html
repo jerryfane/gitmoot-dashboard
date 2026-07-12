@@ -7394,7 +7394,7 @@ class Component extends DCLogic {
       "#pipelines-root .pl-tablewrap{padding:12px 24px 34px}",
       "#pipelines-root .pl-table{width:100%;table-layout:fixed;border-collapse:collapse;font-size:13px}",
       "#pipelines-root .pl-table th:nth-child(2){width:110px}",
-      "#pipelines-root .pl-table th:nth-child(3){width:170px}",
+      "#pipelines-root .pl-table th:nth-child(3){width:320px}",
       "#pipelines-root .pl-table th:nth-child(4){width:130px}",
       "#pipelines-root .pl-table th:nth-child(5){width:140px}",
       "#pipelines-root .pl-table th:nth-child(6){width:150px}",
@@ -7408,6 +7408,11 @@ class Component extends DCLogic {
       "#pipelines-root .pl-chip{display:inline-flex;align-items:center;font-family:'JetBrains Mono',monospace;font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:7px}",
       "#pipelines-root .pl-chip.on{color:#9ece6a;background:rgba(158,206,106,0.1);border:1px solid rgba(158,206,106,0.26)}",
       "#pipelines-root .pl-chip.off{color:#5a6088;background:rgba(90,96,136,0.1);border:1px solid rgba(90,96,136,0.3)}",
+      "#pipelines-root .pl-modechip{display:inline-flex;align-items:center;max-width:100%;box-sizing:border-box;font-family:'JetBrains Mono',monospace;font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border:1px solid transparent}",
+      "#pipelines-root .pl-modechip.bound{color:#9ece6a;background:rgba(158,206,106,0.10);border-color:rgba(158,206,106,0.28)}",
+      "#pipelines-root .pl-modechip.warn{color:#e0af68;background:rgba(224,175,104,0.11);border-color:rgba(224,175,104,0.30)}",
+      "#pipelines-root .pl-modechip.error{color:#f7768e;background:rgba(247,118,142,0.10);border-color:rgba(247,118,142,0.30)}",
+      "#pipelines-root .pl-modechip.muted{color:#868db5;background:rgba(134,141,181,0.08);border-color:rgba(134,141,181,0.20)}",
       "#pipelines-root .pl-statechip{display:inline-flex;align-items:center;font-family:'JetBrains Mono',monospace;font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:7px}",
       "#pipelines-root .pl-due{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#c8cce6}",
       "#pipelines-root .pl-nohist{font-family:'JetBrains Mono',monospace;font-size:11px;color:#5a6088}",
@@ -7437,6 +7442,7 @@ class Component extends DCLogic {
       "#pipelines-root .pl-runrow-tg{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;flex:none}",
       "#pipelines-root .pl-runrow-tg.manual{color:#bb9af7;background:rgba(187,154,247,0.14)}",
       "#pipelines-root .pl-runrow-tg.schedule{color:#7dcfff;background:rgba(125,207,255,0.14)}",
+      "#pipelines-root .pl-runrow-tg.bridge{color:#9ece6a;background:rgba(158,206,106,0.14)}",
       "#pipelines-root .pl-runrow-ago{font-family:'JetBrains Mono',monospace;font-size:10px;color:#5a6088;margin-left:auto;flex:none}",
       "#pipelines-root .pl-runrow-sub{display:flex;align-items:center;gap:6px;padding-left:17px}",
       "#pipelines-root .pl-runrow-dur{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#7c83a8}",
@@ -7494,7 +7500,9 @@ class Component extends DCLogic {
       "#pipelines-root .pl-node.running{animation:runpulse 1.9s ease-in-out infinite}",
       "#pipelines-root .pl-node-top{display:flex;align-items:center;gap:8px}",
       "#pipelines-root .pl-node-dot{width:9px;height:9px;border-radius:50%;flex:none}",
+      "#pipelines-root .pl-node-kind{font-family:'JetBrains Mono',monospace;font-size:8.5px;font-weight:800;line-height:1;color:#868db5;background:rgba(134,141,181,0.10);border:1px solid rgba(134,141,181,0.22);border-radius:5px;padding:3px 5px;flex:none;white-space:nowrap}",
       "#pipelines-root .pl-node-id{font-family:Inter,system-ui,sans-serif;font-size:13.5px;font-weight:600;color:#eef0ff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}",
+      "#pipelines-root .pl-node-runtime{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#7c83a8;font-weight:600}",
       "#pipelines-root .pl-node-try{font-family:'JetBrains Mono',monospace;font-size:9px;color:#e0af68;background:rgba(224,175,104,0.12);border:1px solid rgba(224,175,104,0.3);border-radius:5px;padding:1px 5px;flex:none;white-space:nowrap}",
       "#pipelines-root .pl-node-slbl{font-family:'JetBrains Mono',monospace;font-size:8.5px;text-transform:uppercase;letter-spacing:0.05em;flex:none;white-space:nowrap}",
       "#pipelines-root .pl-node-sum{font-size:11.5px;line-height:1.35;color:#7c83a8;margin-top:6px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}",
@@ -7530,6 +7538,7 @@ class Component extends DCLogic {
       "#pipelines-root .pl-tbadge{display:inline-flex;align-items:center;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;padding:2px 8px;border-radius:6px;border:1px solid transparent}",
       "#pipelines-root .pl-tbadge.manual{color:#7dcfff;background:rgba(125,207,255,0.1);border-color:rgba(125,207,255,0.28)}",
       "#pipelines-root .pl-tbadge.schedule{color:#bb9af7;background:rgba(187,154,247,0.1);border-color:rgba(187,154,247,0.28)}",
+      "#pipelines-root .pl-tbadge.bridge{color:#9ece6a;background:rgba(158,206,106,0.1);border-color:rgba(158,206,106,0.28)}",
       // ---- list stats glyph (v1.6) ----
       "#pipelines-root .pl-rate{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#5a6088;margin-top:6px}",
       // ---- selected-run summary caption + parked note ----
@@ -7674,6 +7683,10 @@ class Component extends DCLogic {
   _pipelineRowHtml(p) {
     const esc = (s) => this._galaxyEsc(s);
     const sched = p.interval ? ('every ' + esc(p.interval) + (p.jitter ? ' +' + esc(p.jitter) : '')) : 'manual';
+    const mode = (p && typeof p.mode === 'string') ? p.mode.trim() : '';
+    const scheduleCell = mode
+      ? '<td>' + this._plModeChip(mode) + '</td>'
+      : '<td class="pl-mono">' + sched + '</td>';
     const enChip = p.enabled ? '<span class="pl-chip on">enabled</span>' : '<span class="pl-chip off">disabled</span>';
     const lastCol = this._galaxyStateColor(p.lastStatus);
     let lastChip;
@@ -7700,11 +7713,25 @@ class Component extends DCLogic {
     return '<tr class="pl-row" data-name="' + esc(p.name) + '" title="open ' + esc(p.name) + '">' +
       '<td><div class="pl-name">' + esc(p.name) + '</div>' + (p.repo ? '<div class="pl-repo">' + esc(p.repo) + '</div>' : '') + '</td>' +
       '<td>' + enChip + '</td>' +
-      '<td class="pl-mono">' + sched + '</td>' +
+      scheduleCell +
       '<td>' + lastChip + '</td>' +
       '<td>' + due + '</td>' +
       '<td>' + strip + stats + '</td>' +
     '</tr>';
+  }
+
+  _plModeChip(mode) {
+    const esc = (s) => this._galaxyEsc(s);
+    const raw = String(mode || '').trim();
+    if (!raw) return '';
+    const m = raw.toLowerCase();
+    let cls = 'muted';
+    if (m.indexOf('email-triggered') === 0) {
+      if (m.indexOf('(bound)') !== -1) cls = 'bound';
+      else if (m.indexOf('(error)') !== -1) cls = 'error';
+      else cls = 'warn';
+    } else if (m.indexOf('pending') !== -1 || m.indexOf('unbound') !== -1) cls = 'warn';
+    return '<span class="pl-modechip ' + cls + '" title="' + esc(raw) + '">' + esc(raw) + '</span>';
   }
 
   // ---- DETAIL (workbench: [ RUNS rail | main ]) ------------------------------
@@ -7799,8 +7826,8 @@ class Component extends DCLogic {
     const shortId = String(r.id || '').split('-').pop();
     const rel = r.startedAt ? this._relFromMs(r.startedAt) : '';
     const sel = (r.id === this._plSelectedRun) ? ' sel' : '';
-    const trig = (r.trigger === 'manual' || r.trigger === 'schedule')
-      ? '<span class="pl-runrow-tg ' + r.trigger + '" title="' + esc(r.trigger) + '">' + (r.trigger === 'manual' ? 'M' : 'S') + '</span>' : '';
+    const trig = (r.trigger === 'manual' || r.trigger === 'schedule' || r.trigger === 'bridge')
+      ? '<span class="pl-runrow-tg ' + r.trigger + '" title="' + esc(r.trigger) + '">' + (r.trigger === 'manual' ? 'M' : (r.trigger === 'schedule' ? 'S' : 'B')) + '</span>' : '';
     const dur = (r.duration && r.duration > 0) ? this._fmtDur(r.duration) : (r.state === 'running' ? 'running' : '');
     return '<div class="pl-runrow' + sel + '" data-run="' + esc(r.id) + '" title="' + esc(r.state) + '">' +
       '<div class="pl-runrow-top"><span class="pl-runrow-dot" style="background:' + col + '"></span>' +
@@ -8028,7 +8055,7 @@ class Component extends DCLogic {
     list.forEach(s => getDepth(s, {}));
     const cols = {};
     list.forEach(s => { (cols[depth[s.id]] = cols[depth[s.id]] || []).push(s.id); }); // spec order within a column
-    const NW = 196, LEGACY_NH = 100, PROGRESS_NH = 118, GX = 66, GY = 26, pad = 16;
+    const NW = 240, LEGACY_NH = 100, PROGRESS_NH = 118, GX = 66, GY = 26, pad = 16;
     const nodeH = (s) => (s && s.state === 'running' && this._plStageHasProgress(s)) ? PROGRESS_NH : LEGACY_NH;
     const depthKeys = Object.keys(cols).map(Number);
     const maxDepth = Math.max.apply(null, depthKeys);
@@ -8090,12 +8117,16 @@ class Component extends DCLogic {
     }
     const summary = s.summary || s.cmd || '';
     const clickable = !!s.jobId;
+    const kind = this._plStageKindBadge(s.kind);
+    const runtime = (s && typeof s.agentRuntime === 'string') ? s.agentRuntime.trim() : '';
+    const stageLabel = esc(s.id) + (runtime ? ' <span class="pl-node-runtime">(' + esc(runtime) + ')</span>' : '');
     // Design card: header row (dot · name · [attempt] · STATE label), summary line,
     // footer (duration in state color + a "job ▸" affordance opening the slide-in).
     return '<div class="pl-node' + (running ? ' running' : '') + (dim ? ' dim' : '') + '" data-stage="' + esc(s.id) + '" style="border-left-color:' + col + '">' +
       '<div class="pl-node-top">' +
         '<span class="pl-node-dot" style="background:' + col + ';box-shadow:0 0 7px ' + col + (running ? ';animation:dotpulse 1.4s ease-in-out infinite' : '') + '"></span>' +
-        '<span class="pl-node-id">' + esc(s.id) + '</span>' +
+        (kind ? '<span class="pl-node-kind" title="' + esc(s.kind) + '">' + esc(kind) + '</span>' : '') +
+        '<span class="pl-node-id">' + stageLabel + '</span>' +
         (tryLabel ? '<span class="pl-node-try" title="' + esc(tryFull) + '">' + esc(tryLabel) + '</span>' : '') +
         '<span class="pl-node-slbl" style="color:' + col + '">' + esc(state) + '</span>' +
       '</div>' +
@@ -8106,6 +8137,21 @@ class Component extends DCLogic {
         (clickable ? '<span class="pl-node-job">job ▸</span>' : '') +
       '</div>' +
     '</div>';
+  }
+
+  _plStageKindBadge(kind) {
+    const k = String(kind || '').trim();
+    if (!k) return '';
+    const map = {
+      shell: 'SHELL',
+      agent_ask: 'ASK',
+      agent_review: 'REVIEW',
+      agent_implement: 'IMPLEMENT',
+      produce: 'PRODUCE',
+      gate: 'GATE',
+      orchestrate: 'ORCH'
+    };
+    return map[k] || k.replace(/^agent_/, '').replace(/_/g, ' ').toUpperCase();
   }
 
   closePipelineDetail() {
@@ -8204,9 +8250,9 @@ class Component extends DCLogic {
     catch (e) { return '—'; }
   }
 
-  // Trigger badge (manual | schedule) — an empty string for anything else.
+  // Trigger badge (manual | schedule | bridge) — an empty string for anything else.
   _plTriggerBadge(trigger) {
-    const t = (trigger === 'manual' || trigger === 'schedule') ? trigger : '';
+    const t = (trigger === 'manual' || trigger === 'schedule' || trigger === 'bridge') ? trigger : '';
     if (!t) return '';
     return '<span class="pl-tbadge ' + t + '">' + t + '</span>';
   }

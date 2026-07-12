@@ -678,6 +678,7 @@ type PipelineSummary struct {
 	Name       string               `json:"name"`
 	Repo       string               `json:"repo,omitempty"`
 	Enabled    bool                 `json:"enabled"`
+	Mode       string               `json:"mode,omitempty"`     // display mode from the server: "email-triggered (bound|pending|error|unbound)[, scheduled <interval>]" | "scheduled <interval>" | "manual"
 	Interval   string               `json:"interval,omitempty"` // Go duration, e.g. "24h"
 	Jitter     string               `json:"jitter,omitempty"`
 	StageCount int                  `json:"stageCount"`
@@ -691,7 +692,7 @@ type PipelineSummary struct {
 // PipelineRunSummary is a lightweight listing entry for one run of a pipeline.
 type PipelineRunSummary struct {
 	ID         string `json:"id"`
-	Trigger    string `json:"trigger,omitempty"` // manual | schedule
+	Trigger    string `json:"trigger,omitempty"` // manual | schedule | bridge (bridge = fired through the gitmoot bridge, e.g. by an email trigger)
 	State      string `json:"state"`             // running | succeeded | blocked | failed | cancelled
 	HaltStage  string `json:"haltStage,omitempty"`
 	StartedAt  int64  `json:"startedAt,omitempty"`  // epoch milliseconds
@@ -705,7 +706,7 @@ type PipelineRun struct {
 	ID         string          `json:"id"`
 	Pipeline   string          `json:"pipeline"`
 	Repo       string          `json:"repo,omitempty"`
-	Trigger    string          `json:"trigger,omitempty"` // manual | schedule
+	Trigger    string          `json:"trigger,omitempty"` // manual | schedule | bridge
 	State      string          `json:"state"`             // running | succeeded | blocked | failed | cancelled
 	SpecHash   string          `json:"specHash,omitempty"`
 	HaltStage  string          `json:"haltStage,omitempty"`
@@ -721,15 +722,17 @@ type PipelineRun struct {
 // Node.Deps); Needs are the persisted blocked-needs of a parked stage. The two
 // are deliberately distinct.
 type PipelineStage struct {
-	ID      string   `json:"id"`
-	State   string   `json:"state"` // pending | queued | running | succeeded | blocked | failed | skipped | cancelled
-	Deps    []string `json:"deps,omitempty"`
-	Cmd     string   `json:"cmd,omitempty"`
-	JobID   string   `json:"jobId,omitempty"`
-	Attempt int      `json:"attempt,omitempty"`
-	Retry   int      `json:"retry,omitempty"` // the stage's retry budget from the spec
-	Needs   []string `json:"needs,omitempty"`
-	Summary string   `json:"summary,omitempty"`
+	ID           string   `json:"id"`
+	State        string   `json:"state"`                  // pending | queued | running | succeeded | blocked | failed | skipped | cancelled
+	Kind         string   `json:"kind,omitempty"`         // shell | agent_ask | agent_review | agent_implement | produce | gate | orchestrate
+	AgentRuntime string   `json:"agentRuntime,omitempty"` // runtime backing an agent stage, when known
+	Deps         []string `json:"deps,omitempty"`
+	Cmd          string   `json:"cmd,omitempty"`
+	JobID        string   `json:"jobId,omitempty"`
+	Attempt      int      `json:"attempt,omitempty"`
+	Retry        int      `json:"retry,omitempty"` // the stage's retry budget from the spec
+	Needs        []string `json:"needs,omitempty"`
+	Summary      string   `json:"summary,omitempty"`
 	// ProgressActivity is the sanitized last output line from gitmoot #816's
 	// latest-only progress event. It is normally absent, and is populated only
 	// for running stages after the 60-second progress threshold.
@@ -752,7 +755,7 @@ type PipelineStageMark struct {
 // summary plus its per-stage marks (in that run's stage order).
 type PipelineRunHistoryEntry struct {
 	ID         string              `json:"id"`
-	Trigger    string              `json:"trigger,omitempty"` // manual | schedule
+	Trigger    string              `json:"trigger,omitempty"` // manual | schedule | bridge
 	State      string              `json:"state"`             // running | succeeded | blocked | failed | cancelled
 	HaltStage  string              `json:"haltStage,omitempty"`
 	StartedAt  int64               `json:"startedAt,omitempty"`  // epoch milliseconds

@@ -50,6 +50,25 @@ func TestPipelineStageProgressJSON(t *testing.T) {
 			t.Fatalf("progress PipelineStage JSON = %s, want %s", got, payload)
 		}
 	})
+
+	t.Run("kind runtime payload", func(t *testing.T) {
+		const payload = `{"id":"answer","state":"running","kind":"agent_ask","agentRuntime":"codex","jobId":"job-1"}`
+		var stage PipelineStage
+		if err := json.Unmarshal([]byte(payload), &stage); err != nil {
+			t.Fatalf("unmarshal kind/runtime PipelineStage: %v", err)
+		}
+		if stage.Kind != "agent_ask" || stage.AgentRuntime != "codex" || stage.JobID != "job-1" {
+			t.Fatalf("kind/runtime PipelineStage fields = %+v", stage)
+		}
+
+		got, err := json.Marshal(stage)
+		if err != nil {
+			t.Fatalf("marshal kind/runtime PipelineStage: %v", err)
+		}
+		if string(got) != payload {
+			t.Fatalf("kind/runtime PipelineStage JSON = %s, want %s", got, payload)
+		}
+	})
 }
 
 func TestWorkflowAdditiveJSONContracts(t *testing.T) {

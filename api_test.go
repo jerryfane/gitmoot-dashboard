@@ -1623,6 +1623,14 @@ var realPipelineStates = map[string]bool{
 	"cancelled": true,
 }
 
+// realPipelineTriggers is the set of run triggers the live pipeline store can
+// emit; bridge means a run fired through the gitmoot bridge, e.g. email.
+var realPipelineTriggers = map[string]bool{
+	"manual":   true,
+	"schedule": true,
+	"bridge":   true,
+}
+
 // realPipelineStageStates is the set of per-stage states the live pipeline store
 // can emit; the fake feed must never present a stage state outside it.
 var realPipelineStageStates = map[string]bool{
@@ -1686,6 +1694,9 @@ func TestHandlePipelines(t *testing.T) {
 			if !realPipelineStates[r.State] {
 				t.Fatalf("pipeline %s recent[%d] state = %q not a real run state", p.Name, i, r.State)
 			}
+			if r.Trigger != "" && !realPipelineTriggers[r.Trigger] {
+				t.Fatalf("pipeline %s recent[%d] trigger = %q not a real trigger", p.Name, i, r.Trigger)
+			}
 			if i > 0 && p.Recent[i-1].StartedAt < r.StartedAt {
 				t.Fatalf("pipeline %s Recent not newest-first (StartedAt desc): %+v", p.Name, p.Recent)
 			}
@@ -1713,23 +1724,31 @@ func TestHandlePipelines(t *testing.T) {
 	if nd.Interval == "" {
 		t.Fatalf("expected nightly-deploy to carry a schedule Interval")
 	}
+	if nd.Mode != "email-triggered (bound), scheduled 24h" {
+		t.Fatalf("nightly-deploy Mode = %q", nd.Mode)
+	}
 	recentStates := map[string]bool{}
+	recentTriggers := map[string]bool{}
 	for _, r := range nd.Recent {
 		recentStates[r.State] = true
+		recentTriggers[r.Trigger] = true
 	}
 	for _, want := range []string{"running", "succeeded", "failed"} {
 		if !recentStates[want] {
 			t.Fatalf("nightly-deploy recent missing a %q run: %+v", want, nd.Recent)
 		}
 	}
+	if !recentTriggers["bridge"] {
+		t.Fatalf("nightly-deploy recent missing a bridge-triggered run: %+v", nd.Recent)
+	}
 
 	// listing-refresh: manual pipeline whose last run is parked-blocked.
-	if lr := byName["listing-refresh"]; lr.LastStatus != "blocked" {
-		t.Fatalf("expected listing-refresh LastStatus=blocked, got %q", lr.LastStatus)
+	if lr := byName["listing-refresh"]; lr.LastStatus != "blocked" || lr.Mode != "manual" {
+		t.Fatalf("expected listing-refresh LastStatus=blocked + Mode=manual, got status=%q mode=%q", lr.LastStatus, lr.Mode)
 	}
 	// bench-suite: disabled pipeline whose last run failed.
-	if bs := byName["bench-suite"]; bs.Enabled || bs.LastStatus != "failed" {
-		t.Fatalf("expected bench-suite disabled + LastStatus=failed, got enabled=%v status=%q", bs.Enabled, bs.LastStatus)
+	if bs := byName["bench-suite"]; bs.Enabled || bs.LastStatus != "failed" || bs.Mode != "scheduled 168h" {
+		t.Fatalf("expected bench-suite disabled + LastStatus=failed + Mode=scheduled 168h, got enabled=%v status=%q mode=%q", bs.Enabled, bs.LastStatus, bs.Mode)
 	}
 }
 
@@ -1790,8 +1809,14 @@ func TestHandlePipelineRun(t *testing.T) {
 	if score := byID["score"]; score.State != "blocked" || len(score.Needs) == 0 {
 		t.Fatalf("expected score stage blocked with needs: %+v", score)
 	}
+	if score := byID["score"]; score.Kind != "agent_ask" || score.AgentRuntime != "codex" {
+		t.Fatalf("expected score stage to carry agent_ask/codex metadata: %+v", score)
+	}
+	if fetch := byID["fetch"]; fetch.Kind != "shell" {
+		t.Fatalf("expected fetch stage Kind=shell: %+v", fetch)
+	}
 	// The downstream branch of the blocked stage is skipped.
-	if publish := byID["publish"]; publish.State != "skipped" {
+	if publish := byID["publish"]; publish.State != "skipped" || publish.Kind != "gate" {
 		t.Fatalf("expected publish stage skipped: %+v", publish)
 	}
 	// Deps present on downstream stages (the client derives the DAG edges from them).
@@ -1878,8 +1903,14 @@ func TestHandlePipelineDetail(t *testing.T) {
 	if score := byDeclID["score"]; len(score.Deps) != 1 || score.Deps[0] != "fetch" {
 		t.Fatalf("declared score.Deps = %v, want [fetch]", score.Deps)
 	}
+	if score := byDeclID["score"]; score.Kind != "agent_ask" || score.AgentRuntime != "codex" {
+		t.Fatalf("declared score stage missing agent metadata: %+v", score)
+	}
 	if publish := byDeclID["publish"]; len(publish.Deps) != 2 {
 		t.Fatalf("declared publish.Deps = %v, want 2 (the diamond join)", publish.Deps)
+	}
+	if publish := byDeclID["publish"]; publish.Kind != "gate" {
+		t.Fatalf("declared publish.Kind = %q, want gate", publish.Kind)
 	}
 	if !retrySeen {
 		t.Fatalf("expected at least one declared stage to carry a retry budget: %+v", detail.Declared)
@@ -1916,6 +1947,9 @@ func TestHandlePipelineDetail(t *testing.T) {
 		}
 		if !realPipelineStates[run.State] {
 			t.Fatalf("run[%d] state = %q not a real run state", i, run.State)
+		}
+		if run.Trigger != "" && !realPipelineTriggers[run.Trigger] {
+			t.Fatalf("run[%d] trigger = %q not a real trigger", i, run.Trigger)
 		}
 		if i > 0 && detail.Runs[i-1].StartedAt < run.StartedAt {
 			t.Fatalf("Runs not newest-first (StartedAt desc): %+v", detail.Runs)
