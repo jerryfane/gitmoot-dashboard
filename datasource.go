@@ -244,8 +244,47 @@ type WorkflowSummary struct {
 	LastAt    int64  `json:"lastAt"`
 }
 
-// WorkflowNode is the compact job shape used by the workflow forest. Full job
-// prompt, output, and events remain available from /api/job/{id}.
+// WorkflowCoordinator identifies the read-only handoff point for a workflow.
+// SessionID is opaque and may be empty for unattended synthesized workflows.
+type WorkflowCoordinator struct {
+	Author    string `json:"author"`
+	Pane      string `json:"pane"`
+	SessionID string `json:"session_id"`
+}
+
+// WorkflowCounts contains the index-level job outcomes and journal note count.
+type WorkflowCounts struct {
+	Jobs      int `json:"jobs"`
+	Running   int `json:"running"`
+	Queued    int `json:"queued"`
+	Succeeded int `json:"succeeded"`
+	Failed    int `json:"failed"`
+	Blocked   int `json:"blocked"`
+	Notes     int `json:"notes"`
+}
+
+// WorkflowIndexEntry is one row in GET /api/workflows. Namespace and Campaign
+// are the first-slash split of Label; labels without a slash have an empty
+// Namespace. Timestamps are epoch milliseconds.
+type WorkflowIndexEntry struct {
+	Label       string              `json:"label"`
+	Namespace   string              `json:"namespace"`
+	Campaign    string              `json:"campaign"`
+	Auto        bool                `json:"auto"`
+	Coordinator WorkflowCoordinator `json:"coordinator"`
+	State       string              `json:"state"` // active | settled | stalled
+	StalledForS int64               `json:"stalled_for_s"`
+	Counts      WorkflowCounts      `json:"counts"`
+	TokensIn    int                 `json:"tokens_in"`
+	TokensOut   int                 `json:"tokens_out"`
+	FirstAt     int64               `json:"first_at"`
+	LastAt      int64               `json:"last_at"`
+	LastNote    string              `json:"last_note"`
+	Repos       []string            `json:"repos,omitempty"`
+}
+
+// WorkflowNode is the compact job shape retained for complete workflow run
+// trees. Full job prompt, output, and events remain available from /api/job/{id}.
 type WorkflowNode struct {
 	ID        string    `json:"id"`
 	ParentID  string    `json:"parentId,omitempty"`
@@ -259,13 +298,31 @@ type WorkflowNode struct {
 	EndedAt   int64     `json:"endedAt,omitempty"`
 }
 
+// WorkflowChild is the compact inline child row rendered when a mission-log
+// run block is expanded.
+type WorkflowChild struct {
+	ID       string    `json:"id"`
+	Action   string    `json:"action"`
+	Agent    string    `json:"agent"`
+	Runtime  string    `json:"runtime,omitempty"`
+	State    NodeState `json:"state"`
+	ElapsedS int64     `json:"elapsed_s"`
+}
+
 // WorkflowRun is one complete run tree in a workflow page. Pagination is by
 // these roots, so Nodes is never split across pages.
 type WorkflowRun struct {
-	RunID string         `json:"runId"`
-	Title string         `json:"title"`
-	State NodeState      `json:"state"`
-	Nodes []WorkflowNode `json:"nodes"`
+	RunID     string          `json:"runId"`
+	Title     string          `json:"title"`
+	Agent     string          `json:"agent,omitempty"`
+	Runtime   string          `json:"runtime,omitempty"`
+	Repo      string          `json:"repo,omitempty"`
+	State     NodeState       `json:"state"`
+	StartedAt int64           `json:"started_at,omitempty"`
+	EndedAt   int64           `json:"ended_at,omitempty"`
+	ElapsedS  int64           `json:"elapsed_s,omitempty"`
+	Children  []WorkflowChild `json:"children,omitempty"`
+	Nodes     []WorkflowNode  `json:"nodes"`
 }
 
 // WorkflowNoteView is an untrusted journal note. Clients must escape Author and
@@ -278,14 +335,20 @@ type WorkflowNoteView struct {
 	CreatedAt int64  `json:"createdAt"`
 }
 
-// WorkflowView is a paginated forest and independently paginated note journal.
+// WorkflowView is a paginated set of complete run trees and an independently
+// paginated note journal. The lifecycle/coordinator fields drive the mission-log
+// header while the original run-tree fields remain source-compatible.
 type WorkflowView struct {
-	Summary        WorkflowSummary    `json:"summary"`
-	Runs           []WorkflowRun      `json:"runs"`
-	Notes          []WorkflowNoteView `json:"notes"`
-	NextRunCursor  string             `json:"nextRunCursor"`
-	NextNoteCursor string             `json:"nextNoteCursor"`
-	Truncated      bool               `json:"truncated"`
+	Summary        WorkflowSummary     `json:"summary"`
+	State          string              `json:"state,omitempty"` // active | settled | stalled
+	StalledForS    int64               `json:"stalled_for_s,omitempty"`
+	Coordinator    WorkflowCoordinator `json:"coordinator,omitempty"`
+	WorkDir        string              `json:"work_dir,omitempty"`
+	Runs           []WorkflowRun       `json:"runs"`
+	Notes          []WorkflowNoteView  `json:"notes"`
+	NextRunCursor  string              `json:"nextRunCursor"`
+	NextNoteCursor string              `json:"nextNoteCursor"`
+	Truncated      bool                `json:"truncated"`
 }
 
 // WorkflowQuery carries independent cursors and requested page sizes. A
@@ -300,6 +363,7 @@ type WorkflowQuery struct {
 // WorkflowDataSource is the optional workflow visibility extension. Keeping it
 // separate preserves the core DataSource contract for older bridges.
 type WorkflowDataSource interface {
+	Workflows(ctx context.Context) ([]WorkflowIndexEntry, error)
 	Workflow(ctx context.Context, label string, q WorkflowQuery) (WorkflowView, error)
 }
 

@@ -31,9 +31,10 @@ var (
 )
 
 const (
-	fakeRunID    = "run-noted-001"
-	fakeRunTitle = "noted: add note search, delete, and export"
-	fakeWorkflow = "demo-panel"
+	fakeRunID           = "run-noted-001"
+	fakeRunTitle        = "noted: add note search, delete, and export"
+	fakeWorkflow        = "fable/dashboard-redesign"
+	fakeStalledWorkflow = "fable/arxiv-retry-hardening"
 	// fakeRepo is the repository the fake run operates on (shared by Jobs/Graph).
 	fakeRepo = "acme/webapp"
 	// fakeTickInterval is how often the background goroutine advances the run.
@@ -420,7 +421,7 @@ func (f *FakeDataSource) Graph(ctx context.Context, repo string) (Graph, error) 
 		}
 		g.Nodes = append(g.Nodes, GraphNode{
 			ID: "workflow::" + fakeWorkflow, Type: "workflow", Label: fakeWorkflow,
-			JobCount: len(snap.Nodes) + 1, NoteCount: 3, TokensIn: 22_400, TokensOut: 9_700,
+			JobCount: len(snap.Nodes) + 1, NoteCount: 9, TokensIn: 1_230_000, TokensOut: 15_300,
 		})
 	}
 	return g, nil
@@ -447,9 +448,122 @@ func compactWorkflowNode(n Node) WorkflowNode {
 
 func fakeWorkflowNotes(anchor int64) []WorkflowNoteView {
 	return []WorkflowNoteView{
-		{ID: 103, Author: "panel-synth", Body: "render <script>window.__workflowScriptExecuted=true</script> literally & safely", Repo: fakeRepo, CreatedAt: anchor + int64(3*time.Minute/time.Millisecond)},
-		{ID: 102, Author: "reviewer-kimi", Body: "The single-node accessibility pass is complete.", Repo: fakeRepo, CreatedAt: anchor - int64(90*time.Minute/time.Millisecond)},
-		{ID: 101, Author: "project-lead", Body: "Workflow demo-panel created from the issue panel.", Repo: fakeRepo, CreatedAt: anchor - int64(3*time.Hour/time.Millisecond)},
+		{ID: 109, Author: "claude-coordinator", Body: "Designs agree across all three researchers — dispatching wave-impl to implement the split threshold and LLM-guided lossless merge. Holding review until the validation pass returns.", Repo: "jerryfane/gitmoot", CreatedAt: anchor - int64(2*time.Minute/time.Millisecond)},
+		{ID: 108, Author: "panel-synth", Body: "render <script>window.__workflowScriptExecuted=true</script> literally & safely", Repo: "jerryfane/gitmoot", CreatedAt: anchor - int64(10*time.Minute/time.Millisecond)},
+		{ID: 107, Author: "claude-coordinator", Body: "Panel fired (3 models): core decision = split threshold at 0.62 cosine plus an LLM-guided lossless merge; write caps set to 16KiB / 64KiB.", Repo: "jerryfane/gitmoot", CreatedAt: anchor - int64(20*time.Minute/time.Millisecond)},
+		{ID: 106, Author: "research-kimi", Body: "Kimi review favors the lossless merge guard and a separate validation child before synthesis.", Repo: "jerryfane/gitmoot", CreatedAt: anchor - int64(27*time.Minute/time.Millisecond)},
+		{ID: 105, Author: "research-sol", Body: "The baseline confirms over-merge around high-density topic boundaries; cosine-only tuning is insufficient.", Repo: "jerryfane/gitmoot", CreatedAt: anchor - int64(40*time.Minute/time.Millisecond)},
+		{ID: 104, Author: "claude-coordinator", Body: "Baseline audit complete. Launching independent design research with Claude, Codex, and Kimi.", Repo: "jerryfane/gitmoot", CreatedAt: anchor - int64(55*time.Minute/time.Millisecond)},
+		{ID: 103, Author: "project-lead", Body: "Workflow opened from issue #78 with the dashboard half isolated from server lifecycle derivation.", Repo: "jerryfane/gitmoot-dashboard", CreatedAt: anchor - int64(75*time.Minute/time.Millisecond)},
+		{ID: 102, Author: "project-lead", Body: "Coordinator pane reserved and journal handoff verified.", Repo: "jerryfane/gitmoot-dashboard", CreatedAt: anchor - int64(100*time.Minute/time.Millisecond)},
+		{ID: 101, Author: "project-lead", Body: "Campaign label created for the redesign mission log.", Repo: "jerryfane/gitmoot-dashboard", CreatedAt: anchor - int64(3*time.Hour/time.Millisecond)},
+	}
+}
+
+func fakeWorkflowNode(id, parentID, title, agent, runtime string, state NodeState, startedAt, endedAt int64) WorkflowNode {
+	return WorkflowNode{
+		ID: id, ParentID: parentID, Title: title, Agent: agent, Runtime: runtime,
+		State: state, StartedAt: startedAt, EndedAt: endedAt, Deps: []string{},
+	}
+}
+
+func fakeWorkflowRuns(anchor int64) []WorkflowRun {
+	minute := int64(time.Minute / time.Millisecond)
+	currentRoot := fakeWorkflowNode("wf-current-root", "", "Groom split heuristics — validation pass", "claude-coordinator", "claude", "running", anchor-8*minute, 0)
+	currentImpl := fakeWorkflowNode("wf-current-impl", currentRoot.ID, "implement: merge guard", "wave-impl", "codex", "running", anchor-6*minute, 0)
+	currentReview := fakeWorkflowNode("wf-current-review", currentRoot.ID, "review: validation results", "researcher", "claude", "queued", 0, 0)
+	failedRoot := fakeWorkflowNode("wf-failed-root", "", "Independent design research — split heuristics", "research-fable", "claude", "failed", anchor-18*minute, anchor-18*minute+15_000)
+	failedChild := fakeWorkflowNode("wf-failed-child", failedRoot.ID, "ask: evaluate split threshold", "research-fable", "claude", "failed", anchor-18*minute, anchor-18*minute+15_000)
+	solRoot := fakeWorkflowNode("wf-sol-root", "", "Independent design research — split heuristics", "research-sol", "codex", "succeeded", anchor-38*minute, anchor-33*minute)
+	solChild := fakeWorkflowNode("wf-sol-child", solRoot.ID, "review: compare merge strategies", "research-sol", "codex", "succeeded", anchor-37*minute, anchor-33*minute)
+	baseRoot := fakeWorkflowNode("wf-base-root", "", "Baseline: current groomer over-merge audit", "researcher", "kimi", "succeeded", anchor-70*minute, anchor-64*minute)
+	return []WorkflowRun{
+		{
+			RunID: fakeRunID, Title: currentRoot.Title, Agent: currentRoot.Agent, Runtime: currentRoot.Runtime,
+			Repo: "jerryfane/gitmoot", State: currentRoot.State, StartedAt: currentRoot.StartedAt, ElapsedS: 8 * 60,
+			Children: []WorkflowChild{
+				{ID: currentImpl.ID, Action: "implement", Agent: currentImpl.Agent, Runtime: currentImpl.Runtime, State: currentImpl.State, ElapsedS: 6 * 60},
+				{ID: currentReview.ID, Action: "review", Agent: currentReview.Agent, Runtime: currentReview.Runtime, State: currentReview.State},
+			},
+			Nodes: []WorkflowNode{currentRoot, currentImpl, currentReview},
+		},
+		{
+			RunID: "run-research-fable", Title: failedRoot.Title, Agent: failedRoot.Agent, Runtime: failedRoot.Runtime,
+			Repo: "jerryfane/gitmoot", State: failedRoot.State, StartedAt: failedRoot.StartedAt, EndedAt: failedRoot.EndedAt, ElapsedS: 15,
+			Children: []WorkflowChild{{ID: failedChild.ID, Action: "ask", Agent: failedChild.Agent, Runtime: failedChild.Runtime, State: failedChild.State, ElapsedS: 15}},
+			Nodes:    []WorkflowNode{failedRoot, failedChild},
+		},
+		{
+			RunID: "run-research-sol", Title: solRoot.Title, Agent: solRoot.Agent, Runtime: solRoot.Runtime,
+			Repo: "jerryfane/gitmoot", State: solRoot.State, StartedAt: solRoot.StartedAt, EndedAt: solRoot.EndedAt, ElapsedS: 5 * 60,
+			Children: []WorkflowChild{{ID: solChild.ID, Action: "review", Agent: solChild.Agent, Runtime: solChild.Runtime, State: solChild.State, ElapsedS: 4 * 60}},
+			Nodes:    []WorkflowNode{solRoot, solChild},
+		},
+		{
+			RunID: "run-demo-single", Title: baseRoot.Title, Agent: baseRoot.Agent, Runtime: baseRoot.Runtime,
+			Repo: "jerryfane/gitmoot", State: baseRoot.State, StartedAt: baseRoot.StartedAt, EndedAt: baseRoot.EndedAt, ElapsedS: 6 * 60,
+			Children: []WorkflowChild{}, Nodes: []WorkflowNode{baseRoot},
+		},
+	}
+}
+
+func summarizeFakeWorkflow(runs []WorkflowRun, notes []WorkflowNoteView) WorkflowSummary {
+	summary := WorkflowSummary{Label: fakeWorkflow, Notes: len(notes), TokensIn: 1_230_000, TokensOut: 15_300}
+	for _, run := range runs {
+		for _, n := range run.Nodes {
+			summary.Jobs++
+			switch n.State {
+			case "queued":
+				summary.Queued++
+			case "running":
+				summary.Running++
+			case "succeeded":
+				summary.Succeeded++
+			case "failed":
+				summary.Failed++
+			case "blocked":
+				summary.Blocked++
+			case "cancelled":
+				summary.Cancelled++
+			}
+			if summary.FirstAt == 0 || (n.StartedAt > 0 && n.StartedAt < summary.FirstAt) {
+				summary.FirstAt = n.StartedAt
+			}
+			if n.StartedAt > summary.LastAt {
+				summary.LastAt = n.StartedAt
+			}
+			if n.EndedAt > summary.LastAt {
+				summary.LastAt = n.EndedAt
+			}
+		}
+	}
+	for _, note := range notes {
+		if note.CreatedAt > summary.LastAt {
+			summary.LastAt = note.CreatedAt
+		}
+	}
+	return summary
+}
+
+func fakeWorkflowIndex(anchor int64) []WorkflowIndexEntry {
+	minute := int64(time.Minute / time.Millisecond)
+	hour := int64(time.Hour / time.Millisecond)
+	day := int64(24 * time.Hour / time.Millisecond)
+	runs, notes := fakeWorkflowRuns(anchor), fakeWorkflowNotes(anchor)
+	summary := summarizeFakeWorkflow(runs, notes)
+	primary := WorkflowIndexEntry{
+		Label: fakeWorkflow, Coordinator: WorkflowCoordinator{Author: "claude-coordinator", Pane: "fable", SessionID: "7b2e04"}, State: "active",
+		Counts:   WorkflowCounts{Jobs: summary.Jobs, Running: summary.Running, Queued: summary.Queued, Succeeded: summary.Succeeded, Failed: summary.Failed, Blocked: summary.Blocked, Notes: summary.Notes},
+		TokensIn: summary.TokensIn, TokensOut: summary.TokensOut, FirstAt: summary.FirstAt, LastAt: summary.LastAt, LastNote: notes[0].Body, Repos: []string{"jerryfane/gitmoot", "jerryfane/gitmoot-dashboard"},
+	}
+	return []WorkflowIndexEntry{
+		{Label: fakeStalledWorkflow, Coordinator: WorkflowCoordinator{Author: "claude-coordinator", Pane: "fable", SessionID: "a3f19c"}, State: "stalled", StalledForS: 40 * 60, Counts: WorkflowCounts{Jobs: 4, Succeeded: 2, Failed: 2, Notes: 5}, TokensIn: 64_000, TokensOut: 16_000, FirstAt: anchor - 3*hour, LastAt: anchor - 40*minute, LastNote: "Panel synthesized temp JSON + env var; no resume note since.", Repos: []string{"jerryfane/arxiv-post-agent"}},
+		primary,
+		{Label: "sol/smart-groomer", Coordinator: WorkflowCoordinator{Author: "claude-coordinator", Pane: "sol", SessionID: "c40d8a"}, State: "active", Counts: WorkflowCounts{Jobs: 11, Running: 2, Succeeded: 9, Notes: 12}, TokensIn: 680_000, TokensOut: 210_000, FirstAt: anchor - 2*hour, LastAt: anchor - 4*minute, LastNote: "Validation workers are still moving.", Repos: []string{"jerryfane/gitmoot"}},
+		{Label: "officeqa-point-formula", Coordinator: WorkflowCoordinator{Author: "claude-coordinator", Pane: "kimi", SessionID: "d7c410"}, State: "settled", Counts: WorkflowCounts{Jobs: 16, Succeeded: 12, Failed: 3, Blocked: 1, Notes: 9}, TokensIn: 2_100_000, TokensOut: 800_000, FirstAt: anchor - day, LastAt: anchor - 8*hour, LastNote: "Closing note published.", Repos: []string{"jerryfane/officeqa"}},
+		{Label: "sol/token-accounting", Coordinator: WorkflowCoordinator{Author: "claude-coordinator", Pane: "sol", SessionID: "1f9b22"}, State: "settled", Counts: WorkflowCounts{Jobs: 9, Succeeded: 7, Failed: 1, Blocked: 1, Notes: 6}, TokensIn: 470_000, TokensOut: 170_000, FirstAt: anchor - 9*hour, LastAt: anchor - 6*hour, LastNote: "Token totals reconciled.", Repos: []string{"jerryfane/gitmoot"}},
+		{Label: "pipeline/memory-groom-propose", Auto: true, Coordinator: WorkflowCoordinator{Author: "unattended", Pane: "pipeline"}, State: "settled", Counts: WorkflowCounts{Jobs: 5, Succeeded: 5}, TokensIn: 18_000, TokensOut: 4_000, FirstAt: anchor - 5*hour, LastAt: anchor - 4*hour, Repos: []string{"jerryfane/gitmoot"}},
+		{Label: "adhoc/researcher", Auto: true, Coordinator: WorkflowCoordinator{Author: "unattended", Pane: "adhoc"}, State: "settled", Counts: WorkflowCounts{Jobs: 26, Succeeded: 22, Failed: 4}, TokensIn: 3_600_000, TokensOut: 1_300_000, FirstAt: anchor - 3*day, LastAt: anchor - day, Repos: []string{"jerryfane/gitmoot", "jerryfane/sophon"}},
 	}
 }
 
@@ -481,10 +595,21 @@ func cursorStartNote(notes []WorkflowNoteView, cursor string) int {
 	return len(notes)
 }
 
-// Workflow implements WorkflowDataSource with two complete run trees and an
+// Workflows implements the deterministic index side of WorkflowDataSource.
+func (f *FakeDataSource) Workflows(ctx context.Context) ([]WorkflowIndexEntry, error) {
+	if !f.workflowsEnabled {
+		return []WorkflowIndexEntry{}, nil
+	}
+	f.mu.Lock()
+	anchor := f.st.Nodes[0].StartedAt
+	f.mu.Unlock()
+	return fakeWorkflowIndex(anchor), nil
+}
+
+// Workflow implements WorkflowDataSource with complete run trees and an
 // independently paginated, newest-first note journal.
 func (f *FakeDataSource) Workflow(ctx context.Context, label string, q WorkflowQuery) (WorkflowView, error) {
-	if !f.workflowsEnabled || label != fakeWorkflow {
+	if !f.workflowsEnabled || (label != fakeWorkflow && label != fakeStalledWorkflow) {
 		return WorkflowView{}, ErrWorkflowNotFound
 	}
 	f.mu.Lock()
@@ -498,50 +623,42 @@ func (f *FakeDataSource) Workflow(ctx context.Context, label string, q WorkflowQ
 		q.MaxNotes = workflowMaxNotes
 	}
 
-	nodes := make([]WorkflowNode, len(snap.Nodes))
-	for i, n := range snap.Nodes {
-		nodes[i] = compactWorkflowNode(n)
-	}
-	rootState, _ := f.overallStateLockedForSnapshot(snap)
-	extra := fakeWorkflowSingleNode(snap.Nodes[0].StartedAt)
-	runs := []WorkflowRun{
-		{RunID: snap.RunID, Title: snap.Title, State: rootState, Nodes: nodes},
-		{RunID: "run-demo-single", Title: "workflow panel accessibility review", State: extra.State, Nodes: []WorkflowNode{compactWorkflowNode(extra)}},
-	}
+	runs := fakeWorkflowRuns(snap.Nodes[0].StartedAt)
 	notes := fakeWorkflowNotes(snap.Nodes[0].StartedAt)
-
-	summary := WorkflowSummary{Label: fakeWorkflow, Jobs: len(nodes) + 1, Notes: len(notes), TokensIn: 22_400, TokensOut: 9_700}
-	for _, run := range runs {
-		for _, n := range run.Nodes {
-			switch n.State {
-			case "queued":
-				summary.Queued++
-			case "running":
-				summary.Running++
-			case "succeeded":
-				summary.Succeeded++
-			case "failed":
-				summary.Failed++
-			case "blocked":
-				summary.Blocked++
-			case "cancelled":
-				summary.Cancelled++
-			}
-			if summary.FirstAt == 0 || (n.StartedAt > 0 && n.StartedAt < summary.FirstAt) {
-				summary.FirstAt = n.StartedAt
-			}
-			if n.EndedAt > summary.LastAt {
-				summary.LastAt = n.EndedAt
-			}
-			if n.StartedAt > summary.LastAt {
-				summary.LastAt = n.StartedAt
+	state := "active"
+	coordinator := WorkflowCoordinator{Author: "claude-coordinator", Pane: "fable", SessionID: "7b2e04"}
+	workDir := "/root/gitmoot"
+	stalledFor := int64(0)
+	if label == fakeStalledWorkflow {
+		runs = []WorkflowRun{runs[1], runs[2]}
+		shift := int64(22 * time.Minute / time.Millisecond)
+		for i := range runs {
+			runs[i].StartedAt -= shift
+			runs[i].EndedAt -= shift
+			for j := range runs[i].Nodes {
+				if runs[i].Nodes[j].StartedAt > 0 {
+					runs[i].Nodes[j].StartedAt -= shift
+				}
+				if runs[i].Nodes[j].EndedAt > 0 {
+					runs[i].Nodes[j].EndedAt -= shift
+				}
 			}
 		}
+		notes = append([]WorkflowNoteView(nil), notes[4:]...)
+		for i := range notes {
+			notes[i].CreatedAt -= int64(40 * time.Minute / time.Millisecond)
+			notes[i].Repo = "jerryfane/arxiv-post-agent"
+		}
+		state = "stalled"
+		stalledFor = 40 * 60
+		coordinator.SessionID = "a3f19c"
+		workDir = "/root/arxiv-post-agent"
 	}
-	for _, n := range notes {
-		if n.CreatedAt > summary.LastAt {
-			summary.LastAt = n.CreatedAt
-		}
+	summary := summarizeFakeWorkflow(runs, notes)
+	summary.Label = label
+	if label == fakeStalledWorkflow {
+		summary.TokensIn = 64_000
+		summary.TokensOut = 16_000
 	}
 
 	runStart := cursorStartRun(runs, q.RunCursor)
@@ -554,7 +671,10 @@ func (f *FakeDataSource) Workflow(ctx context.Context, label string, q WorkflowQ
 	if noteEnd > len(notes) {
 		noteEnd = len(notes)
 	}
-	view := WorkflowView{Summary: summary, Runs: runs[runStart:runEnd], Notes: notes[noteStart:noteEnd]}
+	view := WorkflowView{
+		Summary: summary, State: state, StalledForS: stalledFor,
+		Coordinator: coordinator, WorkDir: workDir, Runs: runs[runStart:runEnd], Notes: notes[noteStart:noteEnd],
+	}
 	if runEnd < len(runs) && runEnd > runStart {
 		view.NextRunCursor = runs[runEnd-1].RunID
 	}

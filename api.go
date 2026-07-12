@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"sort"
 	"strconv"
+	"strings"
 )
 
 const (
@@ -46,6 +48,66 @@ func workflowLimit(raw string, cap int) int {
 	return n
 }
 
+func splitWorkflowLabel(label string) (string, string) {
+	namespace, campaign, ok := strings.Cut(label, "/")
+	if !ok {
+		return "", label
+	}
+	return namespace, campaign
+}
+
+func workflowStateRank(state string) int {
+	switch state {
+	case "stalled":
+		return 0
+	case "active":
+		return 1
+	case "settled":
+		return 2
+	default:
+		return 3
+	}
+}
+
+// handleWorkflows serves GET /api/workflows. The handler normalizes the
+// first-slash label split and ordering so optional data sources share one
+// deterministic wire contract.
+func (s *server) handleWorkflows(w http.ResponseWriter, r *http.Request) {
+	ds, ok := s.ds.(WorkflowDataSource)
+	if !ok {
+		http.Error(w, "workflow index unsupported by data source", http.StatusNotFound)
+		return
+	}
+	entries, err := ds.Workflows(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), statusForError(err))
+		return
+	}
+	if entries == nil {
+		entries = []WorkflowIndexEntry{}
+	}
+	for i := range entries {
+		entries[i].Namespace, entries[i].Campaign = splitWorkflowLabel(entries[i].Label)
+		if entries[i].Repos == nil {
+			entries[i].Repos = []string{}
+		}
+	}
+	sort.SliceStable(entries, func(i, j int) bool {
+		ri, rj := workflowStateRank(entries[i].State), workflowStateRank(entries[j].State)
+		if ri != rj {
+			return ri < rj
+		}
+		if entries[i].State == "stalled" && entries[i].StalledForS != entries[j].StalledForS {
+			return entries[i].StalledForS > entries[j].StalledForS
+		}
+		if entries[i].LastAt != entries[j].LastAt {
+			return entries[i].LastAt > entries[j].LastAt
+		}
+		return entries[i].Label < entries[j].Label
+	})
+	writeJSON(w, http.StatusOK, entries)
+}
+
 // handleWorkflow serves GET /api/workflow/{label}. Workflows are an optional
 // datasource extension so older bridges remain source-compatible.
 func (s *server) handleWorkflow(w http.ResponseWriter, r *http.Request) {
@@ -76,6 +138,9 @@ func (s *server) handleWorkflow(w http.ResponseWriter, r *http.Request) {
 	for i := range view.Runs {
 		if view.Runs[i].Nodes == nil {
 			view.Runs[i].Nodes = []WorkflowNode{}
+		}
+		if view.Runs[i].Children == nil {
+			view.Runs[i].Children = []WorkflowChild{}
 		}
 		for j := range view.Runs[i].Nodes {
 			if view.Runs[i].Nodes[j].Deps == nil {
