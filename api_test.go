@@ -94,6 +94,134 @@ func TestHandleWorkflowsUnsupportedDataSource(t *testing.T) {
 	}
 }
 
+func TestHandleOverviewAndTasksUnsupportedDataSource(t *testing.T) {
+	ds := noWorkflowDataSource{DataSource: NewFakeDataSource()}
+	srv := httptest.NewServer(Serve(ds))
+	defer srv.Close()
+
+	for _, path := range []string{"/api/overview", "/api/tasks"} {
+		resp, err := http.Get(srv.URL + path)
+		if err != nil {
+			t.Fatalf("GET %s: %v", path, err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusNotFound {
+			t.Fatalf("GET %s status = %d, want 404", path, resp.StatusCode)
+		}
+	}
+}
+
+func TestFakeOverviewContractOrderingAndDeterminism(t *testing.T) {
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+
+	raw1 := getRaw(t, srv.URL+"/api/overview")
+	raw2 := getRaw(t, srv.URL+"/api/overview")
+	if !bytes.Equal(raw1, raw2) {
+		t.Fatalf("overview changed across identical reads\nfirst=%s\nsecond=%s", raw1, raw2)
+	}
+	var overview Overview
+	if err := json.Unmarshal(raw1, &overview); err != nil {
+		t.Fatalf("decode overview: %v", err)
+	}
+	if len(overview.NeedsYou) < 4 || overview.NeedsYou[0].Kind != "stalled_workflow" || overview.NeedsYou[0].Label == "" || overview.NeedsYou[0].Pane == "" || overview.NeedsYou[0].SessionID == "" || overview.NeedsYou[0].LastNote == "" {
+		t.Fatalf("needs_you stalled-first contract = %+v", overview.NeedsYou)
+	}
+	ciSeen := map[string]bool{}
+	for _, item := range overview.NeedsYou {
+		if item.Kind == "pr_awaiting_merge" {
+			ciSeen[item.CI] = true
+		}
+		if item.Title == "" || item.Link == "" {
+			t.Fatalf("incomplete needs_you item = %+v", item)
+		}
+	}
+	for _, ci := range []string{"green", "red", "pending"} {
+		if !ciSeen[ci] {
+			t.Fatalf("needs_you fixture missing CI %q: %+v", ci, overview.NeedsYou)
+		}
+	}
+	if len(overview.Activity.Workflows) != 2 || overview.Activity.Workflows[0].Running < overview.Activity.Workflows[1].Running || overview.Activity.Workflows[0].Namespace == "" || overview.Activity.Workflows[0].Campaign == "" || overview.Activity.Workflows[0].Agents == nil || overview.Activity.Queued == 0 || overview.Activity.UnattendedNote == "" {
+		t.Fatalf("activity contract = %+v", overview.Activity)
+	}
+	if len(overview.Today.PerHour) != 24 || len(overview.Today.Notable) != 5 || overview.Today.Completed == 0 || overview.Today.TokensIn == 0 || overview.Today.TokensOut == 0 {
+		t.Fatalf("today contract = %+v", overview.Today)
+	}
+	for i := 1; i < len(overview.Today.Notable); i++ {
+		if overview.Today.Notable[i-1].AgeS > overview.Today.Notable[i].AgeS {
+			t.Fatalf("notable rows not newest-first: %+v", overview.Today.Notable)
+		}
+	}
+	if len(overview.Scheduled) < 3 || len(overview.Fleet) < 4 || !overview.Fleet[0].Running {
+		t.Fatalf("scheduled/fleet contract scheduled=%+v fleet=%+v", overview.Scheduled, overview.Fleet)
+	}
+	for _, field := range []string{"\"needs_you\"", "\"session_id\"", "\"per_hour\"", "\"next_in_s\"", "\"jobs_today\""} {
+		if !bytes.Contains(raw1, []byte(field)) {
+			t.Fatalf("overview wire payload missing %s: %s", field, raw1)
+		}
+	}
+}
+
+func TestFakeTasksContractOrderingAndDeterminism(t *testing.T) {
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+
+	raw1 := getRaw(t, srv.URL+"/api/tasks")
+	raw2 := getRaw(t, srv.URL+"/api/tasks")
+	if !bytes.Equal(raw1, raw2) {
+		t.Fatalf("tasks changed across identical reads\nfirst=%s\nsecond=%s", raw1, raw2)
+	}
+	var tasks []TaskSummary
+	if err := json.Unmarshal(raw1, &tasks); err != nil {
+		t.Fatalf("decode tasks: %v", err)
+	}
+	if len(tasks) != 53 {
+		t.Fatalf("tasks = %d, want 53", len(tasks))
+	}
+	wantCounts := map[string]int{"planned": 23, "implementing": 11, "pr_open": 10, "blocked": 5, "merged": 4}
+	gotCounts := map[string]int{}
+	lastRank := -1
+	lastUpdated := int64(0)
+	for i, task := range tasks {
+		gotCounts[task.State]++
+		if task.ID == "" || task.Title == "" || task.Repo == "" || task.UpdatedAt == 0 || task.AgeS <= 0 {
+			t.Fatalf("incomplete task[%d] = %+v", i, task)
+		}
+		rank := taskStateRank(task.State)
+		if rank < lastRank {
+			t.Fatalf("task state order regressed at %d: %+v", i, tasks)
+		}
+		if rank == lastRank && task.UpdatedAt > lastUpdated {
+			t.Fatalf("task updated order regressed at %d: %+v", i, tasks)
+		}
+		lastRank, lastUpdated = rank, task.UpdatedAt
+		switch task.State {
+		case "pr_open":
+			if task.PRNumber == 0 || task.CI == "" {
+				t.Fatalf("PR task missing PR/CI = %+v", task)
+			}
+		case "blocked":
+			if task.BlockedReason == "" {
+				t.Fatalf("blocked task missing reason = %+v", task)
+			}
+		case "merged":
+			if task.AgeS > 7*24*60*60 {
+				t.Fatalf("merged task older than 7d = %+v", task)
+			}
+		}
+	}
+	for state, want := range wantCounts {
+		if gotCounts[state] != want {
+			t.Fatalf("task count %s = %d, want %d", state, gotCounts[state], want)
+		}
+	}
+	for _, field := range []string{"\"pr_number\"", "\"blocked_reason\"", "\"updated_at\"", "\"age_s\""} {
+		if !bytes.Contains(raw1, []byte(field)) {
+			t.Fatalf("tasks wire payload missing %s: %s", field, raw1)
+		}
+	}
+}
+
 func TestHandleWorkflowNotFound(t *testing.T) {
 	t.Setenv("FAKEFEED_WORKFLOWS", "1")
 	srv := httptest.NewServer(Serve(NewFakeDataSource()))
