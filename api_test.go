@@ -19,6 +19,10 @@ type recordingWorkflowDataSource struct {
 	query WorkflowQuery
 }
 
+func (d *recordingWorkflowDataSource) Workflows(_ context.Context) ([]WorkflowIndexEntry, error) {
+	return []WorkflowIndexEntry{}, nil
+}
+
 func (d *recordingWorkflowDataSource) Workflow(_ context.Context, label string, q WorkflowQuery) (WorkflowView, error) {
 	d.query = q
 	return WorkflowView{Summary: WorkflowSummary{Label: label}}, nil
@@ -75,6 +79,21 @@ func TestHandleWorkflowUnsupportedDataSource(t *testing.T) {
 	}
 }
 
+func TestHandleWorkflowsUnsupportedDataSource(t *testing.T) {
+	ds := noWorkflowDataSource{DataSource: NewFakeDataSource()}
+	srv := httptest.NewServer(Serve(ds))
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/api/workflows")
+	if err != nil {
+		t.Fatalf("GET unsupported workflows: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", resp.StatusCode)
+	}
+}
+
 func TestHandleWorkflowNotFound(t *testing.T) {
 	t.Setenv("FAKEFEED_WORKFLOWS", "1")
 	srv := httptest.NewServer(Serve(NewFakeDataSource()))
@@ -87,6 +106,29 @@ func TestHandleWorkflowNotFound(t *testing.T) {
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("status = %d, want 404", resp.StatusCode)
+	}
+}
+
+func TestHandleWorkflowSlashLabelRoundTrip(t *testing.T) {
+	t.Setenv("FAKEFEED_WORKFLOWS", "1")
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/api/workflow/fable%2Fdashboard-redesign?maxRuns=50&maxNotes=200")
+	if err != nil {
+		t.Fatalf("GET namespaced workflow: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("status = %d body=%s", resp.StatusCode, body)
+	}
+	var view WorkflowView
+	if err := json.NewDecoder(resp.Body).Decode(&view); err != nil {
+		t.Fatalf("decode namespaced workflow: %v", err)
+	}
+	if view.Summary.Label != fakeWorkflow || view.State != "active" || len(view.Runs) != 4 || len(view.Notes) != 9 {
+		t.Fatalf("namespaced workflow = %+v", view)
 	}
 }
 
@@ -138,7 +180,7 @@ func TestFakeWorkflowContractAndPagination(t *testing.T) {
 			workflowLinks++
 		}
 	}
-	if hub == nil || hub.Type != "workflow" || hub.JobCount != 7 || hub.NoteCount != 3 || workflowLinks != 7 {
+	if hub == nil || hub.Type != "workflow" || hub.JobCount != 7 || hub.NoteCount != 9 || workflowLinks != 7 {
 		t.Fatalf("workflow galaxy fixture hub=%+v links=%d", hub, workflowLinks)
 	}
 
@@ -146,21 +188,105 @@ func TestFakeWorkflowContractAndPagination(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Workflow first page: %v", err)
 	}
-	if len(first.Runs) != 1 || len(first.Runs[0].Nodes) != 6 {
+	if first.State != "active" || first.Coordinator.Pane != "fable" || first.Coordinator.SessionID == "" || first.WorkDir != "/root/gitmoot" {
+		t.Fatalf("detail lifecycle/coordinator = %+v", first)
+	}
+	if len(first.Runs) != 1 || len(first.Runs[0].Nodes) != 3 || len(first.Runs[0].Children) != 2 {
 		t.Fatalf("first run page = %+v", first.Runs)
+	}
+	if first.Runs[0].Agent == "" || first.Runs[0].Repo == "" || first.Runs[0].ElapsedS == 0 || first.Runs[0].Children[1].State != "queued" {
+		t.Fatalf("run mission-log shape = %+v", first.Runs[0])
 	}
 	if len(first.Notes) != 2 || first.NextRunCursor == "" || first.NextNoteCursor == "" || !first.Truncated {
 		t.Fatalf("first cursors/notes = %+v", first)
 	}
-	if !strings.Contains(first.Notes[0].Body, "<script>") {
-		t.Fatalf("hostile escaping fixture missing: %+v", first.Notes[0])
+	if !strings.Contains(first.Notes[1].Body, "<script>") {
+		t.Fatalf("hostile escaping fixture missing: %+v", first.Notes)
 	}
 	second, err := ds.Workflow(context.Background(), fakeWorkflow, WorkflowQuery{RunCursor: first.NextRunCursor, NoteCursor: first.NextNoteCursor, MaxRuns: 1, MaxNotes: 2})
 	if err != nil {
 		t.Fatalf("Workflow second page: %v", err)
 	}
-	if len(second.Runs) != 1 || len(second.Runs[0].Nodes) != 1 || len(second.Notes) != 1 || second.Truncated {
+	if len(second.Runs) != 1 || second.Runs[0].State != "failed" || len(second.Notes) != 2 || !second.Truncated {
 		t.Fatalf("second page = %+v", second)
+	}
+	all, err := ds.Workflow(context.Background(), fakeWorkflow, WorkflowQuery{MaxRuns: workflowMaxRuns, MaxNotes: workflowMaxNotes})
+	if err != nil {
+		t.Fatalf("Workflow all: %v", err)
+	}
+	if len(all.Runs) != 4 || len(all.Notes) != 9 || all.Truncated {
+		t.Fatalf("full mission log = %+v", all)
+	}
+	stalled, err := ds.Workflow(context.Background(), fakeStalledWorkflow, WorkflowQuery{MaxRuns: workflowMaxRuns, MaxNotes: workflowMaxNotes})
+	if err != nil {
+		t.Fatalf("Workflow stalled: %v", err)
+	}
+	if stalled.State != "stalled" || stalled.StalledForS != 2400 || stalled.Coordinator.SessionID == "" || stalled.WorkDir == "" || len(stalled.Runs) == 0 || len(stalled.Notes) == 0 {
+		t.Fatalf("stalled mission log = %+v", stalled)
+	}
+}
+
+func TestFakeWorkflowIndexContractOrderingAndDeterminism(t *testing.T) {
+	t.Setenv("FAKEFEED_WORKFLOWS", "1")
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+
+	get := func() ([]byte, []WorkflowIndexEntry) {
+		t.Helper()
+		resp, err := http.Get(srv.URL + "/api/workflows")
+		if err != nil {
+			t.Fatalf("GET workflows: %v", err)
+		}
+		defer resp.Body.Close()
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("read workflows: %v", err)
+		}
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("status = %d body=%s", resp.StatusCode, body)
+		}
+		var entries []WorkflowIndexEntry
+		if err := json.Unmarshal(body, &entries); err != nil {
+			t.Fatalf("decode workflows: %v", err)
+		}
+		return body, entries
+	}
+
+	body1, entries := get()
+	body2, _ := get()
+	if !bytes.Equal(body1, body2) {
+		t.Fatalf("workflow index changed across identical reads\nfirst=%s\nsecond=%s", body1, body2)
+	}
+	if len(entries) < 7 || entries[0].State != "stalled" || entries[1].State != "active" || entries[2].State != "active" {
+		t.Fatalf("state ordering = %+v", entries)
+	}
+	if entries[1].LastAt < entries[2].LastAt {
+		t.Fatalf("active ordering is not newest-first: %+v", entries[:3])
+	}
+	var plain *WorkflowIndexEntry
+	auto := 0
+	for i := range entries {
+		entry := &entries[i]
+		if entry.Label == "officeqa-point-formula" {
+			plain = entry
+		}
+		if entry.Auto {
+			auto++
+			if entry.Namespace != "pipeline" && entry.Namespace != "adhoc" {
+				t.Fatalf("auto namespace = %+v", entry)
+			}
+		}
+		if entry.Counts.Jobs == 0 || entry.FirstAt == 0 || entry.LastAt == 0 || len(entry.Repos) == 0 {
+			t.Fatalf("incomplete workflow row = %+v", entry)
+		}
+	}
+	if plain == nil || plain.Namespace != "" || plain.Campaign != plain.Label || auto < 2 {
+		t.Fatalf("split/auto contract plain=%+v auto=%d", plain, auto)
+	}
+	for _, field := range []string{"\"session_id\"", "\"stalled_for_s\"", "\"tokens_in\"", "\"last_note\""} {
+		if !bytes.Contains(body1, []byte(field)) {
+			t.Fatalf("wire payload missing %s: %s", field, body1)
+		}
 	}
 }
 
@@ -190,6 +316,10 @@ func TestFakeWorkflowDisabled(t *testing.T) {
 	}
 	if _, err := ds.Workflow(context.Background(), fakeWorkflow, WorkflowQuery{}); err != ErrWorkflowNotFound {
 		t.Fatalf("disabled Workflow error = %v, want %v", err, ErrWorkflowNotFound)
+	}
+	entries, err := ds.Workflows(context.Background())
+	if err != nil || len(entries) != 0 {
+		t.Fatalf("disabled Workflows = (%+v, %v), want empty", entries, err)
 	}
 }
 

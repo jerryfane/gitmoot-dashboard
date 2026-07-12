@@ -68,7 +68,7 @@
 
   <aside style="{{ railStyle }}">
 
-    <div style="font-family:'JetBrains Mono';font-size:9.5px;letter-spacing:0.15em;color:#5a6088;padding:4px 10px 7px">RUN</div>
+    <div style="font-family:'JetBrains Mono';font-size:9.5px;letter-spacing:0.15em;color:#5a6088;padding:4px 10px 7px">WORK</div>
     <div onClick="{{ showGraph }}" title="Per-run delegation graph" style="{{ graphNavStyle }}">
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="5" cy="12" r="2.4"/><circle cx="18" cy="6" r="2.4"/><circle cx="18" cy="18" r="2.4"/><path d="M7 11l9-4M7 13l9 4"/></svg>
       <span style="flex:1">Graph</span>
@@ -83,6 +83,11 @@
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><circle cx="5" cy="6" r="2"/><circle cx="5" cy="18" r="2"/><circle cx="18" cy="12" r="2"/><path d="M7 7l9 4M7 17l9-4"/></svg>
       <span style="flex:1">Pipelines</span>
       <span style="{{ pipelinesNavDotStyle }}"></span>
+    </div>
+    <div onClick="{{ showWorkflows }}" title="Workflow mission logs" style="{{ workflowsNavStyle }}">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4v16"/><circle cx="7" cy="7" r="2"/><circle cx="7" cy="13" r="2"/><circle cx="7" cy="19" r="2"/><path d="M11 7h8M11 13h6M11 19h8"/></svg>
+      <span style="flex:1">Workflows</span>
+      <span style="{{ workflowsNavDotStyle }}"></span>
     </div>
 
     <div style="font-family:'JetBrains Mono';font-size:9.5px;letter-spacing:0.15em;color:#5a6088;padding:14px 10px 7px">FLEET</div>
@@ -263,9 +268,18 @@
 
   <sc-if value="{{ moreSheetVisible }}" hint-placeholder-val="{{ false }}">
     <div onClick="{{ closeMoreSheet }}" style="position:fixed;inset:0;z-index:65;background:rgba(4,5,10,0.55);backdrop-filter:blur(2px)"></div>
-    <div style="position:fixed;left:0;right:0;bottom:calc(60px + env(safe-area-inset-bottom));z-index:66;background:#0e1020;border-top:1px solid rgba(160,168,220,0.14);border-radius:16px 16px 0 0;padding:8px 12px calc(16px + env(safe-area-inset-bottom));box-shadow:0 -18px 40px rgba(0,0,0,0.55)">
+    <div style="position:fixed;left:0;right:0;bottom:calc(60px + env(safe-area-inset-bottom));max-height:calc(100vh - 86px);overflow-y:auto;z-index:66;background:#0e1020;border-top:1px solid rgba(160,168,220,0.14);border-radius:16px 16px 0 0;padding:8px 12px calc(16px + env(safe-area-inset-bottom));box-shadow:0 -18px 40px rgba(0,0,0,0.55)">
       <div style="width:36px;height:4px;border-radius:2px;background:rgba(160,168,220,0.2);margin:4px auto 10px"></div>
       <div style="font-family:'JetBrains Mono';font-size:9.5px;letter-spacing:0.15em;color:#5a6088;padding:2px 8px 8px">MORE</div>
+      <div onClick="{{ showPipelinesFromMore }}" style="display:flex;align-items:center;gap:13px;padding:12px 10px;border-radius:10px;color:#c8cce6;cursor:pointer;font-size:14px;font-weight:500">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><circle cx="5" cy="6" r="2"/><circle cx="5" cy="18" r="2"/><circle cx="18" cy="12" r="2"/><path d="M7 7l9 4M7 17l9-4"/></svg><span style="flex:1">Pipelines</span>
+      </div>
+      <div onClick="{{ showChatFromMore }}" style="display:flex;align-items:center;gap:13px;padding:12px 10px;border-radius:10px;color:#c8cce6;cursor:pointer;font-size:14px;font-weight:500">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 5h13a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H9l-4 3v-3H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/></svg><span style="flex:1">Chat</span>
+      </div>
+      <div onClick="{{ showAgentsFromMore }}" style="display:flex;align-items:center;gap:13px;padding:12px 10px;border-radius:10px;color:#c8cce6;cursor:pointer;font-size:14px;font-weight:500">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="5" y="8" width="14" height="11" rx="2.5"/><path d="M12 8V5"/><circle cx="12" cy="3.6" r="1"/></svg><span style="flex:1">Agents</span>
+      </div>
       <div onClick="{{ showGalaxyFromMore }}" style="display:flex;align-items:center;gap:13px;padding:12px 10px;border-radius:10px;color:#c8cce6;cursor:pointer;font-size:14px;font-weight:500">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.7 4.5L18 9l-4.3 1.5L12 15l-1.7-4.5L6 9l4.3-1.5z"/><circle cx="18.5" cy="17.5" r="1"/></svg>
         <span style="flex:1">Galaxy</span>
@@ -283,6 +297,8 @@
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>
         <span style="flex:1">Config</span>
       </div>
+      <div onClick="{{ showAttentionFromMore }}" style="display:flex;align-items:center;gap:13px;padding:12px 10px;border-radius:10px;color:#c8cce6;cursor:pointer;font-size:14px;font-weight:500"><span style="width:18px;text-align:center">!</span><span style="flex:1">Needs a human</span></div>
+      <div onClick="{{ showHealthFromMore }}" style="display:flex;align-items:center;gap:13px;padding:12px 10px;border-radius:10px;color:#c8cce6;cursor:pointer;font-size:14px;font-weight:500"><span style="width:18px;text-align:center">⌁</span><span style="flex:1">Health</span></div>
     </div>
   </sc-if>
 
@@ -295,33 +311,14 @@
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8 6h11M8 12h11M8 18h11"/><circle cx="4" cy="6" r="1.1"/><circle cx="4" cy="12" r="1.1"/><circle cx="4" cy="18" r="1.1"/></svg>
       <span style="{{ tabLabelStyle }}">Jobs</span>
     </div>
-    <div onClick="{{ showPipelines }}" title="Pipelines" style="{{ tabPipelinesStyle }}">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><circle cx="5" cy="6" r="2"/><circle cx="5" cy="18" r="2"/><circle cx="18" cy="12" r="2"/><path d="M7 7l9 4M7 17l9-4"/></svg>
-      <span style="{{ tabLabelStyle }}">Pipes</span>
-      <span style="{{ tabPipesAttnStyle }}"></span>
-    </div>
-    <div onClick="{{ showChat }}" title="Chat" style="{{ tabChatStyle }}">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M4 5h13a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H9l-4 3v-3H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/></svg>
-      <span style="{{ tabLabelStyle }}">Chat</span>
-      <span style="{{ chatTabAttnStyle }}"></span>
-    </div>
-    <div onClick="{{ showAgents }}" title="Agents" style="{{ tabAgentsStyle }}">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="8" width="14" height="11" rx="2.5"/><path d="M12 8V5"/><circle cx="12" cy="3.6" r="1"/><path d="M9.6 13h.01"/><path d="M14.4 13h.01"/></svg>
-      <span style="{{ tabLabelStyle }}">Agents</span>
+    <div onClick="{{ showWorkflows }}" title="Workflows" style="{{ tabWorkflowsStyle }}">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M7 4v16"/><circle cx="7" cy="7" r="2"/><circle cx="7" cy="13" r="2"/><circle cx="7" cy="19" r="2"/><path d="M11 7h8M11 13h6M11 19h8"/></svg>
+      <span style="{{ tabLabelStyle }}">Workflows</span>
+      <span style="{{ tabWorkflowsAttnStyle }}"></span>
     </div>
     <div onClick="{{ showBrain }}" title="Brain" style="{{ tabBrainStyle }}">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2.2"/><circle cx="5" cy="7" r="1.6"/><circle cx="19" cy="6" r="1.6"/><circle cx="18" cy="18" r="1.6"/><circle cx="6" cy="18" r="1.6"/><path d="M10.2 10.8 6.4 8M13.6 10.5 17.6 7.2M13.7 13.5l3.2 3.2M10.3 13.5l-3 3.2"/></svg>
       <span style="{{ tabLabelStyle }}">Brain</span>
-    </div>
-    <div onClick="{{ showAttention }}" title="Needs a human" style="{{ tabAttentionStyle }}">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
-      <span style="{{ tabLabelStyle }}">Attn</span>
-      <span style="{{ tabAttnAttnStyle }}"></span>
-    </div>
-    <div onClick="{{ showHealth }}" title="Health" style="{{ tabHealthStyle }}">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M3 12h4l2-6 4 12 2-6h6"/></svg>
-      <span style="{{ tabLabelStyle }}">Health</span>
-      <span style="{{ tabHealthAttnStyle }}"></span>
     </div>
     <div onClick="{{ showMore }}" title="More — Galaxy, Charts, Learning, Config" style="{{ tabMoreStyle }}">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
@@ -394,11 +391,12 @@ class Component extends DCLogic {
       try { name = decodeURIComponent(raw); } catch (e) { name = raw; }
       return name ? { view: 'pipelines', name: name } : { view: 'pipelines' };
     }
+    if (p === '/workflows') return { view: 'workflows' };
     if (p.indexOf('/workflows/') === 0) {
       const raw = p.slice(11); // '/workflows/'.length
       let name = raw;
       try { name = decodeURIComponent(raw); } catch (e) { name = raw; }
-      return name ? { view: 'workflows', name: name } : { view: 'graph', unknown: true };
+      return name ? { view: 'workflows', name: name } : { view: 'workflows' };
     }
     if (p === '/chat') return { view: 'chat' };
     if (p.indexOf('/chat/') === 0) {
@@ -439,7 +437,7 @@ class Component extends DCLogic {
       case 'brain': return '/brain';
       case 'jobs':   return opts.agent ? '/jobs?agent=' + encodeURIComponent(opts.agent) : '/jobs';
       case 'pipelines': return opts.name ? '/pipelines/' + encodeURIComponent(opts.name) : '/pipelines';
-      case 'workflows': return opts.name ? '/workflows/' + encodeURIComponent(opts.name) : '/';
+      case 'workflows': return opts.name ? '/workflows/' + encodeURIComponent(opts.name) : '/workflows';
       case 'chat': return opts.name ? '/chat/' + encodeURIComponent(opts.name) : '/chat';
       case 'agents': return opts.agent ? '/agents/' + encodeURIComponent(opts.agent) : '/agents';
       case 'charts': return '/charts';
@@ -517,7 +515,10 @@ class Component extends DCLogic {
         this._workflowLabel = r.name || '';
         if (this.state.view === 'workflows' && this._workflowRoot && r.name) {
           this._pendingWorkflowLabel = null;
-          this.fetchWorkflow(r.name, 'initial');
+          this.fetchWorkflow(r.name, false);
+        } else if (this.state.view === 'workflows' && this._workflowRoot) {
+          this._pendingWorkflowLabel = null;
+          this.fetchWorkflows(false);
         } else {
           this._pendingWorkflowLabel = r.name || null;
         }
@@ -582,7 +583,7 @@ class Component extends DCLogic {
     // Nav "needs you" amber dots (repurposed from the old you-are-here dot). Each is
     // seeded once on load (_navSeed), piggybacks the matching view's poll while open,
     // and re-seeds every 60s. chatAttn (above) is the Chat item's flag.
-    healthAttn: false, learningAttn: false, pipelinesAttn: false, attnAttn: false,
+    healthAttn: false, learningAttn: false, pipelinesAttn: false, workflowsAttn: false, attnAttn: false,
     // Mobile: the "More" bottom sheet (Galaxy/Charts/Learning). Transient, not persisted.
     moreOpen: false,
     // Mobile responsiveness: seeded from matchMedia so the very first render is
@@ -715,6 +716,7 @@ class Component extends DCLogic {
     this.stopPipelineDetailPoll();
     this.stopChatPoll();
     this.stopChatThreadPoll();
+    this.stopWorkflowPoll();
     try { if (this._es) this._es.close(); } catch (e) {}
     window.removeEventListener('resize', this.onResize);
     try { window.removeEventListener('popstate', this._onPopState); } catch (e) {}
@@ -754,12 +756,19 @@ class Component extends DCLogic {
   // ============================================================
   showGraph = () => { this.setState({ view: 'graph' }); this._navRoute('graph'); };
   showGalaxy = () => { this.setState({ view: 'galaxy' }); this._navRoute('galaxy'); };
+  showWorkflows = () => {
+    this._workflowLabel = '';
+    this._pendingWorkflowLabel = null;
+    if (this.state.view === 'workflows' && this._workflowRoot) this.fetchWorkflows(false);
+    else this.setState({ view: 'workflows' });
+    this._navRoute('workflows');
+  };
   showWorkflow = (label) => {
     if (!label) return;
     this._workflowLabel = label;
     if (this.state.view === 'workflows' && this._workflowRoot) {
       this._pendingWorkflowLabel = null;
-      this.fetchWorkflow(label, 'initial');
+      this.fetchWorkflow(label, false);
     } else {
       this._pendingWorkflowLabel = label;
       this.setState({ view: 'workflows' });
@@ -779,15 +788,17 @@ class Component extends DCLogic {
       this.stopGalaxyPoll();
       if (this._galaxyRoot) this._galaxyRoot.style.display = 'none';
     }
-    // Workflow forest + journal overlay. There is no global nav entry: the page
-    // is reached from a galaxy workflow hub or a labeled run's context strip.
+    // Workflows index + mission-log detail share one imperative overlay.
     if (v === 'workflows') {
       const root = this.ensureWorkflowDom();
       root.style.display = 'block';
       const label = this._pendingWorkflowLabel || this._workflowLabel;
       this._pendingWorkflowLabel = null;
-      if (label) this.fetchWorkflow(label, 'initial');
+      if (label) this.fetchWorkflow(label, false);
+      else this.fetchWorkflows(false);
+      this.startWorkflowPoll();
     } else if (this._workflowRoot) {
+      this.stopWorkflowPoll();
       this._workflowRoot.style.display = 'none';
       this._workflowNavToken = (this._workflowNavToken || 0) + 1;
       try { if (this._workflowController) this._workflowController.abort(); } catch (e) {}
@@ -933,258 +944,229 @@ class Component extends DCLogic {
   }
 
   // ============================================================
-  // Workflow page: a paginated forest of complete run trees and an
-  // independently paginated chronological note journal.
+  // Workflows index + mission-log detail. Each surface owns its scroll region;
+  // the root never scrolls and 12s polls update the current surface in place.
   // ============================================================
+  startWorkflowPoll() {
+    if (this._workflowPoll) return;
+    this._workflowPoll = setInterval(() => {
+      if (this.state.view !== 'workflows') return;
+      if (this._workflowLabel) this.fetchWorkflow(this._workflowLabel, true);
+      else this.fetchWorkflows(true);
+    }, 12000);
+  }
+  stopWorkflowPoll() { try { clearInterval(this._workflowPoll); } catch (e) {} this._workflowPoll = null; }
+
   ensureWorkflowDom() {
     if (this._workflowRoot) return this._workflowRoot;
     const st = document.createElement('style');
     st.textContent = [
-      "#workflow-root{font-family:Inter,system-ui,sans-serif;color:#c8cce6}",
-      "#workflow-root .wf-scroll{position:absolute;inset:0;overflow:auto;padding:22px 24px 34px}",
-      "#workflow-root .wf-head{display:flex;align-items:flex-start;gap:14px;margin-bottom:16px}",
-      "#workflow-root .wf-back{width:34px;height:34px;border-radius:9px;border:1px solid rgba(160,168,220,.14);background:#0d0f1c;color:#a8aecf;cursor:pointer;font-size:18px}",
-      "#workflow-root .wf-title{font-family:'Space Grotesk',sans-serif;font-size:24px;font-weight:700;color:#eef0ff;letter-spacing:-.02em}",
-      "#workflow-root .wf-title b{color:#2dd4bf}",
-      "#workflow-root .wf-sub{margin-top:4px;color:#7f86ad;font-size:12.5px}",
-      "#workflow-root .wf-summary{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 18px}",
-      "#workflow-root .wf-stat{padding:8px 11px;border-radius:9px;background:#0d0f1c;border:1px solid rgba(160,168,220,.1);font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#868db5}",
-      "#workflow-root .wf-stat b{display:block;margin-bottom:2px;font-family:'Space Grotesk',sans-serif;font-size:17px;color:#eef0ff}",
-      "#workflow-root .wf-grid{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(280px,.8fr);gap:16px;align-items:start}",
-      "#workflow-root .wf-panel{background:#0b0d18;border:1px solid rgba(160,168,220,.1);border-radius:13px;overflow:hidden}",
-      "#workflow-root .wf-ph{display:flex;align-items:center;gap:9px;padding:12px 14px;border-bottom:1px solid rgba(160,168,220,.09);font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:#868db5}",
-      "#workflow-root .wf-ph span{color:#5a6088;letter-spacing:0;text-transform:none}",
-      "#workflow-root .wf-forest{overflow:auto;min-height:280px;background:#07080f;background-image:radial-gradient(rgba(160,168,220,.07) 1px,transparent 1px);background-size:22px 22px}",
-      "#workflow-root .wf-node{cursor:pointer}",
-      "#workflow-root .wf-node:hover rect{stroke-width:2}",
-      "#workflow-root .wf-journal{padding:12px;display:flex;flex-direction:column;gap:9px}",
-      "#workflow-root .wf-note{padding:11px 12px;border-radius:10px;background:#0d0f1c;border:1px solid rgba(160,168,220,.09)}",
-      "#workflow-root .wf-note-head{display:flex;gap:8px;align-items:baseline;font-family:'JetBrains Mono',monospace;font-size:10px;color:#5a6088}",
-      "#workflow-root .wf-note-author{color:#2dd4bf;font-weight:600}",
-      "#workflow-root .wf-note-body{margin-top:7px;color:#c7c9e5;font-size:12.5px;line-height:1.55;white-space:pre-wrap;word-break:break-word}",
-      "#workflow-root .wf-more{display:block;width:calc(100% - 24px);margin:0 12px 12px;padding:8px;border-radius:8px;border:1px dashed rgba(45,212,191,.3);background:rgba(45,212,191,.06);color:#5eead4;font-family:'JetBrains Mono',monospace;font-size:10.5px;cursor:pointer}",
-      "#workflow-root .wf-more[hidden]{display:none}",
-      "#workflow-root .wf-empty{padding:28px 16px;text-align:center;color:#5a6088;font-size:12px}",
-      "#workflow-root .wf-error{display:none;margin-bottom:14px;padding:10px 12px;border-radius:9px;background:rgba(247,118,142,.1);border:1px solid rgba(247,118,142,.3);color:#f7a2b0;font-size:12px}",
-      "@media(max-width:900px){#workflow-root .wf-grid{grid-template-columns:1fr}#workflow-root .wf-scroll{padding:16px 14px calc(80px + env(safe-area-inset-bottom))}}"
+      "#workflow-root{font-family:Inter,system-ui,sans-serif;color:#c7c9e5;background:#080a14;overflow:hidden}",
+      "#workflow-root [hidden]{display:none!important}#workflow-root button,#workflow-root input,#workflow-root select{font:inherit}",
+      "#workflow-root .wf-index,#workflow-root .wf-detail{position:absolute;inset:0;display:flex;flex-direction:column;min-height:0;background:#080a14}",
+      "#workflow-root .wfi-head{height:72px;flex:none;display:flex;align-items:center;gap:14px;padding:0 26px;border-bottom:1px solid rgba(160,168,220,.09)}",
+      "#workflow-root .wfi-title{font:700 23px 'Space Grotesk',sans-serif;color:#eef0ff}#workflow-root .wfi-title i{font-style:normal;color:#bb9af7}",
+      "#workflow-root .wfi-summary{font:10.5px 'JetBrains Mono',monospace;color:#5a6088;white-space:nowrap}",
+      "#workflow-root .wfi-controls{margin-left:auto;display:flex;align-items:center;gap:9px}",
+      "#workflow-root .wfi-search-wrap{width:230px;display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid rgba(160,168,220,.15);border-radius:8px;background:#0d0f1c;color:#5a6088}",
+      "#workflow-root .wfi-search{width:100%;min-width:0;border:0;outline:0;background:transparent;color:#c7c9e5;font:11px 'JetBrains Mono',monospace}",
+      "#workflow-root .wfi-select{height:34px;padding:0 9px;border:1px solid rgba(160,168,220,.15);border-radius:8px;background:#0d0f1c;color:#a8aecf;font:10.5px 'JetBrains Mono',monospace;outline:0}",
+      "#workflow-root .wfi-scroll{flex:1;min-height:0;overflow:auto;padding:18px 26px 36px;scrollbar-gutter:stable}#workflow-root .wfi-content{max-width:1420px;margin:0 auto}",
+      "#workflow-root .wfi-group{margin-bottom:20px}.wfi-group-head{display:flex;align-items:center;gap:8px;height:28px;color:#8b90b8;font:600 10.5px 'JetBrains Mono',monospace;letter-spacing:.12em;text-transform:uppercase}.wfi-group-head.stalled{color:#e0af68}",
+      "#workflow-root .wfi-count{padding:1px 6px;border-radius:9px;background:rgba(160,168,220,.1);color:#a8aecf;font-size:9px;letter-spacing:0}",
+      "#workflow-root .wfi-dot{width:7px;height:7px;border-radius:50%;flex:none;background:#697099}.wfi-dot.running{background:#9ece6a;box-shadow:0 0 8px rgba(158,206,106,.65);animation:dotpulse 1.8s ease-in-out infinite}.wfi-dot.stalled{background:#e0af68;box-shadow:0 0 8px rgba(224,175,104,.65)}",
+      "#workflow-root .wfi-list{border:1px solid rgba(160,168,220,.12);border-radius:9px;overflow:hidden;background:#090b16}.wfi-group.stalled .wfi-list{border-color:rgba(224,175,104,.34);background:rgba(224,175,104,.035)}",
+      "#workflow-root .wfi-row{display:grid;grid-template-columns:18px minmax(280px,1.4fr) minmax(120px,.5fr) minmax(180px,.7fr) 125px;align-items:center;gap:12px;min-height:68px;padding:10px 14px;border-bottom:1px solid rgba(160,168,220,.075);cursor:pointer;transition:background .15s}.wfi-row:last-child{border-bottom:0}.wfi-row:hover{background:#101224}",
+      "#workflow-root .wfi-label{font:600 12.5px 'JetBrains Mono',monospace;color:#eef0ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.wfi-ns{color:#777eac;font-weight:500}.wfi-auto{display:inline-block;margin-left:7px;padding:1px 5px;border:1px solid rgba(160,168,220,.15);border-radius:4px;background:rgba(160,168,220,.07);color:#70779f;font-size:8.5px;vertical-align:middle}",
+      "#workflow-root .wfi-meta,#workflow-root .wfi-note{margin-top:5px;color:#596087;font:9.5px 'JetBrains Mono',monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.wfi-note{color:#826c43}",
+      "#workflow-root .wfi-outcomes{display:flex;gap:9px;flex-wrap:wrap;font:10px 'JetBrains Mono',monospace}.wfi-ok,.wfi-run{color:#9ece6a}.wfi-fail{color:#f7768e}.wfi-block{color:#e0af68}.wfi-queue{color:#697099}",
+      "#workflow-root .wfi-numbers{color:#7880ad;font:9.5px/1.6 'JetBrains Mono',monospace;white-space:nowrap}.wfi-time{text-align:right;color:#596087;font:9.5px/1.55 'JetBrains Mono',monospace}.wfi-age{color:#8b90b8;font-size:11px}.wfi-row.active .wfi-age{color:#9ece6a}.wfi-row.stalled .wfi-age{color:#e0af68}.wfi-older{text-align:center;padding:8px;color:#4f557b;font:9.5px 'JetBrains Mono',monospace}",
+      "#workflow-root .wf-empty{min-height:420px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:36px 18px}.wf-empty-icon{width:44px;height:44px;display:grid;place-items:center;margin-bottom:16px;border:1px solid rgba(187,154,247,.25);border-radius:11px;background:rgba(187,154,247,.1);color:#bb9af7}.wf-empty-title{color:#eef0ff;font-weight:600;font-size:15px}.wf-empty-copy{max-width:580px;margin-top:9px;color:#737ba8;font-size:12px;line-height:1.65}",
+      "#workflow-root .wf-command{display:flex;align-items:center;gap:10px;margin-top:16px;padding:9px 11px;border:1px solid rgba(160,168,220,.15);border-radius:8px;background:#0d0f1c;color:#c7c9e5;font:10.5px 'JetBrains Mono',monospace}.wf-copy{border:0;background:transparent;color:#6ec6ff;font:9px 'JetBrains Mono',monospace;cursor:pointer;padding:2px}",
+      "#workflow-root .wf-shimmer{position:relative;overflow:hidden;background:#0d0f1c}.wf-shimmer:after{content:'';position:absolute;inset:0;transform:translateX(-100%);background:linear-gradient(90deg,transparent,rgba(187,154,247,.08),transparent);animation:wfshimmer 1.35s infinite}@keyframes wfshimmer{to{transform:translateX(100%)}}.wfi-skeleton{display:grid;gap:12px}.wfi-skeleton .wf-shimmer{height:68px;border-radius:8px}",
+      "#workflow-root .wfd-scroll{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;padding:18px 26px 40px;scrollbar-gutter:stable}.wfd-inner{max-width:1180px;margin:0 auto}.wfd-head{display:flex;align-items:center;gap:12px;margin-bottom:14px}.wf-back{width:32px;height:32px;display:grid;place-items:center;flex:none;border:1px solid rgba(160,168,220,.15);border-radius:8px;background:#0d0f1c;color:#8b90b8;cursor:pointer;font-size:18px}",
+      "#workflow-root .wfd-label{min-width:0;font:700 20px 'Space Grotesk',sans-serif;color:#eef0ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.wfd-label .ns{color:#777eac;font:500 16px 'JetBrains Mono',monospace}.wf-state{display:inline-flex;align-items:center;gap:6px;padding:3px 8px;border:1px solid rgba(160,168,220,.18);border-radius:6px;font:9.5px 'JetBrains Mono',monospace;color:#8b90b8;background:rgba(160,168,220,.07)}.wf-state.active{color:#9ece6a;border-color:rgba(158,206,106,.25);background:rgba(158,206,106,.1)}.wf-state.stalled{color:#e0af68;border-color:rgba(224,175,104,.3);background:rgba(224,175,104,.1)}",
+      "#workflow-root .wfd-coord{margin-left:auto;display:flex;align-items:center;gap:7px;padding:8px 10px;border:1px solid rgba(160,168,220,.13);border-radius:8px;color:#697099;font:9.5px 'JetBrains Mono',monospace;white-space:nowrap}.wfd-coord b{color:#cabff2;font-weight:500}",
+      "#workflow-root .wfd-stats{display:grid;grid-template-columns:60px 145px 165px 115px minmax(150px,1fr);margin-bottom:14px;border:1px solid rgba(160,168,220,.12);border-radius:9px;overflow:hidden;background:#090b16}.wfd-stat{min-height:56px;padding:10px 14px;border-right:1px solid rgba(160,168,220,.09)}.wfd-stat:last-child{border-right:0}.wfd-stat b{display:block;color:#eef0ff;font:600 14px 'JetBrains Mono',monospace}.wfd-stat span{display:block;margin-top:5px;color:#545b82;font:8px 'JetBrains Mono',monospace;letter-spacing:.11em;text-transform:uppercase}",
+      "#workflow-root .wfd-stat b>span{display:inline;margin:0;font-size:11px;letter-spacing:0;text-transform:none}",
+      "#workflow-root .wf-stalled-banner{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;margin:0 0 18px;padding:14px 16px;border:1px solid rgba(224,175,104,.42);border-radius:10px;background:rgba(224,175,104,.055)}.wf-stalled-banner>div{min-width:0}.wf-stalled-title{color:#e8c58a;font-weight:600;font-size:12px}.wf-stalled-copy{margin-top:7px;color:#a88a55;font-size:11px;line-height:1.55}.wf-last-note{max-width:100%;margin-top:10px;padding:9px 10px;border:1px solid rgba(224,175,104,.15);border-radius:7px;background:#0b0c14;color:#8c7449;font:9.5px 'JetBrains Mono',monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.wf-go{min-width:0;padding-left:16px;border-left:1px solid rgba(224,175,104,.18)}.wf-go h4{margin:0 0 8px;color:#9a7d49;font:600 9px 'JetBrains Mono';letter-spacing:.12em;text-transform:uppercase}.wf-go-row{display:flex;justify-content:space-between;gap:10px;margin:5px 0;color:#676e98;font:9.5px 'JetBrains Mono'}.wf-go-row b{color:#c7c9e5;font-weight:500}.wf-resume{min-width:0;display:flex;align-items:center;gap:8px;margin-top:9px;padding:8px 9px;border:1px solid rgba(160,168,220,.14);border-radius:7px;background:#0d0f1c;color:#b6e88f;font:9.5px 'JetBrains Mono';overflow:hidden}.wf-resume code{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.wf-readonly{margin-top:7px;color:#555c83;font:8.5px 'JetBrains Mono'}",
+      "#workflow-root .wft-head{display:flex;align-items:center;gap:8px;margin:14px 0 8px;color:#8b90b8;font:600 10px 'JetBrains Mono';letter-spacing:.13em;text-transform:uppercase}.wft-head small{color:#565d85;font-size:9px;letter-spacing:0;text-transform:none;font-weight:400}.wft-live{margin-left:auto;color:#9ece6a;letter-spacing:0;text-transform:none}.wft-list{position:relative;padding-left:43px}.wft-list:before{content:'';position:absolute;left:13px;top:8px;bottom:8px;width:1px;background:rgba(160,168,220,.15)}.wft-item{position:relative;margin-bottom:14px}.wft-marker{position:absolute;left:-43px;top:2px;width:22px;height:22px;display:grid;place-items:center;border-radius:50%;background:#111322;color:#8b90b8;border:1px solid rgba(160,168,220,.2);box-shadow:0 0 0 4px #080a14;font:10px 'JetBrains Mono';z-index:1}.wft-marker.note{left:-36px;top:5px;width:11px;height:11px;border:0;background:#bb9af7;box-shadow:0 0 0 4px #080a14,0 0 7px rgba(187,154,247,.5)}.wft-marker.running{color:#9ece6a;border-color:rgba(158,206,106,.4);background:rgba(158,206,106,.1);animation:dotpulse 1.8s infinite}.wft-marker.succeeded{color:#9ece6a}.wft-marker.failed{color:#f7768e;border-color:rgba(247,118,142,.4)}.wft-marker.blocked{color:#e0af68}",
+      "#workflow-root .wf-run-block{border:1px solid rgba(160,168,220,.14);border-radius:9px;background:#101222;overflow:hidden}.wf-run-block.running{border-color:rgba(158,206,106,.33)}.wf-run-top{display:grid;grid-template-columns:16px minmax(0,1fr) auto auto;align-items:center;gap:10px;padding:10px 12px 5px;cursor:pointer}.wf-chev{color:#68709b;font-size:10px;transition:transform .15s}.wf-chev.open{transform:rotate(90deg)}.wf-run-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#e2e4f3;font-weight:600;font-size:12px}.wf-run-status{padding:2px 7px;border-radius:5px;font:9px 'JetBrains Mono'}.wf-run-status.running,.wf-run-status.succeeded{color:#9ece6a;background:rgba(158,206,106,.09);border:1px solid rgba(158,206,106,.22)}.wf-run-status.failed{color:#f7768e;background:rgba(247,118,142,.09);border:1px solid rgba(247,118,142,.25)}.wf-run-status.blocked{color:#e0af68;border:1px solid rgba(224,175,104,.25)}.wf-run-status.queued{color:#697099;border:1px solid rgba(160,168,220,.13)}.wf-elapsed{color:#697099;font:9px 'JetBrains Mono';white-space:nowrap}",
+      "#workflow-root .wf-run-meta{display:flex;align-items:center;gap:8px;padding:0 12px 10px 35px;color:#5c638d;font:9.5px 'JetBrains Mono'}.wf-agent{padding:2px 7px;border:1px solid rgba(160,168,220,.14);border-radius:4px}.wf-agent.claude{color:#cabff2;background:rgba(187,154,247,.1)}.wf-agent.codex{color:#8fd3ff;background:rgba(110,198,255,.1)}.wf-agent.kimi{color:#e8c58a;background:rgba(224,175,104,.1)}.wf-graph-link{margin-left:auto;color:#6ec6ff;text-decoration:none;font:9.5px 'JetBrains Mono'}",
+      "#workflow-root .wf-children{margin:0 12px 9px;padding:7px 0 0 22px;border-top:1px solid rgba(160,168,220,.08)}.wf-child{display:grid;grid-template-columns:9px 80px minmax(0,1fr) 80px 55px;align-items:center;gap:8px;min-height:27px;color:#7179a5;font:9.5px 'JetBrains Mono'}.wf-child-dot{width:7px;height:7px;border-radius:50%;background:#697099}.wf-child-dot.running,.wf-child-dot.succeeded{background:#9ece6a}.wf-child-dot.failed{background:#f7768e}.wf-child-dot.blocked{background:#e0af68}.wf-action{padding:2px 6px;border:1px solid rgba(160,168,220,.12);border-radius:4px;color:#8fd3ff;text-align:center}.wf-child-state{text-align:right}.wf-child-state.running,.wf-child-state.succeeded{color:#9ece6a}.wf-child-state.failed{color:#f7768e}.wf-child-state.blocked{color:#e0af68}",
+      "#workflow-root .wf-note{padding:0 0 2px;cursor:pointer}.wf-note-head{display:flex;align-items:center;gap:8px;color:#5a6088;font:9.5px 'JetBrains Mono'}.wf-note-author{color:#cabff2;font-weight:600}.wf-note-tag{padding:1px 4px;border:1px solid rgba(160,168,220,.12);border-radius:3px;font-size:7.5px;text-transform:uppercase}.wf-note-body{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;margin-top:6px;color:#c7c9e5;font-size:11.5px;line-height:1.55;white-space:pre-wrap;word-break:break-word}.wf-note.open .wf-note-body{display:block}.wf-load-earlier{display:block;margin:6px 0;padding:7px 10px;border:0;background:transparent;color:#697099;font:9.5px 'JetBrains Mono';cursor:pointer}.wfd-skeleton{display:grid;gap:12px}.wfd-skeleton .wf-shimmer{height:84px;border-radius:9px}",
+      "@media(max-width:768px){#workflow-root{left:0!important;top:54px!important;bottom:calc(60px + env(safe-area-inset-bottom))!important}#workflow-root.detail-open{top:0!important;bottom:0!important;z-index:80!important}.wfi-head{height:auto!important;display:block!important;padding:14px 15px 10px!important}.wfi-title{font-size:20px!important}.wfi-summary{float:right;margin-top:-20px}.wfi-controls{margin-top:10px!important;display:grid!important;grid-template-columns:minmax(0,1fr) 60px!important}.wfi-search-wrap{width:auto!important}.wfi-controls .wfi-select:not(#wfi-range){display:none}.wfi-scroll{padding:10px 15px 24px!important}.wfi-list{border:0!important;background:transparent!important;display:grid;gap:8px;overflow:visible!important}.wfi-row{position:relative;display:grid!important;grid-template-columns:12px minmax(0,1fr) auto!important;gap:8px!important;min-height:0!important;padding:11px 12px!important;border:1px solid rgba(160,168,220,.13)!important;border-radius:8px;background:#0d0f1c}.wfi-group.stalled .wfi-row{border-color:rgba(224,175,104,.35)!important}.wfi-main{grid-column:2/4}.wfi-outcomes{grid-column:2}.wfi-numbers{grid-column:3;text-align:right}.wfi-time{position:absolute;right:12px;top:11px}.wfi-time div:last-child{display:none}.wfi-meta{padding-right:62px}.wfi-note{white-space:normal;-webkit-line-clamp:1}.wf-empty{min-height:340px!important}.wfd-scroll{padding:12px 15px 28px!important}.wfd-head{align-items:flex-start!important;flex-wrap:wrap}.wfd-label{font-size:16px!important;flex:1}.wfd-label .ns{font-size:13px!important}.wfd-coord{order:4;width:100%;margin-left:0!important;justify-content:space-between}.wfd-stats{display:flex!important;overflow-x:auto}.wfd-stat{min-width:104px!important}.wfd-stat:nth-child(2){min-width:145px!important}.wf-stalled-banner{grid-template-columns:minmax(0,1fr)!important}.wf-go{padding:12px 0 0!important;border-left:0!important;border-top:1px solid rgba(224,175,104,.18)}.wft-list{padding-left:36px!important}.wft-list:before{left:10px!important}.wft-marker{left:-36px!important}.wft-marker.note{left:-31px!important}.wf-run-top{grid-template-columns:12px minmax(0,1fr) auto!important}.wf-run-top .wf-elapsed{display:none}.wf-run-title{font-size:11.5px!important}.wf-run-meta{padding-left:27px!important}.wf-run-meta>span:nth-child(2){display:none}.wf-child{grid-template-columns:8px 70px minmax(0,1fr) 58px!important}.wf-child .wf-elapsed{display:none}.wft-head small{display:none}}"
     ].join('\n');
     document.head.appendChild(st);
     const root = document.createElement('div');
     root.id = 'workflow-root';
-    root.style.cssText = 'position:fixed;left:216px;top:54px;right:0;bottom:0;z-index:42;background:#07080f;display:none';
+    root.style.cssText = 'position:fixed;left:216px;top:54px;right:0;bottom:0;z-index:42;display:none';
     root.innerHTML = [
-      '<div class="wf-scroll">',
-      '  <div class="wf-head"><button class="wf-back" title="Back to graph">‹</button><div><div class="wf-title">workflow <b id="wf-label"></b></div><div class="wf-sub">complete run trees and their shared journal</div></div></div>',
-      '  <div class="wf-error" id="wf-error"></div>',
-      '  <div class="wf-summary" id="wf-summary"></div>',
-      '  <div class="wf-grid">',
-      '    <section class="wf-panel"><div class="wf-ph">Forest <span id="wf-run-count"></span></div><div class="wf-forest" id="wf-forest"></div><button class="wf-more" id="wf-more-runs" hidden>load more runs</button></section>',
-      '    <section class="wf-panel"><div class="wf-ph">Journal <span id="wf-note-count"></span></div><div class="wf-journal" id="wf-journal"></div><button class="wf-more" id="wf-more-notes" hidden>load more notes</button></section>',
-      '  </div>',
-      '</div>'
-    ].join('\n');
+      '<section id="wf-index" class="wf-index"><header class="wfi-head"><div><div class="wfi-title">Workflows<i>.</i></div><div id="wfi-summary" class="wfi-summary"></div></div>',
+      '<div class="wfi-controls"><label class="wfi-search-wrap"><span>⌕</span><input id="wfi-search" class="wfi-search" type="search" placeholder="Filter workflows…" autocomplete="off"></label>',
+      '<select id="wfi-namespace" class="wfi-select"><option value="all">Namespace</option></select><select id="wfi-repo" class="wfi-select"><option value="all">Repo</option></select>',
+      '<select id="wfi-range" class="wfi-select"><option value="14">14d</option><option value="30">30d</option><option value="90">90d</option><option value="all">all</option></select></div></header>',
+      '<div id="wfi-scroll" class="wfi-scroll"><div id="wfi-content" class="wfi-content"></div></div></section>',
+      '<section id="wf-detail" class="wf-detail" hidden><div id="wfd-scroll" class="wfd-scroll"><div id="wfd-content" class="wfd-inner"></div></div></section>'
+    ].join('');
     document.body.appendChild(root);
     this._dockOverlay(root);
-    root.querySelector('.wf-back').addEventListener('click', () => this.showGraph());
-    root.querySelector('#wf-more-runs').addEventListener('click', () => this.fetchWorkflow(this._workflowLabel, 'runs'));
-    root.querySelector('#wf-more-notes').addEventListener('click', () => this.fetchWorkflow(this._workflowLabel, 'notes'));
-    root.querySelector('#wf-forest').addEventListener('click', (e) => {
-      const node = e.target.closest && e.target.closest('.wf-node[data-job]');
-      if (node) this.openWorkflowJob(node.getAttribute('data-job'));
+    this._workflowFilters = this._workflowFilters || { query:'', namespace:'all', repo:'all', range:'14' };
+    this._workflowExpanded = this._workflowExpanded || {};
+    this._workflowVisible = this._workflowVisible || 12;
+    root.querySelector('#wfi-search').addEventListener('input', e => { this._workflowFilters.query = e.target.value || ''; this.renderWorkflowIndex(this._workflowIndexData || []); });
+    ['namespace','repo','range'].forEach(key => root.querySelector('#wfi-' + key).addEventListener('change', e => { this._workflowFilters[key] = e.target.value || 'all'; this.renderWorkflowIndex(this._workflowIndexData || []); }));
+    root.addEventListener('click', e => {
+      const copy = e.target.closest && e.target.closest('[data-wf-copy]');
+      if (copy) { e.preventDefault(); e.stopPropagation(); this._gmCopyChip(copy, copy.getAttribute('data-wf-copy') || ''); return; }
+      const graph = e.target.closest && e.target.closest('[data-wf-graph]');
+      if (graph) { e.preventDefault(); e.stopPropagation(); this.openWorkflowGraph(graph.getAttribute('data-wf-graph')); return; }
+      if (e.target.closest && e.target.closest('.wf-back')) { e.preventDefault(); this.showWorkflows(); return; }
+      const row = e.target.closest && e.target.closest('[data-workflow-label]');
+      if (row) { this.showWorkflow(row.getAttribute('data-workflow-label')); return; }
+      const run = e.target.closest && e.target.closest('[data-wf-run]');
+      if (run) { const id = run.getAttribute('data-wf-run'); this._workflowExpanded[id] = !this._workflowExpanded[id]; this.renderWorkflow(this._workflowData || {}); return; }
+      const note = e.target.closest && e.target.closest('[data-wf-note]');
+      if (note) { const id = 'note:' + note.getAttribute('data-wf-note'); this._workflowExpanded[id] = !this._workflowExpanded[id]; this.renderWorkflow(this._workflowData || {}); return; }
+      if (e.target.closest && e.target.closest('#wf-load-earlier')) { this._workflowVisible += 12; this.renderWorkflow(this._workflowData || {}); }
     });
-    this._workflowKeydown = (e) => { if (e.key === 'Escape' && this.state.view === 'workflows') this.showGraph(); };
+    this._workflowKeydown = e => {
+      if (e.key !== 'Escape' || this.state.view !== 'workflows') return;
+      if (this._workflowLabel) this.showWorkflows(); else this.showGraph();
+    };
     document.addEventListener('keydown', this._workflowKeydown);
     this._workflowRoot = root;
     return root;
   }
 
-  openWorkflowJob(id) {
-    if (!id) return;
-    this._pendingJobDetail = id;
-    this.setState({ view: 'jobs' });
-    this._navRoute('jobs');
+  _wfEsc(v) { return this._galaxyEsc(v == null ? '' : String(v)); }
+  _wfSplitLabel(label) { const s = String(label || ''), at = s.indexOf('/'); return at < 0 ? { namespace:'', campaign:s } : { namespace:s.slice(0,at), campaign:s.slice(at+1) }; }
+  _wfLabelHTML(label, auto) { const p = this._wfSplitLabel(label); return (p.namespace ? '<span class="wfi-ns">' + this._wfEsc(p.namespace) + '/</span>' : '') + this._wfEsc(p.campaign) + (auto ? '<span class="wfi-auto">auto</span>' : ''); }
+  _wfNum(n) { n = Number(n || 0); if (n >= 1000000) return (n/1000000).toFixed(n>=10000000?0:1).replace(/\.0$/,'')+'M'; if (n>=1000) return (n/1000).toFixed(n>=100000?0:1).replace(/\.0$/,'')+'K'; return n.toLocaleString('en-US'); }
+  _wfDuration(s) { s=Math.max(0,Number(s||0)); if(s<60)return Math.round(s)+'s'; if(s<3600)return Math.round(s/60)+'m'; if(s<86400)return Math.round(s/3600)+'h'; return Math.round(s/86400)+'d'; }
+  _wfAge(ms) { return ms ? this._wfDuration(Math.max(0,Date.now()-Number(ms))/1000) : '—'; }
+  _wfDate(ms, compact) { if(!ms)return '—'; return new Date(Number(ms)).toLocaleString([],compact?{month:'short',day:'numeric'}:{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}); }
+  _wfSpan(first,last) { return first&&last ? this._wfDuration(Math.max(0,Number(last)-Number(first))/1000) : '—'; }
+  _wfShowIndex() { if(!this._workflowRoot)return; this._workflowRoot.classList.remove('detail-open'); this._workflowRoot.querySelector('#wf-index').hidden=false; this._workflowRoot.querySelector('#wf-detail').hidden=true; }
+  _wfShowDetail() { if(!this._workflowRoot)return; this._workflowRoot.classList.add('detail-open'); this._workflowRoot.querySelector('#wf-index').hidden=true; this._workflowRoot.querySelector('#wf-detail').hidden=false; }
+
+  fetchWorkflows(isPoll) {
+    if (!this._workflowRoot || this._workflowIndexLoading) return;
+    this._workflowLabel=''; this._wfShowIndex();
+    if (!isPoll && !this._workflowIndexData) this.renderWorkflowIndexLoading();
+    const token=isPoll?(this._workflowNavToken||0):((this._workflowNavToken||0)+1);
+    if(!isPoll)this._workflowNavToken=token;
+    this._workflowIndexLoading=true;
+    fetch('/api/workflows',{cache:'no-store'}).then(r=>r.ok?r.json():r.text().then(t=>Promise.reject(new Error(t.trim()||('HTTP '+r.status)))))
+      .then(json=>{ if(token!==this._workflowNavToken||this._workflowLabel)return; const entries=Array.isArray(json)?json:[]; this._workflowIndexData=entries; this._navApplyWorkflows(entries); this.renderWorkflowIndex(entries); })
+      .catch(()=>{ if(token===this._workflowNavToken&&!this._workflowLabel&&!this._workflowIndexData)this.renderWorkflowIndexError(); })
+      .finally(()=>{this._workflowIndexLoading=false;});
+  }
+  renderWorkflowIndexLoading() { this._wfShowIndex(); this._workflowRoot.querySelector('#wfi-summary').textContent='loading'; this._workflowRoot.querySelector('#wfi-content').innerHTML='<div class="wfi-skeleton">'+Array.from({length:7},()=>'<div class="wf-shimmer"></div>').join('')+'</div>'; }
+  renderWorkflowIndexError() { this._wfShowIndex(); this._workflowRoot.querySelector('#wfi-summary').textContent='0 in range'; this._workflowRoot.querySelector('#wfi-content').innerHTML=this._wfEmptyIndexHTML(); }
+  _wfEmptyIndexHTML() { return '<div class="wf-empty"><div class="wf-empty-icon">☷</div><div class="wf-empty-title">No workflows yet</div><div class="wf-empty-copy">Every run joins a workflow. Label one to start a campaign — unlabeled runs auto-group under <span style="font-family:JetBrains Mono;color:#cabff2">pipeline/…</span> and <span style="font-family:JetBrains Mono;color:#cabff2">adhoc/…</span>.</div><div class="wf-command"><code>gitmoot run &lt;prompt&gt; --workflow <span style="color:#9ece6a">fable/my-campaign</span></code><button class="wf-copy" data-wf-copy="gitmoot run &lt;prompt&gt; --workflow fable/my-campaign">copy</button></div></div>'; }
+  _wfSyncIndexControls(entries) {
+    const namespaces=Array.from(new Set(entries.map(w=>w.namespace||this._wfSplitLabel(w.label).namespace).filter(Boolean))).sort();
+    const repos=Array.from(new Set(entries.flatMap(w=>Array.isArray(w.repos)?w.repos:[]).filter(Boolean))).sort();
+    const ns=this._workflowRoot.querySelector('#wfi-namespace'),rp=this._workflowRoot.querySelector('#wfi-repo');
+    ns.innerHTML='<option value="all">Namespace</option>'+namespaces.map(v=>'<option value="'+this._wfEsc(v)+'">'+this._wfEsc(v)+'</option>').join('');
+    rp.innerHTML='<option value="all">Repo</option>'+repos.map(v=>'<option value="'+this._wfEsc(v)+'">'+this._wfEsc(v)+'</option>').join('');
+    ns.value=namespaces.includes(this._workflowFilters.namespace)?this._workflowFilters.namespace:'all'; rp.value=repos.includes(this._workflowFilters.repo)?this._workflowFilters.repo:'all';
+    this._workflowFilters.namespace=ns.value; this._workflowFilters.repo=rp.value; this._workflowRoot.querySelector('#wfi-range').value=this._workflowFilters.range||'14';
+  }
+  _wfOutcomeHTML(c) { c=c||{}; const out=[]; if(c.running)out.push('<span class="wfi-run">▶ '+this._wfNum(c.running)+'</span>'); if(c.queued)out.push('<span class="wfi-queue">● '+this._wfNum(c.queued)+'</span>'); if(c.succeeded)out.push('<span class="wfi-ok">✓ '+this._wfNum(c.succeeded)+'</span>'); if(c.failed)out.push('<span class="wfi-fail">✗ '+this._wfNum(c.failed)+'</span>'); if(c.blocked)out.push('<span class="wfi-block">⚑ '+this._wfNum(c.blocked)+'</span>'); return out.join(''); }
+  _wfIndexRow(w) {
+    const c=w.counts||{},coord=w.coordinator||{},state=w.state||'settled',tokens=Number(w.tokens_in||0)+Number(w.tokens_out||0);
+    const coordText=w.auto?('unattended · '+(coord.pane||this._wfSplitLabel(w.label).namespace||'auto')):((coord.author||'coordinator')+(coord.session_id?' · sess '+coord.session_id:''));
+    const note=state==='stalled'&&w.last_note?'<div class="wfi-note">last note · '+this._wfEsc(w.last_note)+'</div>':'';
+    return '<article class="wfi-row '+this._wfEsc(state)+'" data-workflow-label="'+this._wfEsc(w.label)+'"><span class="wfi-dot '+(state==='active'?'running':state)+'"></span><div class="wfi-main"><div class="wfi-label">'+this._wfLabelHTML(w.label,w.auto)+'</div><div class="wfi-meta">'+this._wfEsc(coordText)+'</div>'+note+'</div><div class="wfi-outcomes">'+this._wfOutcomeHTML(c)+'</div><div class="wfi-numbers">'+this._wfNum(c.jobs)+' jobs · '+this._wfNum(c.notes)+' notes · '+this._wfNum(tokens)+' tok</div><div class="wfi-time"><div class="wfi-age">'+this._wfEsc(state==='stalled'?this._wfDuration(w.stalled_for_s):this._wfSpan(w.first_at,w.last_at))+'</div><div>'+this._wfEsc(this._wfDate(w.first_at,true))+(w.first_at!==w.last_at?' → '+this._wfEsc(state==='active'?'now':this._wfDate(w.last_at,true)):'')+'</div></div></article>';
+  }
+  renderWorkflowIndex(entries) {
+    if(!this._workflowRoot)return; this._wfShowIndex(); entries=Array.isArray(entries)?entries:[]; this._wfSyncIndexControls(entries);
+    const scroll=this._workflowRoot.querySelector('#wfi-scroll'),top=scroll.scrollTop,q=String(this._workflowFilters.query||'').trim().toLowerCase(),ns=this._workflowFilters.namespace||'all',repo=this._workflowFilters.repo||'all';
+    const days=this._workflowFilters.range==='all'?0:Number(this._workflowFilters.range||14),cutoff=days?Date.now()-days*86400000:0;
+    const older=entries.filter(w=>w.state==='settled'&&cutoff&&Number(w.last_at||0)<cutoff).length;
+    const shown=entries.filter(w=>{const split=this._wfSplitLabel(w.label),namespace=w.namespace||split.namespace;if(ns!=='all'&&namespace!==ns)return false;if(repo!=='all'&&!(Array.isArray(w.repos)&&w.repos.includes(repo)))return false;if(w.state==='settled'&&cutoff&&Number(w.last_at||0)<cutoff)return false;if(!q)return true;return [w.label,namespace,w.campaign,w.last_note,w.coordinator&&w.coordinator.author,w.coordinator&&w.coordinator.pane].concat(w.repos||[]).join(' ').toLowerCase().includes(q);});
+    const stalled=shown.filter(w=>w.state==='stalled'),active=shown.filter(w=>w.state==='active'),settled=shown.filter(w=>w.state==='settled');
+    this._workflowRoot.querySelector('#wfi-summary').textContent=shown.length+' in range · '+active.length+' active · '+stalled.length+' stalled';
+    const group=(items,state,title)=>items.length?'<section class="wfi-group '+state+'"><div class="wfi-group-head '+state+'"><span class="wfi-dot '+(state==='active'?'running':state)+'"></span><span>'+title+'</span><span class="wfi-count">'+items.length+'</span></div><div class="wfi-list">'+items.map(w=>this._wfIndexRow(w)).join('')+'</div></section>':'';
+    let html=!entries.length?this._wfEmptyIndexHTML():!shown.length?'<div class="wf-empty"><div class="wf-empty-title">No workflows match these filters</div><div class="wf-empty-copy">Clear the search or widen the namespace, repo, or time range.</div></div>':group(stalled,'stalled','Stalled · needs a look')+group(active,'active','Active')+group(settled,'settled','Settled · last '+(days?days+'d':'all'));
+    if(shown.length&&older)html+='<div class="wfi-older">+ '+older+' older workflow'+(older===1?'':'s')+' · widen the range to view</div>';
+    this._workflowRoot.querySelector('#wfi-content').innerHTML=html; scroll.scrollTop=top;
   }
 
-  fetchWorkflow(label, mode) {
-    if (!label) return;
-    mode = mode || 'initial';
-    if (mode !== 'initial') {
-      if (label !== this._workflowLabel) return;
-      this._workflowPageLoading = this._workflowPageLoading || {};
-      if (this._workflowPageLoading[mode]) return;
-      this._workflowPageLoading[mode] = true;
-    }
-    let navToken = this._workflowNavToken || 0;
-    let controller = null;
-    if (mode === 'initial') {
-      navToken = (this._workflowNavToken || 0) + 1;
-      this._workflowNavToken = navToken;
-      try { if (this._workflowController) this._workflowController.abort(); } catch (e) {}
-      controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-      this._workflowController = controller;
-      this._workflowLabel = label;
-      this._workflowData = { summary: { label: label }, runs: [], notes: [] };
-      this._workflowRunCursor = '';
-      this._workflowNoteCursor = '';
-      this._workflowPageLoading = {};
+  fetchWorkflow(label,isPoll) {
+    if(!label||!this._workflowRoot||(isPoll&&this._workflowDetailLoading))return;
+    this._workflowLabel=label; this._wfShowDetail();
+    if(!isPoll){
+      this._workflowNavToken=(this._workflowNavToken||0)+1;
+      if(this._workflowExpansionLabel!==label){this._workflowExpansionLabel=label;this._workflowExpanded={};this._workflowVisible=12;}
       this.renderWorkflowLoading(label);
     }
-    const q = ['maxRuns=1', 'maxNotes=2'];
-    if (mode === 'runs' && this._workflowRunCursor) q.push('runCursor=' + encodeURIComponent(this._workflowRunCursor));
-    if (mode === 'notes' && this._workflowNoteCursor) q.push('noteCursor=' + encodeURIComponent(this._workflowNoteCursor));
-    const errEl = this._workflowRoot && this._workflowRoot.querySelector('#wf-error');
-    if (errEl) errEl.style.display = 'none';
-    const requestOptions = { cache: 'no-store' };
-    if (controller) requestOptions.signal = controller.signal;
-    fetch('/api/workflow/' + encodeURIComponent(label) + '?' + q.join('&'), requestOptions)
-      .then(r => r.ok ? r.json() : r.text().then(t => Promise.reject(new Error(t.trim() || ('HTTP ' + r.status)))))
-      .then(json => {
-        if (navToken !== this._workflowNavToken || label !== this._workflowLabel) return;
-        const responseLabel = json && json.summary && json.summary.label;
-        if (responseLabel !== label) throw new Error('workflow response label mismatch');
-        const old = this._workflowData || { runs: [], notes: [] };
-        if (mode === 'initial') {
-          this._workflowData = json || { summary: { label: label }, runs: [], notes: [] };
-          this._workflowRunCursor = (json && json.nextRunCursor) || '';
-          this._workflowNoteCursor = (json && json.nextNoteCursor) || '';
-        } else {
-          const runs = (old.runs || []).slice(), runIDs = new Set(runs.map(r => r.runId));
-          (json.runs || []).forEach(r => { if (!runIDs.has(r.runId)) { runIDs.add(r.runId); runs.push(r); } });
-          const notes = (old.notes || []).slice(), noteIDs = new Set(notes.map(n => String(n.id)));
-          (json.notes || []).forEach(n => { if (!noteIDs.has(String(n.id))) { noteIDs.add(String(n.id)); notes.push(n); } });
-          this._workflowData = { summary: json.summary || old.summary, runs: runs, notes: notes };
-          if (mode === 'runs') this._workflowRunCursor = json.nextRunCursor || '';
-          if (mode === 'notes') this._workflowNoteCursor = json.nextNoteCursor || '';
-        }
+    const token=this._workflowNavToken||0;
+    this._workflowDetailLoading=true;
+    fetch('/api/workflow/'+encodeURIComponent(label)+'?maxRuns=50&maxNotes=200',{cache:'no-store'})
+      .then(r=>r.ok?r.json():r.text().then(t=>Promise.reject(new Error(t.trim()||('HTTP '+r.status)))))
+      .then(json=>{
+        if(token!==this._workflowNavToken||label!==this._workflowLabel)return;
+        const responseLabel=json&&json.summary&&json.summary.label;
+        if(responseLabel&&responseLabel!==label)throw new Error('workflow response label mismatch');
+        this._workflowData=json||{summary:{label:label},runs:[],notes:[]};
+        if(!Object.keys(this._workflowExpanded||{}).length){const runs=this._workflowData.runs||[],open=runs.find(r=>r.state==='running')||runs[0];if(open&&open.runId)this._workflowExpanded[open.runId]=true;}
         this.renderWorkflow(this._workflowData);
       })
-      .catch(err => {
-        if (navToken !== this._workflowNavToken || label !== this._workflowLabel) return;
-        if (err && err.name === 'AbortError') return;
-        this.renderWorkflowError(label, err);
-      })
-      .finally(() => {
-        if (mode !== 'initial' && navToken === this._workflowNavToken) {
-          this._workflowPageLoading = this._workflowPageLoading || {};
-          this._workflowPageLoading[mode] = false;
-        }
-        if (mode === 'initial' && navToken === this._workflowNavToken && this._workflowController === controller) this._workflowController = null;
-      });
+      .catch(err=>{if(token===this._workflowNavToken&&label===this._workflowLabel&&(!isPoll||!this._workflowData))this.renderWorkflowError(label,err);})
+      .finally(()=>{if(token===this._workflowNavToken)this._workflowDetailLoading=false;});
   }
-
   renderWorkflowLoading(label) {
-    if (!this._workflowRoot) return;
-    this._workflowRoot.querySelector('#wf-label').textContent = label || '';
-    const errEl = this._workflowRoot.querySelector('#wf-error');
-    if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
-    this._workflowRoot.querySelector('#wf-summary').innerHTML = '<div class="wf-stat"><b>…</b>loading</div>';
-    this._workflowRoot.querySelector('#wf-run-count').textContent = '';
-    this._workflowRoot.querySelector('#wf-note-count').textContent = '';
-    this._workflowRoot.querySelector('#wf-forest').innerHTML = '<div class="wf-empty">loading workflow forest…</div>';
-    this._workflowRoot.querySelector('#wf-journal').innerHTML = '<div class="wf-empty">loading journal…</div>';
-    this._workflowRoot.querySelector('#wf-more-runs').hidden = true;
-    this._workflowRoot.querySelector('#wf-more-notes').hidden = true;
+    this._wfShowDetail(); const p=this._wfSplitLabel(label);
+    this._workflowRoot.querySelector('#wfd-content').innerHTML='<div class="wfd-skeleton"><div class="wfd-head"><button class="wf-back" title="Back to workflows">‹</button><div class="wfd-label">'+(p.namespace?'<span class="ns">'+this._wfEsc(p.namespace)+'/</span>':'')+this._wfEsc(p.campaign)+'</div></div><div class="wf-shimmer"></div><div class="wf-shimmer"></div><div class="wf-shimmer"></div><div class="wf-shimmer"></div></div>';
   }
-
-  renderWorkflowError(label, err) {
-    if (!this._workflowRoot) return;
-    const message = 'Could not load workflow ' + label + ': ' + (err && err.message ? err.message : 'unknown error');
-    this._workflowData = { summary: { label: label }, runs: [], notes: [] };
-    this._workflowRunCursor = '';
-    this._workflowNoteCursor = '';
-    this._workflowRoot.querySelector('#wf-label').textContent = label || '';
-    this._workflowRoot.querySelector('#wf-summary').innerHTML = '';
-    this._workflowRoot.querySelector('#wf-run-count').textContent = '';
-    this._workflowRoot.querySelector('#wf-note-count').textContent = '';
-    this._workflowRoot.querySelector('#wf-forest').innerHTML = '<div class="wf-empty">workflow unavailable</div>';
-    this._workflowRoot.querySelector('#wf-journal').innerHTML = '<div class="wf-empty">journal unavailable</div>';
-    this._workflowRoot.querySelector('#wf-more-runs').hidden = true;
-    this._workflowRoot.querySelector('#wf-more-notes').hidden = true;
-    const errEl = this._workflowRoot.querySelector('#wf-error');
-    if (errEl) { errEl.textContent = message; errEl.style.display = 'block'; }
+  renderWorkflowError(label,err) {
+    this._workflowData=null;
+    this._workflowRoot.querySelector('#wfd-content').innerHTML='<div class="wfd-head"><button class="wf-back">‹</button><div class="wfd-label">'+this._wfLabelHTML(label,false)+'</div></div><div class="wf-empty"><div class="wf-empty-title">Workflow unavailable</div><div class="wf-empty-copy">'+this._wfEsc(err&&err.message?err.message:'workflow unavailable')+'</div></div>';
   }
-
-  _workflowStateColor(state) {
-    return ({ succeeded:'#9ece6a', running:'#7aa2f7', failed:'#f7768e', blocked:'#e0af68', cancelled:'#5a6088', queued:'#5a6088' })[state] || '#5a6088';
+  _wfRunShape(run) {
+    run=run||{}; const nodes=Array.isArray(run.nodes)?run.nodes:[],by={};nodes.forEach(n=>{by[n.id]=n;});
+    const root=nodes.find(n=>!n.parentId||!by[n.parentId])||nodes[0]||{};
+    let children=Array.isArray(run.children)?run.children:[];
+    if(!children.length&&nodes.length>1)children=nodes.filter(n=>n!==root).map(n=>({id:n.id,action:String(n.title||'').split(':')[0]||'job',agent:n.agent||'',runtime:n.runtime||'',state:n.state||'queued',elapsed_s:n.startedAt?Math.max(0,Number(n.endedAt||Date.now())-Number(n.startedAt))/1000:0}));
+    const started=Number(run.started_at||run.startedAt||root.startedAt||0),ended=Number(run.ended_at||run.endedAt||root.endedAt||0),state=run.state||root.state||'queued';
+    return {id:run.runId||root.id||'',title:run.title||root.title||run.runId||'run',agent:run.agent||root.agent||'',runtime:run.runtime||root.runtime||'',repo:run.repo||'',state:state,started:started,ended:ended,elapsed:Number(run.elapsed_s||run.elapsedS||(started?Math.max(0,(ended||Date.now())-started)/1000:0)),children:children};
   }
-
-  _workflowForestSVG(runs, label) {
-    const esc = (s) => this._galaxyEsc(s);
-    if (!runs.length) return '<div class="wf-empty">no runs in this workflow</div>';
-    let nextY = 38, maxDepth = 0;
-    const groups = [];
-    (runs || []).forEach((run, ri) => {
-      const nodes = run.nodes || [], by = {};
-      nodes.forEach(n => { by[n.id] = n; });
-      const depthMemo = {};
-      const depthOf = (n, seen) => {
-        if (depthMemo[n.id] != null) return depthMemo[n.id];
-        seen = seen || {};
-        if (seen[n.id]) return 0;
-        seen[n.id] = true;
-        const p = n.parentId && by[n.parentId];
-        return (depthMemo[n.id] = p ? depthOf(p, seen) + 1 : 0);
-      };
-      const pos = {}, startY = nextY + 34;
-      nodes.forEach((n, i) => {
-        const d = depthOf(n, {}); maxDepth = Math.max(maxDepth, d);
-        pos[n.id] = { x: 250 + d * 205, y: startY + i * 64, node: n };
-      });
-      const height = Math.max(112, nodes.length * 64 + 38);
-      groups.push({ run: run, ri: ri, pos: pos, start: nextY, roots: nodes.filter(n => !n.parentId || !by[n.parentId]) });
-      nextY += height + 24;
-    });
-    const width = Math.max(820, 470 + maxDepth * 205), height = Math.max(320, nextY + 10), hub = { x: 78, y: height / 2 };
-    const out = ['<svg viewBox="0 0 ' + width + ' ' + height + '" width="100%" height="' + height + '" style="display:block;min-width:' + Math.min(width, 980) + 'px" role="img" aria-label="workflow forest">'];
-    out.push('<g class="wf-synthetic"><circle cx="' + hub.x + '" cy="' + hub.y + '" r="24" fill="#102923" stroke="#2dd4bf" stroke-width="2"/><text x="' + hub.x + '" y="' + (hub.y - 2) + '" text-anchor="middle" fill="#5eead4" font-family="Space Grotesk" font-size="9" font-weight="700">WORKFLOW</text><text x="' + hub.x + '" y="' + (hub.y + 11) + '" text-anchor="middle" fill="#99f6e4" font-family="JetBrains Mono" font-size="7">' + esc(label) + '</text></g>');
-    groups.forEach(g => {
-      out.push('<g class="wf-run" data-run="' + esc(g.run.runId || '') + '"><text x="176" y="' + (g.start + 12) + '" fill="#7f86ad" font-family="JetBrains Mono" font-size="9">' + esc(g.run.title || g.run.runId || 'run') + '</text>');
-      g.roots.forEach(root => { const p = g.pos[root.id]; if (p) out.push('<path d="M ' + (hub.x + 24) + ' ' + hub.y + ' C 150 ' + hub.y + ', 170 ' + p.y + ', ' + (p.x - 86) + ' ' + p.y + '" fill="none" stroke="#2dd4bf" stroke-opacity=".32" stroke-width="1.3"/>'); });
-      Object.keys(g.pos).forEach(id => {
-        const p = g.pos[id], n = p.node;
-        if (n.parentId && g.pos[n.parentId]) {
-          const a = g.pos[n.parentId]; out.push('<path d="M ' + (a.x + 86) + ' ' + a.y + ' C ' + (a.x + 112) + ' ' + a.y + ', ' + (p.x - 112) + ' ' + p.y + ', ' + (p.x - 86) + ' ' + p.y + '" fill="none" stroke="#a0a8dc" stroke-opacity=".32"/>');
-        }
-        (n.deps || []).forEach(dep => { const a = g.pos[dep]; if (a) out.push('<path d="M ' + (a.x + 80) + ' ' + (a.y + 18) + ' C ' + (a.x + 110) + ' ' + (a.y + 22) + ', ' + (p.x - 110) + ' ' + (p.y + 22) + ', ' + (p.x - 80) + ' ' + (p.y + 18) + '" fill="none" stroke="#e0af68" stroke-opacity=".48" stroke-dasharray="4 4"/>'); });
-      });
-      Object.keys(g.pos).forEach(id => {
-        const p = g.pos[id], n = p.node, col = this._workflowStateColor(n.state), title = String(n.title || n.id || '').slice(0, 25);
-        out.push('<g class="wf-node" data-job="' + esc(n.id) + '" transform="translate(' + (p.x - 86) + ',' + (p.y - 22) + ')"><rect width="172" height="44" rx="8" fill="#0d0f1c" stroke="' + col + '" stroke-opacity=".72"/><circle cx="13" cy="14" r="4" fill="' + col + '"/><text x="23" y="17" fill="#eef0ff" font-family="Inter" font-size="10" font-weight="600">' + esc(title) + '</text><text x="13" y="33" fill="#7f86ad" font-family="JetBrains Mono" font-size="8">' + esc((n.agent || 'agent') + ' · ' + (n.state || 'queued')) + '</text></g>');
-      });
-      out.push('</g>');
-    });
-    out.push('</svg>');
-    return out.join('');
+  _wfStatusGlyph(state){return({running:'●',succeeded:'✓',failed:'✗',blocked:'⚑',queued:'·',cancelled:'×'})[state]||'·';}
+  _wfRuntime(runtime){runtime=String(runtime||'').toLowerCase();return runtime==='claude'||runtime==='codex'||runtime==='kimi'?runtime:'shell';}
+  _wfTimelineRun(run) {
+    const r=this._wfRunShape(run),open=!!this._workflowExpanded[r.id];
+    const children=open&&r.children.length?'<div class="wf-children">'+r.children.map(c=>{const state=c.state||'queued';return '<div class="wf-child"><span class="wf-child-dot '+this._wfEsc(state)+'"></span><span class="wf-action">'+this._wfEsc(c.action||'job')+'</span><span>'+this._wfEsc(c.agent||'agent')+'</span><span class="wf-child-state '+this._wfEsc(state)+'">'+this._wfEsc(state)+'</span><span class="wf-elapsed">'+this._wfEsc(c.elapsed_s?this._wfDuration(c.elapsed_s):'—')+'</span></div>';}).join('')+'</div>':'';
+    return '<article class="wft-item"><span class="wft-marker '+this._wfEsc(r.state)+'">'+this._wfStatusGlyph(r.state)+'</span><div class="wf-run-block '+this._wfEsc(r.state)+'"><div class="wf-run-top" data-wf-run="'+this._wfEsc(r.id)+'" role="button" tabindex="0"><span class="wf-chev '+(open?'open':'')+'">▸</span><span class="wf-run-title">'+this._wfEsc(r.title)+'</span><span class="wf-run-status '+this._wfEsc(r.state)+'">'+this._wfEsc(r.state==='succeeded'?'done':r.state)+'</span><span class="wf-elapsed">'+this._wfEsc(this._wfDuration(r.elapsed))+'</span></div><div class="wf-run-meta"><span class="wf-agent '+this._wfRuntime(r.runtime)+'">'+this._wfEsc(r.agent||'agent')+'</span><span>'+this._wfEsc(r.repo||'repository')+'</span><a class="wf-graph-link" href="/?run='+encodeURIComponent(r.id)+'" data-wf-graph="'+this._wfEsc(r.id)+'">view as graph ↗</a></div>'+children+'</div></article>';
   }
-
+  _wfTimelineNote(note) {
+    const id=String(note.id),open=!!this._workflowExpanded['note:'+id];
+    return '<article class="wft-item wf-note '+(open?'open':'')+'" data-wf-note="'+this._wfEsc(id)+'" role="button" tabindex="0"><span class="wft-marker note"></span><div class="wf-note-head"><span class="wf-note-author">'+this._wfEsc(note.author||'coordinator')+'</span><span>'+this._wfEsc(this._wfDate(note.createdAt))+' · '+this._wfEsc(this._wfAge(note.createdAt))+' ago</span><span class="wf-note-tag">note</span></div><div class="wf-note-body">'+this._wfEsc(note.body||'')+'</div></article>';
+  }
+  openWorkflowGraph(id) {
+    if(!id)return; this.currentRunId=id;this._fitted=false;
+    try{history.pushState(null,'','/?run='+encodeURIComponent(id));document.title='gitmoot · graph';}catch(e){}
+    this.setState({view:'graph',selectedRunId:id,selectedId:null},()=>{this.loadState();this.subscribeEvents();});
+  }
   renderWorkflow(data) {
-    if (!this._workflowRoot) return;
-    data = data || {};
-    const esc = (s) => this._galaxyEsc(s), sum = data.summary || {}, runs = data.runs || [], notes = data.notes || [];
-    const label = sum.label || this._workflowLabel || '';
-    const errEl = this._workflowRoot.querySelector('#wf-error');
-    if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
-    this._workflowRoot.querySelector('#wf-label').textContent = label;
-    const fmt = (n) => Number(n || 0).toLocaleString('en-US');
-    const date = (n) => n ? new Date(n).toLocaleString([], { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '—';
-    const stats = [
-      ['jobs', sum.jobs], ['running', sum.running], ['queued', sum.queued], ['succeeded', sum.succeeded],
-      ['failed', sum.failed], ['blocked', sum.blocked], ['cancelled', sum.cancelled], ['notes', sum.notes],
-      ['tokens in', sum.tokensIn], ['tokens out', sum.tokensOut], ['first', date(sum.firstAt)], ['last', date(sum.lastAt)]
-    ];
-    this._workflowRoot.querySelector('#wf-summary').innerHTML = stats.map(s => '<div class="wf-stat"><b>' + esc(typeof s[1] === 'number' ? fmt(s[1]) : s[1]) + '</b>' + esc(s[0]) + '</div>').join('');
-    this._workflowRoot.querySelector('#wf-run-count').textContent = runs.length + ' of ' + (sum.jobs ? 'member runs' : 'runs');
-    this._workflowRoot.querySelector('#wf-forest').innerHTML = this._workflowForestSVG(runs, label);
-    const sortedNotes = notes.slice().sort((a, b) => (a.createdAt - b.createdAt) || (a.id - b.id));
-    this._workflowRoot.querySelector('#wf-note-count').textContent = sortedNotes.length + ' of ' + fmt(sum.notes || sortedNotes.length);
-    this._workflowRoot.querySelector('#wf-journal').innerHTML = sortedNotes.length ? sortedNotes.map(n => [
-      '<article class="wf-note" data-note="' + esc(n.id) + '">',
-      '<div class="wf-note-head"><span class="wf-note-author">' + esc(n.author || 'unknown') + '</span><span>' + esc(date(n.createdAt)) + '</span>' + (n.repo ? '<span>· ' + esc(n.repo) + '</span>' : '') + '</div>',
-      '<div class="wf-note-body">' + esc(n.body || '') + '</div></article>'
-    ].join('')).join('') : '<div class="wf-empty">no notes yet</div>';
-    const moreRuns = this._workflowRoot.querySelector('#wf-more-runs'), moreNotes = this._workflowRoot.querySelector('#wf-more-notes');
-    moreRuns.hidden = !this._workflowRunCursor;
-    moreNotes.hidden = !this._workflowNoteCursor;
+    if(!this._workflowRoot)return; this._wfShowDetail();data=data||{};
+    const sum=data.summary||{},label=sum.label||this._workflowLabel||'',runs=Array.isArray(data.runs)?data.runs:[],notes=Array.isArray(data.notes)?data.notes:[],state=data.state||((sum.running||sum.queued)?'active':'settled'),coord=data.coordinator||{},split=this._wfSplitLabel(label);
+    const scroll=this._workflowRoot.querySelector('#wfd-scroll'),top=scroll.scrollTop,tokensIn=Number(sum.tokensIn||0),tokensOut=Number(sum.tokensOut||0);
+    const outcome=this._wfOutcomeHTML({running:sum.running,queued:sum.queued,succeeded:sum.succeeded,failed:sum.failed,blocked:sum.blocked})||'<span class="wfi-queue">—</span>';
+    const coordHTML='<div class="wfd-coord"><span>coordinator</span><b>'+this._wfEsc(coord.author||'unattended')+'</b><span>· pane '+this._wfEsc(coord.pane||'—')+'</span><span>· sess '+this._wfEsc(coord.session_id||'—')+'</span>'+(coord.session_id?'<button class="wf-copy" data-wf-copy="'+this._wfEsc(coord.session_id)+'">copy</button>':'')+'</div>';
+    const stats='<div class="wfd-stats"><div class="wfd-stat"><b>'+this._wfNum(sum.jobs||0)+'</b><span>jobs</span></div><div class="wfd-stat"><b>'+outcome+'</b><span>outcomes</span></div><div class="wfd-stat"><b>'+this._wfNum(tokensIn)+' <small style="color:#697099;font-weight:400">in</small></b><span>'+this._wfNum(tokensOut)+' out · tokens</span></div><div class="wfd-stat"><b>'+this._wfNum(sum.notes||notes.length)+'</b><span>journal notes</span></div><div class="wfd-stat"><b>'+this._wfSpan(sum.firstAt,sum.lastAt)+'</b><span>'+this._wfDate(sum.firstAt)+' → '+(state==='active'?'now':this._wfDate(sum.lastAt))+'</span></div></div>';
+    let stalled='';
+    if(state==='stalled'){
+      const failed=runs.map(r=>this._wfRunShape(r)).find(r=>r.state==='failed'||r.state==='blocked'),latest=notes.slice().sort((a,b)=>Number(b.createdAt||0)-Number(a.createdAt||0))[0],resume='cd '+(data.work_dir||'/root/gitmoot')+' && claude --resume '+(coord.session_id||'<session>');
+      stalled='<section class="wf-stalled-banner"><div><div class="wf-stalled-title">△ Stalled '+this._wfDuration(data.stalled_for_s||0)+' — coordinator silent since '+this._wfDate(sum.lastAt)+'</div><div class="wf-stalled-copy">'+this._wfEsc(failed?failed.title+' failed and no journal note or new run has followed. The goal is not yet reached. A failure alone is not an alarm — the silence after it is.':'No running work or closing note has followed the last activity.')+'</div>'+(latest?'<div class="wf-last-note">last note · “'+this._wfEsc(latest.body||'')+'”</div>':'')+'</div><div class="wf-go"><h4>Pick it up in herdr</h4><div class="wf-go-row"><span>pane</span><b>'+this._wfEsc(coord.pane||'—')+'</b></div><div class="wf-go-row"><span>session</span><b>'+this._wfEsc(coord.session_id||'—')+'</b></div><div class="wf-resume"><code>'+this._wfEsc(resume)+'</code><button class="wf-copy" data-wf-copy="'+this._wfEsc(resume)+'">copy</button></div><div class="wf-readonly">read-only · dashboard points, never runs</div></div></section>';
+    }
+    const items=[];runs.forEach(run=>{const r=this._wfRunShape(run);items.push({kind:'run',at:r.state==='running'?Date.now():(r.ended||r.started||0),id:r.id,value:run});});notes.forEach(note=>items.push({kind:'note',at:Number(note.createdAt||0),id:String(note.id),value:note}));items.sort((a,b)=>(b.at-a.at)||String(b.id).localeCompare(String(a.id)));
+    const visible=items.slice(0,this._workflowVisible);
+    const timeline=!items.length?'<div class="wf-empty"><div class="wf-empty-icon">☷</div><div class="wf-empty-title">Mission log reserved</div><div class="wf-empty-copy">The first run dispatched under this label opens the mission log here.</div></div>':'<div class="wft-head"><span>Mission log</span><small>journal + run trees · newest first</small>'+(state==='active'?'<span class="wft-live">● live</span>':'')+'</div><div class="wft-list">'+visible.map(item=>item.kind==='run'?this._wfTimelineRun(item.value):this._wfTimelineNote(item.value)).join('')+(items.length>visible.length?'<button id="wf-load-earlier" class="wf-load-earlier">load earlier · '+(items.length-visible.length)+' more runs & notes ↓</button>':'')+'</div>';
+    this._workflowRoot.querySelector('#wfd-content').innerHTML='<div class="wfd-head"><button class="wf-back" title="Back to workflows">‹</button><div class="wfd-label">'+(split.namespace?'<span class="ns">'+this._wfEsc(split.namespace)+'/</span>':'')+this._wfEsc(split.campaign)+'</div><span class="wf-state '+this._wfEsc(state)+'">● '+this._wfEsc(state==='empty'?'reserved':state)+'</span>'+coordHTML+'</div>'+stats+stalled+timeline;
+    scroll.scrollTop=top;
   }
 
   // Feature 4: live auto-refresh while the Galaxy view is active.
@@ -8463,6 +8445,7 @@ class Component extends DCLogic {
   _navSeed() {
     fetch('/api/health', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(j => { if (j) this._tbApplyHealth(j); }).catch(() => {});
     fetch('/api/pipelines', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(j => { if (Array.isArray(j)) this._navApplyPipelines(j); }).catch(() => {});
+    fetch('/api/workflows', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(j => { if (Array.isArray(j)) this._navApplyWorkflows(j); }).catch(() => {});
     fetch('/api/learning/skills', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(j => { if (j) this._navApplySkills(j); }).catch(() => {});
     fetch('/api/attention', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(j => { if (j) this._navApplyAttention(j); }).catch(() => {});
   }
@@ -8487,6 +8470,10 @@ class Component extends DCLogic {
     const bad = (Array.isArray(arr) ? arr : []).some(p => p && (p.lastStatus === 'failed' || p.lastStatus === 'blocked'));
     if (bad !== this.state.pipelinesAttn) this.setState({ pipelinesAttn: bad });
   }
+  _navApplyWorkflows(arr) {
+    const stalled = (Array.isArray(arr) ? arr : []).some(w => w && w.state === 'stalled');
+    if (stalled !== this.state.workflowsAttn) this.setState({ workflowsAttn: stalled });
+  }
   _navApplySkills(data) {
     const on = !!(data && (data.pendingTotal || 0) > 0);
     if (on !== this.state.learningAttn) this.setState({ learningAttn: on });
@@ -8506,6 +8493,11 @@ class Component extends DCLogic {
   _navMoreCharts = () => { this.setState({ moreOpen: false }); this.showCharts(); };
   _navMoreLearning = () => { this.setState({ moreOpen: false }); this.showLearning(); };
   _navMoreConfig = () => { this.setState({ moreOpen: false }); this.showConfig(); };
+  _navMorePipelines = () => { this.setState({ moreOpen: false }); this.showPipelines(); };
+  _navMoreChat = () => { this.setState({ moreOpen: false }); this.showChat(); };
+  _navMoreAgents = () => { this.setState({ moreOpen: false }); this.showAgents(); };
+  _navMoreAttention = () => { this.setState({ moreOpen: false }); this.showAttention(); };
+  _navMoreHealth = () => { this.setState({ moreOpen: false }); this.showHealth(); };
 
   // ---- Shared copy chip -----------------------------------------------------
   // Unified copy affordance (Learning / Agents / Pipelines). Reads the command from
@@ -10002,6 +9994,7 @@ class Component extends DCLogic {
     const brainNavStyle = { ...navActive(isBrain), position: 'relative' };
     const jobsNavStyle = { ...navActive(isJobs), position: 'relative' };
     const pipelinesNavStyle = { ...navActive(isPipelines), position: 'relative' };
+    const workflowsNavStyle = { ...navActive(isWorkflows), position: 'relative' };
     const chatNavStyle = { ...navActive(isChat), position: 'relative' };
     const agentsNavStyle = { ...navActive(isAgents), position: 'relative' };
     const chartsNavStyle = { ...navActive(isCharts), position: 'relative' };
@@ -10016,6 +10009,7 @@ class Component extends DCLogic {
     const healthAttn = !!this.state.healthAttn;
     const learningAttn = !!this.state.learningAttn;
     const pipelinesAttn = !!this.state.pipelinesAttn;
+    const workflowsAttn = !!this.state.workflowsAttn;
     const attnAttn = !!this.state.attnAttn;
 
     // ---- responsive shell styling (all gated on isMobile; desktop untouched) ----
@@ -10057,8 +10051,8 @@ class Component extends DCLogic {
     // Graph keeps its repo › run-title (and the run-state dot); every other view shows
     // its section + a cheaply-available selected entity (chat thread / pipeline / agent),
     // falling back to its nav group + section name.
-    const NAV_GROUP = { graph: 'run', jobs: 'run', pipelines: 'run', workflows: 'workflow', agents: 'fleet', chat: 'fleet', brain: 'insight', galaxy: 'insight', charts: 'insight', learning: 'insight', attention: 'system', health: 'system', config: 'system' };
-    const SECT = { graph: 'graph', jobs: 'jobs', pipelines: 'pipelines', workflows: 'workflow', agents: 'agents', chat: 'chat', brain: 'brain', galaxy: 'galaxy', charts: 'charts', learning: 'learning', attention: 'attention', health: 'health', config: 'config' };
+    const NAV_GROUP = { graph: 'work', jobs: 'work', pipelines: 'work', workflows: 'work', agents: 'fleet', chat: 'fleet', brain: 'insight', galaxy: 'insight', charts: 'insight', learning: 'insight', attention: 'system', health: 'system', config: 'system' };
+    const SECT = { graph: 'graph', jobs: 'jobs', pipelines: 'pipelines', workflows: 'workflows', agents: 'agents', chat: 'chat', brain: 'brain', galaxy: 'galaxy', charts: 'charts', learning: 'learning', attention: 'attention', health: 'health', config: 'config' };
     let crumbRoot, crumbLeaf, crumbShowDot = false;
     if (isGraph) {
       crumbRoot = activeRun.repo || 'graph'; crumbLeaf = activeRun.title || 'run'; crumbShowDot = true;
@@ -10085,30 +10079,33 @@ class Component extends DCLogic {
       showGraph: this.showGraph, showBrain: this.showBrain, showGalaxy: this.showGalaxy,
       showJobs: this.showJobs, showAgents: this.showAgents,
       showCharts: this.showCharts, showHealth: this.showHealth, showConfig: this.showConfig, showLearning: this.showLearning,
-      showPipelines: this.showPipelines, showChat: this.showChat, showAttention: this.showAttention,
-      graphNavStyle, brainNavStyle, galaxyNavStyle, jobsNavStyle, pipelinesNavStyle, chatNavStyle, agentsNavStyle, chartsNavStyle, healthNavStyle, configNavStyle, attentionNavStyle, learningNavStyle,
+      showPipelines: this.showPipelines, showWorkflows: this.showWorkflows, showChat: this.showChat, showAttention: this.showAttention,
+      graphNavStyle, brainNavStyle, galaxyNavStyle, jobsNavStyle, pipelinesNavStyle, workflowsNavStyle, chatNavStyle, agentsNavStyle, chartsNavStyle, healthNavStyle, configNavStyle, attentionNavStyle, learningNavStyle,
       graphNavDotStyle: needsDot(false), brainNavDotStyle: needsDot(false), galaxyNavDotStyle: needsDot(false),
       jobsNavDotStyle: needsDot(false), agentsNavDotStyle: needsDot(false),
       chartsNavDotStyle: needsDot(false), healthNavDotStyle: needsDot(healthAttn),
       configNavDotStyle: needsDot(false),
       attentionNavDotStyle: needsDot(attnAttn),
       learningNavDotStyle: needsDot(learningAttn), pipelinesNavDotStyle: needsDot(pipelinesAttn),
+      workflowsNavDotStyle: needsDot(workflowsAttn && !isWorkflows),
       chatNavDotStyle: needsDot(chatAttn),
       chatTabAttnStyle: tabPip(chatAttn),
       tabPipesAttnStyle: tabPip(pipelinesAttn), tabHealthAttnStyle: tabPip(healthAttn),
-      tabAttnAttnStyle: tabPip(attnAttn), tabMoreAttnStyle: tabPip(learningAttn),
+      tabAttnAttnStyle: tabPip(attnAttn), tabWorkflowsAttnStyle: tabPip(workflowsAttn && !isWorkflows),
+      tabMoreAttnStyle: tabPip(learningAttn || pipelinesAttn || chatAttn || healthAttn || attnAttn),
       moreSheetVisible, closeMoreSheet: this._navCloseMore, showMore: this._navOpenMore,
       showGalaxyFromMore: this._navMoreGalaxy, showChartsFromMore: this._navMoreCharts, showLearningFromMore: this._navMoreLearning,
-      showConfigFromMore: this._navMoreConfig,
+      showConfigFromMore: this._navMoreConfig, showPipelinesFromMore: this._navMorePipelines, showChatFromMore: this._navMoreChat,
+      showAgentsFromMore: this._navMoreAgents, showAttentionFromMore: this._navMoreAttention, showHealthFromMore: this._navMoreHealth,
       moreLearnDotStyle: needsDot(learningAttn),
       daemonText, daemonTextStyle, liveWord, liveBadgeStyle, liveDotStyle,
       railStyle, tabBarStyle, tabLabelStyle,
-      tabGraphStyle: tabStyle(isGraph), tabJobsStyle: tabStyle(isJobs), tabAgentsStyle: tabStyle(isAgents), tabBrainStyle: tabStyle(isBrain),
+      tabGraphStyle: tabStyle(isGraph), tabJobsStyle: tabStyle(isJobs), tabWorkflowsStyle: { ...tabStyle(isWorkflows), position: 'relative' }, tabAgentsStyle: tabStyle(isAgents), tabBrainStyle: tabStyle(isBrain),
             tabHealthStyle: { ...tabStyle(isHealth), position: 'relative' },
       tabAttentionStyle: { ...tabStyle(isAttention), position: 'relative' },
             tabPipelinesStyle: { ...tabStyle(isPipelines), position: 'relative' },
       tabChatStyle: { ...tabStyle(isChat), position: 'relative' },
-      tabMoreStyle: { ...tabStyle(isGalaxy || isCharts || isLearning || isConfig), position: 'relative' },
+      tabMoreStyle: { ...tabStyle(isGalaxy || isCharts || isLearning || isConfig || isPipelines || isChat || isAgents || isAttention || isHealth), position: 'relative' },
       crumbRepoStyle, crumbSepStyle, liveTextStyle, detailAsideStyle, zoomCtrlStyle, footerStyle,
       crumbRepo: crumbRoot, crumbTitle: crumbLeaf,
       crumbDotStyle: crumbShowDot ? { width: '8px', height: '8px', borderRadius: '50%', flex: 'none', background: crumbCol.c, boxShadow: activeRun.state === 'running' ? '0 0 8px ' + crumbCol.g : 'none', animation: activeRun.state === 'running' ? 'dotpulse 1.4s ease-in-out infinite' : 'none' } : { display: 'none' },
