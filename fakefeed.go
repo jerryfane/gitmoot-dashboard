@@ -598,14 +598,14 @@ func fakeWorkflowIndex(anchor int64) []WorkflowIndexEntry {
 	runs, notes := fakeWorkflowRuns(anchor), fakeWorkflowNotes(anchor)
 	summary := summarizeFakeWorkflow(runs, notes)
 	primary := WorkflowIndexEntry{
-		Label: fakeWorkflow, Coordinator: WorkflowCoordinator{Author: "claude-coordinator", Pane: "fable", SessionID: "7b2e04"}, State: "active",
+		Label: fakeWorkflow, Summary: "Building the dashboard workflow mission log and operator navigation.", Coordinator: WorkflowCoordinator{Author: "claude-coordinator", Pane: "fable", SessionID: "7b2e04"}, State: "active",
 		Counts:   WorkflowCounts{Jobs: summary.Jobs, Running: summary.Running, Queued: summary.Queued, Succeeded: summary.Succeeded, Failed: summary.Failed, Blocked: summary.Blocked, Notes: summary.Notes},
 		TokensIn: summary.TokensIn, TokensOut: summary.TokensOut, FirstAt: summary.FirstAt, LastAt: summary.LastAt, LastNote: notes[0].Body, Repos: []string{"jerryfane/gitmoot", "jerryfane/gitmoot-dashboard"},
 	}
 	return []WorkflowIndexEntry{
-		{Label: fakeStalledWorkflow, Coordinator: WorkflowCoordinator{Author: "claude-coordinator", Pane: "fable", SessionID: "a3f19c"}, State: "stalled", StalledForS: 40 * 60, Counts: WorkflowCounts{Jobs: 4, Succeeded: 2, Failed: 2, Notes: 5}, TokensIn: 64_000, TokensOut: 16_000, FirstAt: anchor - 3*hour, LastAt: anchor - 40*minute, LastNote: "Panel synthesized temp JSON + env var; no resume note since.", Repos: []string{"jerryfane/arxiv-post-agent"}},
+		{Label: fakeStalledWorkflow, Summary: "Hardening scheduled arXiv retries after repeated rate-limit failures.", Coordinator: WorkflowCoordinator{Author: "claude-coordinator", Pane: "fable", SessionID: "a3f19c"}, State: "stalled", StalledForS: 40 * 60, Counts: WorkflowCounts{Jobs: 4, Succeeded: 2, Failed: 2, Notes: 5}, TokensIn: 64_000, TokensOut: 16_000, FirstAt: anchor - 3*hour, LastAt: anchor - 40*minute, LastNote: "Panel synthesized temp JSON + env var; no resume note since.", Repos: []string{"jerryfane/arxiv-post-agent"}},
 		primary,
-		{Label: "sol/smart-groomer", Coordinator: WorkflowCoordinator{Author: "claude-coordinator", Pane: "sol", SessionID: "c40d8a"}, State: "active", Counts: WorkflowCounts{Jobs: 11, Running: 2, Succeeded: 9, Notes: 12}, TokensIn: 680_000, TokensOut: 210_000, FirstAt: anchor - 2*hour, LastAt: anchor - 4*minute, LastNote: "Validation workers are still moving.", Repos: []string{"jerryfane/gitmoot"}},
+		{Label: "sol/smart-groomer", Summary: "Improving memory grooming with safer split and merge heuristics.", Coordinator: WorkflowCoordinator{Author: "claude-coordinator", Pane: "sol", SessionID: "c40d8a"}, State: "active", Counts: WorkflowCounts{Jobs: 11, Running: 2, Succeeded: 9, Notes: 12}, TokensIn: 680_000, TokensOut: 210_000, FirstAt: anchor - 2*hour, LastAt: anchor - 4*minute, LastNote: "Validation workers are still moving.", Repos: []string{"jerryfane/gitmoot"}},
 		{Label: "officeqa-point-formula", Coordinator: WorkflowCoordinator{Author: "claude-coordinator", Pane: "kimi", SessionID: "d7c410"}, State: "settled", Counts: WorkflowCounts{Jobs: 16, Succeeded: 12, Failed: 3, Blocked: 1, Notes: 9}, TokensIn: 2_100_000, TokensOut: 800_000, FirstAt: anchor - day, LastAt: anchor - 8*hour, LastNote: "Closing note published.", Repos: []string{"jerryfane/officeqa"}},
 		{Label: "sol/token-accounting", Coordinator: WorkflowCoordinator{Author: "claude-coordinator", Pane: "sol", SessionID: "1f9b22"}, State: "settled", Counts: WorkflowCounts{Jobs: 9, Succeeded: 7, Failed: 1, Blocked: 1, Notes: 6}, TokensIn: 470_000, TokensOut: 170_000, FirstAt: anchor - 9*hour, LastAt: anchor - 6*hour, LastNote: "Token totals reconciled.", Repos: []string{"jerryfane/gitmoot"}},
 		{Label: "pipeline/memory-groom-propose", Auto: true, Coordinator: WorkflowCoordinator{Author: "unattended", Pane: "pipeline"}, State: "settled", Counts: WorkflowCounts{Jobs: 5, Succeeded: 5}, TokensIn: 18_000, TokensOut: 4_000, FirstAt: anchor - 5*hour, LastAt: anchor - 4*hour, Repos: []string{"jerryfane/gitmoot"}},
@@ -829,8 +829,11 @@ func (f *FakeDataSource) Workflow(ctx context.Context, label string, q WorkflowQ
 	summary := summarizeFakeWorkflow(runs, notes)
 	summary.Label = label
 	if label == fakeStalledWorkflow {
+		summary.Summary = "Hardening scheduled arXiv retries after repeated rate-limit failures."
 		summary.TokensIn = 64_000
 		summary.TokensOut = 16_000
+	} else {
+		summary.Summary = "Building the dashboard workflow mission log and operator navigation."
 	}
 
 	runStart := cursorStartRun(runs, q.RunCursor)

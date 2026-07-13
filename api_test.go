@@ -520,7 +520,7 @@ func TestFakeWorkflowContractAndPagination(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Workflow first page: %v", err)
 	}
-	if first.State != "active" || first.Coordinator.Pane != "fable" || first.Coordinator.SessionID == "" || first.WorkDir != "/root/gitmoot" {
+	if first.State != "active" || first.Summary.Summary == "" || first.Coordinator.Pane != "fable" || first.Coordinator.SessionID == "" || first.WorkDir != "/root/gitmoot" {
 		t.Fatalf("detail lifecycle/coordinator = %+v", first)
 	}
 	if len(first.Runs) != 1 || len(first.Runs[0].Nodes) != 3 || len(first.Runs[0].Children) != 2 {
@@ -604,8 +604,12 @@ func TestFakeWorkflowIndexContractOrderingAndDeterminism(t *testing.T) {
 	}
 	var plain *WorkflowIndexEntry
 	auto := 0
+	summaries := 0
 	for i := range entries {
 		entry := &entries[i]
+		if entry.Summary != "" {
+			summaries++
+		}
 		if entry.Label == "officeqa-point-formula" {
 			plain = entry
 		}
@@ -619,13 +623,39 @@ func TestFakeWorkflowIndexContractOrderingAndDeterminism(t *testing.T) {
 			t.Fatalf("incomplete workflow row = %+v", entry)
 		}
 	}
-	if plain == nil || plain.Namespace != "" || plain.Campaign != plain.Label || auto < 2 {
-		t.Fatalf("split/auto contract plain=%+v auto=%d", plain, auto)
+	if plain == nil || plain.Namespace != "" || plain.Campaign != plain.Label || auto < 2 || summaries < 3 {
+		t.Fatalf("split/auto/summary contract plain=%+v auto=%d summaries=%d", plain, auto, summaries)
 	}
 	for _, field := range []string{"\"session_id\"", "\"stalled_for_s\"", "\"tokens_in\"", "\"last_note\""} {
 		if !bytes.Contains(body1, []byte(field)) {
 			t.Fatalf("wire payload missing %s: %s", field, body1)
 		}
+	}
+}
+
+func TestWorkflowSummaryJSONContract(t *testing.T) {
+	indexBody, err := json.Marshal(WorkflowIndexEntry{Label: "fable/example", Summary: "A readable workflow summary."})
+	if err != nil {
+		t.Fatalf("marshal workflow index entry: %v", err)
+	}
+	if !bytes.Contains(indexBody, []byte(`"summary":"A readable workflow summary."`)) {
+		t.Fatalf("workflow index summary missing from JSON: %s", indexBody)
+	}
+
+	detailBody, err := json.Marshal(WorkflowView{Summary: WorkflowSummary{Label: "fable/example", Summary: "A readable workflow summary."}})
+	if err != nil {
+		t.Fatalf("marshal workflow detail: %v", err)
+	}
+	if !bytes.Contains(detailBody, []byte(`"summary":{"label":"fable/example","summary":"A readable workflow summary."`)) {
+		t.Fatalf("workflow detail summary missing from JSON: %s", detailBody)
+	}
+
+	var absent WorkflowIndexEntry
+	if err := json.Unmarshal([]byte(`{"label":"fable/example"}`), &absent); err != nil {
+		t.Fatalf("unmarshal workflow index entry without summary: %v", err)
+	}
+	if absent.Summary != "" {
+		t.Fatalf("absent workflow summary = %q, want empty", absent.Summary)
 	}
 }
 
