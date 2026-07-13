@@ -3675,7 +3675,7 @@ class Component extends DCLogic {
       const owner = slash >= 0 ? repo.slice(0, slash) + '/' : '';
       return '<div class="ch-row" role="button" tabindex="0" data-repo="' + esc(repo) + '" title="Scope jobs to ' + esc(repo) + '">' +
         '<span class="ch-rn2"><span class="nm">' + esc(name) + '</span>' + (owner ? '<span class="ow">' + esc(owner) + '</span>' : '') + '</span>' +
-        '<div class="ch-rt"><div class="ch-rf" style="width:' + w.toFixed(1) + '%;background:linear-gradient(90deg,#5a6088,#868db5)"></div></div>' +
+        '<div class="ch-rt"><div class="ch-rf" style="width:' + w.toFixed(1) + '%;background:rgba(160,168,220,.38)"></div></div>' +
         '<span class="ch-rv">' + (r.value || 0).toLocaleString('en-US') + '</span></div>';
     }).join('');
   }
