@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -8,11 +9,79 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
 
 type noWorkflowDataSource struct{ DataSource }
+type noChangeCursorDataSource struct{ DataSource }
+
+type testChangeCursorDataSource struct {
+	DataSource
+	mu     sync.Mutex
+	cursor string
+	calls  int
+}
+
+func (d *testChangeCursorDataSource) ChangeCursor(context.Context) (string, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.calls++
+	return d.cursor, nil
+}
+
+func (d *testChangeCursorDataSource) setCursor(cursor string) {
+	d.mu.Lock()
+	d.cursor = cursor
+	d.mu.Unlock()
+}
+
+func (d *testChangeCursorDataSource) callCount() int {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.calls
+}
+
+func newTestChangeServer(ds *testChangeCursorDataSource, poll, heartbeat time.Duration, cap int) (*server, *httptest.Server) {
+	s := &server{ds: ds, changes: newChangeWatcher(ds, poll, cap), changeHeartbeat: heartbeat}
+	return s, httptest.NewServer(http.HandlerFunc(s.handleChangeEvents))
+}
+
+func readChangeStreamLine(t *testing.T, reader *bufio.Reader, timeout time.Duration) string {
+	t.Helper()
+	lines := make(chan string, 1)
+	errs := make(chan error, 1)
+	go func() {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			errs <- err
+			return
+		}
+		lines <- strings.TrimRight(line, "\r\n")
+	}()
+	select {
+	case line := <-lines:
+		return line
+	case err := <-errs:
+		t.Fatalf("read change stream: %v", err)
+	case <-time.After(timeout):
+		t.Fatal("timed out reading change stream")
+	}
+	return ""
+}
+
+func waitForChangeStream(t *testing.T, timeout time.Duration, condition func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if condition() {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatal("timed out waiting for change stream condition")
+}
 
 type recordingWorkflowDataSource struct {
 	DataSource
@@ -26,6 +95,141 @@ func (d *recordingWorkflowDataSource) Workflows(_ context.Context) ([]WorkflowIn
 func (d *recordingWorkflowDataSource) Workflow(_ context.Context, label string, q WorkflowQuery) (WorkflowView, error) {
 	d.query = q
 	return WorkflowView{Summary: WorkflowSummary{Label: label}}, nil
+}
+
+func TestHandleChangeEventsUnsupported(t *testing.T) {
+	ds := noChangeCursorDataSource{DataSource: NewFakeDataSource()}
+	srv := httptest.NewServer(Serve(ds))
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/api/events")
+	if err != nil {
+		t.Fatalf("GET /api/events: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", resp.StatusCode)
+	}
+}
+
+func TestHandleChangeEventsHeadersHeartbeatAndNoReplay(t *testing.T) {
+	ds := &testChangeCursorDataSource{cursor: "baseline"}
+	s, srv := newTestChangeServer(ds, 5*time.Millisecond, 15*time.Millisecond, changeClientCap)
+	defer srv.Close()
+	if ds.callCount() != 0 || s.changes.watching() {
+		t.Fatal("watcher must remain lazy before the first client")
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL, nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	req.Header.Set("Last-Event-ID", "stale-cursor")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("GET change stream: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+	if got := resp.Header.Get("Content-Type"); !strings.HasPrefix(got, "text/event-stream") {
+		t.Fatalf("Content-Type = %q", got)
+	}
+	if got := resp.Header.Get("Cache-Control"); got != "no-cache" {
+		t.Fatalf("Cache-Control = %q, want no-cache", got)
+	}
+	if got := resp.Header.Get("X-Accel-Buffering"); got != "no" {
+		t.Fatalf("X-Accel-Buffering = %q, want no", got)
+	}
+	if line := readChangeStreamLine(t, bufio.NewReader(resp.Body), time.Second); line != ": keep-alive" {
+		t.Fatalf("first frame line = %q, want heartbeat (no cursor replay)", line)
+	}
+	if s.changes.clientCount() != 1 || !s.changes.watching() {
+		t.Fatalf("watcher state clients=%d watching=%t", s.changes.clientCount(), s.changes.watching())
+	}
+	if ds.callCount() < 1 {
+		t.Fatal("first client did not establish a cursor baseline")
+	}
+	cancel()
+	resp.Body.Close()
+	waitForChangeStream(t, time.Second, func() bool { return s.changes.clientCount() == 0 && !s.changes.watching() })
+}
+
+func TestHandleChangeEventsPingsOnCursorMovement(t *testing.T) {
+	ds := &testChangeCursorDataSource{cursor: "1.2"}
+	s, srv := newTestChangeServer(ds, 5*time.Millisecond, time.Second, changeClientCap)
+	defer srv.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL, nil)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("GET change stream: %v", err)
+	}
+	reader := bufio.NewReader(resp.Body)
+	ds.setCursor("3.4")
+	if line := readChangeStreamLine(t, reader, time.Second); line != "event: changed" {
+		t.Fatalf("event line = %q", line)
+	}
+	if line := readChangeStreamLine(t, reader, time.Second); line != "data: 3.4" {
+		t.Fatalf("data line = %q", line)
+	}
+	if line := readChangeStreamLine(t, reader, time.Second); line != "" {
+		t.Fatalf("frame terminator = %q", line)
+	}
+	cancel()
+	resp.Body.Close()
+	waitForChangeStream(t, time.Second, func() bool { return s.changes.clientCount() == 0 })
+}
+
+func TestHandleChangeEventsRegistryCapAndCleanup(t *testing.T) {
+	ds := &testChangeCursorDataSource{cursor: "baseline"}
+	s, srv := newTestChangeServer(ds, time.Second, time.Second, 2)
+	defer srv.Close()
+
+	open := func() (context.CancelFunc, *http.Response) {
+		ctx, cancel := context.WithCancel(context.Background())
+		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL, nil)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			cancel()
+			t.Fatalf("open change stream: %v", err)
+		}
+		return cancel, resp
+	}
+	cancelA, respA := open()
+	cancelB, respB := open()
+	if s.changes.clientCount() != 2 {
+		t.Fatalf("clients = %d, want 2", s.changes.clientCount())
+	}
+	if ds.callCount() != 1 {
+		t.Fatalf("baseline calls = %d, want one shared watcher", ds.callCount())
+	}
+	resp, err := http.Get(srv.URL)
+	if err != nil {
+		t.Fatalf("GET capped change stream: %v", err)
+	}
+	if resp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("capped status = %d, want 503", resp.StatusCode)
+	}
+	resp.Body.Close()
+
+	cancelA()
+	respA.Body.Close()
+	waitForChangeStream(t, time.Second, func() bool { return s.changes.clientCount() == 1 })
+	cancelC, respC := open()
+	if respC.StatusCode != http.StatusOK || s.changes.clientCount() != 2 {
+		t.Fatalf("replacement client status=%d clients=%d", respC.StatusCode, s.changes.clientCount())
+	}
+	cancelB()
+	cancelC()
+	respB.Body.Close()
+	respC.Body.Close()
+	waitForChangeStream(t, time.Second, func() bool { return s.changes.clientCount() == 0 && !s.changes.watching() })
+	if changeClientCap != 32 {
+		t.Fatalf("production change client cap = %d, want 32", changeClientCap)
+	}
 }
 
 func TestHandleRuns(t *testing.T) {

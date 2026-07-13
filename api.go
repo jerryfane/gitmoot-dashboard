@@ -1,18 +1,215 @@
 package dashboard
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 )
 
 const (
-	workflowMaxRuns  = 50
-	workflowMaxNotes = 200
+	workflowMaxRuns         = 50
+	workflowMaxNotes        = 200
+	changePollInterval      = time.Second
+	changeHeartbeatInterval = 15 * time.Second
+	changeClientCap         = 32
 )
+
+var errChangeClientCap = errors.New("change stream client limit reached")
+
+// changeWatcher is one lazily-started invalidation watcher per dashboard
+// server. It baselines the opaque cursor when the first client arrives, polls
+// while at least one client remains, and coalesces movement for slow clients.
+type changeWatcher struct {
+	source       ChangeCursorDataSource
+	pollInterval time.Duration
+	clientCap    int
+
+	mu         sync.Mutex
+	nextID     uint64
+	generation uint64
+	cursor     string
+	clients    map[uint64]chan string
+	cancel     context.CancelFunc
+}
+
+func newChangeWatcher(source ChangeCursorDataSource, pollInterval time.Duration, clientCap int) *changeWatcher {
+	if pollInterval <= 0 {
+		pollInterval = changePollInterval
+	}
+	if clientCap <= 0 {
+		clientCap = changeClientCap
+	}
+	return &changeWatcher{source: source, pollInterval: pollInterval, clientCap: clientCap, clients: make(map[uint64]chan string)}
+}
+
+func (w *changeWatcher) subscribe(ctx context.Context) (<-chan string, func(), error) {
+	w.mu.Lock()
+	if len(w.clients) >= w.clientCap {
+		w.mu.Unlock()
+		return nil, nil, errChangeClientCap
+	}
+
+	start := len(w.clients) == 0
+	var watchCtx context.Context
+	var generation uint64
+	if start {
+		cursor, err := w.source.ChangeCursor(ctx)
+		if err != nil {
+			w.mu.Unlock()
+			return nil, nil, err
+		}
+		w.cursor = cursor
+		w.generation++
+		generation = w.generation
+		watchCtx, w.cancel = context.WithCancel(context.Background())
+	}
+
+	id := w.nextID
+	w.nextID++
+	ch := make(chan string, 1)
+	w.clients[id] = ch
+	w.mu.Unlock()
+
+	if start {
+		go w.watch(watchCtx, generation)
+	}
+	var once sync.Once
+	return ch, func() { once.Do(func() { w.unsubscribe(id) }) }, nil
+}
+
+func (w *changeWatcher) unsubscribe(id uint64) {
+	w.mu.Lock()
+	if ch, ok := w.clients[id]; ok {
+		delete(w.clients, id)
+		close(ch)
+	}
+	if len(w.clients) == 0 && w.cancel != nil {
+		w.cancel()
+		w.cancel = nil
+		w.generation++
+	}
+	w.mu.Unlock()
+}
+
+func (w *changeWatcher) watch(ctx context.Context, generation uint64) {
+	ticker := time.NewTicker(w.pollInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			cursor, err := w.source.ChangeCursor(ctx)
+			if err != nil {
+				continue
+			}
+			w.broadcast(generation, cursor)
+		}
+	}
+}
+
+func (w *changeWatcher) broadcast(generation uint64, cursor string) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if generation != w.generation || len(w.clients) == 0 || cursor == w.cursor {
+		return
+	}
+	w.cursor = cursor
+	for _, ch := range w.clients {
+		select {
+		case ch <- cursor:
+		default:
+		}
+	}
+}
+
+func (w *changeWatcher) clientCount() int {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return len(w.clients)
+}
+
+func (w *changeWatcher) watching() bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.cancel != nil
+}
+
+// handleChangeEvents serves a bare invalidation stream. Cursors are never
+// replayed: a new first client establishes a baseline, then only movement is
+// emitted. Clients refetch their current JSON endpoint on each changed event.
+func (s *server) handleChangeEvents(w http.ResponseWriter, r *http.Request) {
+	if s.changes == nil {
+		http.Error(w, "change stream unsupported by data source", http.StatusNotFound)
+		return
+	}
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
+		return
+	}
+	changes, cancel, err := s.changes.subscribe(r.Context())
+	if err != nil {
+		if errors.Is(err, errChangeClientCap) {
+			http.Error(w, err.Error(), http.StatusServiceUnavailable)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer cancel()
+
+	h := w.Header()
+	h.Set("Content-Type", "text/event-stream")
+	h.Set("Cache-Control", "no-cache")
+	h.Set("X-Accel-Buffering", "no")
+	h.Set("Connection", "keep-alive")
+	w.WriteHeader(http.StatusOK)
+	flusher.Flush()
+
+	heartbeat := s.changeHeartbeat
+	if heartbeat <= 0 {
+		heartbeat = changeHeartbeatInterval
+	}
+	ticker := time.NewTicker(heartbeat)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-ticker.C:
+			if _, err := io.WriteString(w, ": keep-alive\n\n"); err != nil {
+				return
+			}
+			flusher.Flush()
+		case cursor, ok := <-changes:
+			if !ok {
+				return
+			}
+			if _, err := io.WriteString(w, "event: changed\n"); err != nil {
+				return
+			}
+			cursor = strings.ReplaceAll(strings.ReplaceAll(cursor, "\r\n", "\n"), "\r", "\n")
+			for _, line := range strings.Split(cursor, "\n") {
+				if _, err := fmt.Fprintf(w, "data: %s\n", line); err != nil {
+					return
+				}
+			}
+			if _, err := io.WriteString(w, "\n"); err != nil {
+				return
+			}
+			flusher.Flush()
+		}
+	}
+}
 
 // writeJSON encodes v as indented JSON with the given status code. Encoding
 // failures are reported as 500s (best-effort, since headers may already be set).

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"path"
 	"strings"
+	"time"
 )
 
 // Serve returns an http.Handler serving the read-only dashboard: the embedded
@@ -13,10 +14,10 @@ import (
 // handleLearningSkills/handleLearningKnowledge/handlePipelines/
 // handlePipelineDetail/handlePipelineRun/handleOverview/handleTasks/handleWorkflows/handleWorkflow/handleChatThreads/handleChatThread/
 // handleAttention/handleJobChecks/handleBinaryVerdicts/
-// handleState/handleJob/handleGraph in api.go) and the SSE stream (handleEvents
-// in sse.go).
+// handleState/handleJob/handleGraph/handleChangeEvents in api.go) and the
+// run-state SSE stream (handleEvents in sse.go).
 func Serve(ds DataSource) http.Handler {
-	s := &server{ds: ds}
+	s := newServer(ds)
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /api/runs", s.handleRuns)
@@ -43,6 +44,7 @@ func Serve(ds DataSource) http.Handler {
 	mux.HandleFunc("GET /api/state", s.handleState)
 	mux.HandleFunc("GET /api/job/{id}", s.handleJob)
 	mux.HandleFunc("GET /api/graph", s.handleGraph)
+	mux.HandleFunc("GET /api/events", s.handleChangeEvents)
 	mux.HandleFunc("GET /events", s.handleEvents)
 
 	// Everything else is served from the embedded static assets, with an SPA
@@ -53,15 +55,25 @@ func Serve(ds DataSource) http.Handler {
 }
 
 type server struct {
-	ds DataSource
+	ds              DataSource
+	changes         *changeWatcher
+	changeHeartbeat time.Duration
+}
+
+func newServer(ds DataSource) *server {
+	s := &server{ds: ds, changeHeartbeat: changeHeartbeatInterval}
+	if source, ok := ds.(ChangeCursorDataSource); ok {
+		s.changes = newChangeWatcher(source, changePollInterval, changeClientCap)
+	}
+	return s
 }
 
 // The JSON API handlers (handleRuns/handleJobs/handleAgents/handleAgent/
 // handleCharts/handleHealth/handleLearningSkills/handleLearningKnowledge/
 // handlePipelines/handlePipelineDetail/handlePipelineRun/handleOverview/handleTasks/handleWorkflows/handleWorkflow/handleChatThreads/
 // handleChatThread/handleAttention/handleJobChecks/handleBinaryVerdicts/
-// handleState/handleJob/handleGraph) live in api.go and the
-// SSE handler (handleEvents) lives in sse.go.
+// handleState/handleJob/handleGraph/handleChangeEvents) live in api.go and the
+// run-state SSE handler (handleEvents) lives in sse.go.
 
 // staticHandler serves the embedded web/dist assets. Requests that do not map
 // to an existing file fall back to index.html so the client-side router can
