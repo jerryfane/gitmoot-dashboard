@@ -229,7 +229,10 @@ type Graph struct {
 // WorkflowSummary is the aggregate header for one workflow label. State counts
 // are job counts, and timestamps are epoch milliseconds.
 type WorkflowSummary struct {
-	Label     string `json:"label"`
+	Label string `json:"label"`
+	// Summary is an optional human-readable one-liner from workflow_meta. It is
+	// empty when unset and contains untrusted free text that clients must escape.
+	Summary   string `json:"summary"`
 	Jobs      int    `json:"jobs"`
 	Queued    int    `json:"queued"`
 	Running   int    `json:"running"`
@@ -267,7 +270,10 @@ type WorkflowCounts struct {
 // are the first-slash split of Label; labels without a slash have an empty
 // Namespace. Timestamps are epoch milliseconds.
 type WorkflowIndexEntry struct {
-	Label       string              `json:"label"`
+	Label string `json:"label"`
+	// Summary is an optional human-readable one-liner from workflow_meta. It is
+	// empty when unset and contains untrusted free text that clients must escape.
+	Summary     string              `json:"summary"`
 	Namespace   string              `json:"namespace"`
 	Campaign    string              `json:"campaign"`
 	Auto        bool                `json:"auto"`
