@@ -5272,11 +5272,7 @@ class Component extends DCLogic {
     return n.superseded ? 0.4 : 0.92;                   // superseded at 40% alpha
   }
   _knowRadius(n) {
-    if (n.type === 'cluster') {
-      if (n.__knowRole === 'root' || (!n.__knowRole && n.isParent)) return 5.6;
-      if (n.__knowRole === 'frontier' || (!n.__knowRole && n.parentId)) return 3.8;
-      return 4.4;                                       // flat cluster hubs: original size
-    }
+    if (n.type === 'cluster') return 2.4;               // same size as facts (owner: hubs earn no extra pixels)
     if (n.type === 'agent') return 7;
     if (n.type === 'category') return 3;
     if (n.type === 'evidence') return 1.4;              // dim observation dots (input layer)
