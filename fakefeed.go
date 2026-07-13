@@ -421,7 +421,7 @@ func (f *FakeDataSource) Graph(ctx context.Context, repo string) (Graph, error) 
 		}
 		g.Nodes = append(g.Nodes, GraphNode{
 			ID: "workflow::" + fakeWorkflow, Type: "workflow", Label: fakeWorkflow,
-			JobCount: len(snap.Nodes) + 1, NoteCount: 9, TokensIn: 1_230_000, TokensOut: 15_300,
+			JobCount: len(snap.Nodes) + 1, NoteCount: len(fakeWorkflowNotes(snap.Nodes[0].StartedAt)), TokensIn: 1_230_000, TokensOut: 15_300,
 		})
 	}
 	return g, nil
@@ -447,7 +447,7 @@ func compactWorkflowNode(n Node) WorkflowNode {
 }
 
 func fakeWorkflowNotes(anchor int64) []WorkflowNoteView {
-	return []WorkflowNoteView{
+	notes := []WorkflowNoteView{
 		{ID: 109, Author: "claude-coordinator", Body: "Designs agree across all three researchers — dispatching wave-impl to implement the split threshold and LLM-guided lossless merge. Holding review until the validation pass returns.", Repo: "jerryfane/gitmoot", CreatedAt: anchor - int64(2*time.Minute/time.Millisecond)},
 		{ID: 108, Author: "panel-synth", Body: "render <script>window.__workflowScriptExecuted=true</script> literally & safely", Repo: "jerryfane/gitmoot", CreatedAt: anchor - int64(10*time.Minute/time.Millisecond)},
 		{ID: 107, Author: "claude-coordinator", Body: "Panel fired (3 models): core decision = split threshold at 0.62 cosine plus an LLM-guided lossless merge; write caps set to 16KiB / 64KiB.", Repo: "jerryfane/gitmoot", CreatedAt: anchor - int64(20*time.Minute/time.Millisecond)},
@@ -458,6 +458,21 @@ func fakeWorkflowNotes(anchor int64) []WorkflowNoteView {
 		{ID: 102, Author: "project-lead", Body: "Coordinator pane reserved and journal handoff verified.", Repo: "jerryfane/gitmoot-dashboard", CreatedAt: anchor - int64(100*time.Minute/time.Millisecond)},
 		{ID: 101, Author: "project-lead", Body: "Campaign label created for the redesign mission log.", Repo: "jerryfane/gitmoot-dashboard", CreatedAt: anchor - int64(3*time.Hour/time.Millisecond)},
 	}
+	authors := []string{"claude-coordinator", "researcher", "wave-impl", "project-lead"}
+	bodies := []string{
+		"Historical checkpoint: validation evidence attached and the next worker dispatched.",
+		"Review note: outcomes reconciled against the issue acceptance criteria.",
+		"Coordinator handoff recorded after the implementation batch settled.",
+		"Repository state refreshed; no operator action was required for this batch.",
+	}
+	for i := 0; i < 24; i++ {
+		notes = append(notes, WorkflowNoteView{
+			ID: 100 - int64(i), Author: authors[i%len(authors)],
+			Body: bodies[i%len(bodies)] + " Batch " + strconv.Itoa(i+1) + ".",
+			Repo: "jerryfane/gitmoot", CreatedAt: anchor - int64((240+i*37)*int(time.Minute/time.Millisecond)),
+		})
+	}
+	return notes
 }
 
 func fakeWorkflowNode(id, parentID, title, agent, runtime string, state NodeState, startedAt, endedAt int64) WorkflowNode {
@@ -477,7 +492,7 @@ func fakeWorkflowRuns(anchor int64) []WorkflowRun {
 	solRoot := fakeWorkflowNode("wf-sol-root", "", "Independent design research — split heuristics", "research-sol", "codex", "succeeded", anchor-38*minute, anchor-33*minute)
 	solChild := fakeWorkflowNode("wf-sol-child", solRoot.ID, "review: compare merge strategies", "research-sol", "codex", "succeeded", anchor-37*minute, anchor-33*minute)
 	baseRoot := fakeWorkflowNode("wf-base-root", "", "Baseline: current groomer over-merge audit", "researcher", "kimi", "succeeded", anchor-70*minute, anchor-64*minute)
-	return []WorkflowRun{
+	runs := []WorkflowRun{
 		{
 			RunID: fakeRunID, Title: currentRoot.Title, Agent: currentRoot.Agent, Runtime: currentRoot.Runtime,
 			Repo: "jerryfane/gitmoot", State: currentRoot.State, StartedAt: currentRoot.StartedAt, ElapsedS: 8 * 60,
@@ -505,6 +520,28 @@ func fakeWorkflowRuns(anchor int64) []WorkflowRun {
 			Children: []WorkflowChild{}, Nodes: []WorkflowNode{baseRoot},
 		},
 	}
+	titles := []string{"Contract validation sweep", "Mission-log interaction audit", "Pagination cursor verification", "Coordinator synthesis checkpoint"}
+	agents := []string{"wave-impl", "researcher", "reviewer-kimi", "claude-coordinator"}
+	runtimes := []string{"codex", "claude", "kimi", "claude"}
+	for i := 0; i < 12; i++ {
+		started := anchor - int64((270+i*50)*int(time.Minute/time.Millisecond))
+		ended := started + int64((3+i%5)*int(time.Minute/time.Millisecond))
+		state := NodeState("succeeded")
+		if i == 5 {
+			state = "failed"
+		}
+		rootID := "wf-history-" + strconv.Itoa(i+1) + "-root"
+		childID := "wf-history-" + strconv.Itoa(i+1) + "-child"
+		root := fakeWorkflowNode(rootID, "", titles[i%len(titles)]+" · batch "+strconv.Itoa(i+1), agents[i%len(agents)], runtimes[i%len(runtimes)], state, started, ended)
+		child := fakeWorkflowNode(childID, rootID, "review: historical batch evidence", agents[(i+1)%len(agents)], runtimes[(i+1)%len(runtimes)], state, started+30_000, ended)
+		runs = append(runs, WorkflowRun{
+			RunID: "run-history-" + strconv.Itoa(i+1), Title: root.Title, Agent: root.Agent, Runtime: root.Runtime,
+			Repo: "jerryfane/gitmoot", State: state, StartedAt: started, EndedAt: ended, ElapsedS: (ended - started) / 1000,
+			Children: []WorkflowChild{{ID: child.ID, Action: "review", Agent: child.Agent, Runtime: child.Runtime, State: state, ElapsedS: (ended - child.StartedAt) / 1000}},
+			Nodes:    []WorkflowNode{root, child},
+		})
+	}
+	return runs
 }
 
 func summarizeFakeWorkflow(runs []WorkflowRun, notes []WorkflowNoteView) WorkflowSummary {
@@ -770,7 +807,7 @@ func (f *FakeDataSource) Workflow(ctx context.Context, label string, q WorkflowQ
 				}
 			}
 		}
-		notes = append([]WorkflowNoteView(nil), notes[4:]...)
+		notes = append([]WorkflowNoteView(nil), notes[4:9]...)
 		for i := range notes {
 			notes[i].CreatedAt -= int64(40 * time.Minute / time.Millisecond)
 			notes[i].Repo = "jerryfane/arxiv-post-agent"

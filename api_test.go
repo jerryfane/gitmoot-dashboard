@@ -255,7 +255,7 @@ func TestHandleWorkflowSlashLabelRoundTrip(t *testing.T) {
 	if err := json.NewDecoder(resp.Body).Decode(&view); err != nil {
 		t.Fatalf("decode namespaced workflow: %v", err)
 	}
-	if view.Summary.Label != fakeWorkflow || view.State != "active" || len(view.Runs) != 4 || len(view.Notes) != 9 {
+	if view.Summary.Label != fakeWorkflow || view.State != "active" || len(view.Runs) != 16 || len(view.Notes) != 33 {
 		t.Fatalf("namespaced workflow = %+v", view)
 	}
 }
@@ -308,7 +308,7 @@ func TestFakeWorkflowContractAndPagination(t *testing.T) {
 			workflowLinks++
 		}
 	}
-	if hub == nil || hub.Type != "workflow" || hub.JobCount != 7 || hub.NoteCount != 9 || workflowLinks != 7 {
+	if hub == nil || hub.Type != "workflow" || hub.JobCount != 7 || hub.NoteCount != 33 || workflowLinks != 7 {
 		t.Fatalf("workflow galaxy fixture hub=%+v links=%d", hub, workflowLinks)
 	}
 
@@ -342,8 +342,15 @@ func TestFakeWorkflowContractAndPagination(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Workflow all: %v", err)
 	}
-	if len(all.Runs) != 4 || len(all.Notes) != 9 || all.Truncated {
+	if len(all.Runs) != 16 || len(all.Notes) != 33 || all.Truncated {
 		t.Fatalf("full mission log = %+v", all)
+	}
+	batch, err := ds.Workflow(context.Background(), fakeWorkflow, WorkflowQuery{MaxRuns: 4, MaxNotes: 8})
+	if err != nil {
+		t.Fatalf("Workflow scroll batch: %v", err)
+	}
+	if len(batch.Runs) != 4 || len(batch.Notes) != 8 || batch.NextRunCursor == "" || batch.NextNoteCursor == "" || !batch.Truncated {
+		t.Fatalf("scroll batch = %+v", batch)
 	}
 	stalled, err := ds.Workflow(context.Background(), fakeStalledWorkflow, WorkflowQuery{MaxRuns: workflowMaxRuns, MaxNotes: workflowMaxNotes})
 	if err != nil {

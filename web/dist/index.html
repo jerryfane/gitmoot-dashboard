@@ -823,6 +823,7 @@ class Component extends DCLogic {
       this.startWorkflowPoll();
     } else if (this._workflowRoot) {
       this.stopWorkflowPoll();
+      this._wfDisconnectHistoryObserver();
       this._workflowRoot.style.display = 'none';
       this._workflowNavToken = (this._workflowNavToken || 0) + 1;
       try { if (this._workflowController) this._workflowController.abort(); } catch (e) {}
@@ -1113,7 +1114,7 @@ class Component extends DCLogic {
       "#workflow-root .wf-run-block{border:1px solid rgba(160,168,220,.14);border-radius:9px;background:#101222;overflow:hidden}.wf-run-block.running{border-color:rgba(158,206,106,.33)}.wf-run-top{display:grid;grid-template-columns:16px minmax(0,1fr) auto auto;align-items:center;gap:10px;padding:10px 12px 5px;cursor:pointer}.wf-chev{color:#68709b;font-size:10px;transition:transform .15s}.wf-chev.open{transform:rotate(90deg)}.wf-run-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#e2e4f3;font-weight:600;font-size:12px}.wf-run-status{padding:2px 7px;border-radius:5px;font:9px 'JetBrains Mono'}.wf-run-status.running,.wf-run-status.succeeded{color:#9ece6a;background:rgba(158,206,106,.09);border:1px solid rgba(158,206,106,.22)}.wf-run-status.failed{color:#f7768e;background:rgba(247,118,142,.09);border:1px solid rgba(247,118,142,.25)}.wf-run-status.blocked{color:#e0af68;border:1px solid rgba(224,175,104,.25)}.wf-run-status.queued{color:#697099;border:1px solid rgba(160,168,220,.13)}.wf-elapsed{color:#697099;font:9px 'JetBrains Mono';white-space:nowrap}",
       "#workflow-root .wf-run-meta{display:flex;align-items:center;gap:8px;padding:0 12px 10px 35px;color:#5c638d;font:9.5px 'JetBrains Mono'}.wf-agent{padding:2px 7px;border:1px solid rgba(160,168,220,.14);border-radius:4px}.wf-agent.claude{color:#cabff2;background:rgba(187,154,247,.1)}.wf-agent.codex{color:#8fd3ff;background:rgba(110,198,255,.1)}.wf-agent.kimi{color:#e8c58a;background:rgba(224,175,104,.1)}.wf-graph-link{margin-left:auto;color:#6ec6ff;text-decoration:none;font:9.5px 'JetBrains Mono'}",
       "#workflow-root .wf-children{margin:0 12px 9px;padding:7px 0 0 22px;border-top:1px solid rgba(160,168,220,.08)}.wf-child{display:grid;grid-template-columns:9px 80px minmax(0,1fr) 80px 55px;align-items:center;gap:8px;min-height:27px;color:#7179a5;font:9.5px 'JetBrains Mono'}.wf-child-dot{width:7px;height:7px;border-radius:50%;background:#697099}.wf-child-dot.running,.wf-child-dot.succeeded{background:#9ece6a}.wf-child-dot.failed{background:#f7768e}.wf-child-dot.blocked{background:#e0af68}.wf-action{padding:2px 6px;border:1px solid rgba(160,168,220,.12);border-radius:4px;color:#8fd3ff;text-align:center}.wf-child-state{text-align:right}.wf-child-state.running,.wf-child-state.succeeded{color:#9ece6a}.wf-child-state.failed{color:#f7768e}.wf-child-state.blocked{color:#e0af68}",
-      "#workflow-root .wf-note{padding:0 0 2px;cursor:pointer}.wf-note-head{display:flex;align-items:center;gap:8px;color:#5a6088;font:9.5px 'JetBrains Mono'}.wf-note-author{color:#cabff2;font-weight:600}.wf-note-tag{padding:1px 4px;border:1px solid rgba(160,168,220,.12);border-radius:3px;font-size:7.5px;text-transform:uppercase}.wf-note-body{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;margin-top:6px;color:#c7c9e5;font-size:11.5px;line-height:1.55;white-space:pre-wrap;word-break:break-word}.wf-note.open .wf-note-body{display:block}.wf-load-earlier{display:block;margin:6px 0;padding:7px 10px;border:0;background:transparent;color:#697099;font:9.5px 'JetBrains Mono';cursor:pointer}.wfd-skeleton{display:grid;gap:12px}.wfd-skeleton .wf-shimmer{height:84px;border-radius:9px}",
+      "#workflow-root .wf-note{padding:0 0 2px;cursor:pointer}.wf-note-head{display:flex;align-items:center;gap:8px;color:#5a6088;font:9.5px 'JetBrains Mono'}.wf-note-author{color:#cabff2;font-weight:600}.wf-note-tag{padding:1px 4px;border:1px solid rgba(160,168,220,.12);border-radius:3px;font-size:7.5px;text-transform:uppercase}.wf-note-body{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;margin-top:6px;color:#c7c9e5;font-size:11.5px;line-height:1.55;white-space:pre-wrap;word-break:break-word}.wf-note.open .wf-note-body{display:block}.wf-history-sentinel{height:1px;pointer-events:none}.wf-load-earlier{display:block;margin:6px 0;padding:7px 10px;border:0;background:transparent;color:#697099;font:9.5px 'JetBrains Mono';cursor:pointer}.wf-load-earlier:disabled{cursor:default;color:#515777}.wfd-skeleton{display:grid;gap:12px}.wfd-skeleton .wf-shimmer{height:84px;border-radius:9px}",
       "@media(max-width:768px){#workflow-root{left:0!important;top:54px!important;bottom:calc(60px + env(safe-area-inset-bottom))!important}#workflow-root.detail-open{top:0!important;bottom:0!important;z-index:80!important}.wfi-head{height:auto!important;display:block!important;padding:14px 15px 10px!important}.wfi-title{font-size:20px!important}.wfi-summary{float:right;margin-top:-20px}.wfi-controls{margin-top:10px!important;display:grid!important;grid-template-columns:minmax(0,1fr) 60px!important}.wfi-search-wrap{width:auto!important}.wfi-controls .wfi-select:not(#wfi-range){display:none}.wfi-scroll{padding:10px 15px 24px!important}.wfi-list{border:0!important;background:transparent!important;display:grid;gap:8px;overflow:visible!important}.wfi-row{position:relative;display:grid!important;grid-template-columns:12px minmax(0,1fr) auto!important;gap:8px!important;min-height:0!important;padding:11px 12px!important;border:1px solid rgba(160,168,220,.13)!important;border-radius:8px;background:#0d0f1c}.wfi-group.stalled .wfi-row{border-color:rgba(224,175,104,.35)!important}.wfi-main{grid-column:2/4}.wfi-outcomes{grid-column:2}.wfi-numbers{grid-column:3;text-align:right}.wfi-time{position:absolute;right:12px;top:11px}.wfi-time div:last-child{display:none}.wfi-meta{padding-right:62px}.wfi-note{white-space:normal;-webkit-line-clamp:1}.wf-empty{min-height:340px!important}.wfd-scroll{padding:12px 15px 28px!important}.wfd-head{align-items:flex-start!important;flex-wrap:wrap}.wfd-label{font-size:16px!important;flex:1}.wfd-label .ns{font-size:13px!important}.wfd-coord{order:4;width:100%;margin-left:0!important;justify-content:space-between}.wfd-stats{display:flex!important;overflow-x:auto}.wfd-stat{min-width:104px!important}.wfd-stat:nth-child(2){min-width:145px!important}.wf-stalled-banner{grid-template-columns:minmax(0,1fr)!important}.wf-go{padding:12px 0 0!important;border-left:0!important;border-top:1px solid rgba(224,175,104,.18)}.wft-list{padding-left:36px!important}.wft-list:before{left:10px!important}.wft-marker{left:-36px!important}.wft-marker.note{left:-31px!important}.wf-run-top{grid-template-columns:12px minmax(0,1fr) auto!important}.wf-run-top .wf-elapsed{display:none}.wf-run-title{font-size:11.5px!important}.wf-run-meta{padding-left:27px!important}.wf-run-meta>span:nth-child(2){display:none}.wf-child{grid-template-columns:8px 70px minmax(0,1fr) 58px!important}.wf-child .wf-elapsed{display:none}.wft-head small{display:none}}"
     ].join('\n');
     document.head.appendChild(st);
@@ -1132,7 +1133,7 @@ class Component extends DCLogic {
     this._dockOverlay(root);
     this._workflowFilters = this._workflowFilters || { query:'', namespace:'all', repo:'all', range:'14' };
     this._workflowExpanded = this._workflowExpanded || {};
-    this._workflowVisible = this._workflowVisible || 12;
+    this._workflowHistoryByLabel = this._workflowHistoryByLabel || {};
     root.querySelector('#wfi-search').addEventListener('input', e => { this._workflowFilters.query = e.target.value || ''; this.renderWorkflowIndex(this._workflowIndexData || []); });
     ['namespace','repo','range'].forEach(key => root.querySelector('#wfi-' + key).addEventListener('change', e => { this._workflowFilters[key] = e.target.value || 'all'; this.renderWorkflowIndex(this._workflowIndexData || []); }));
     root.addEventListener('click', e => {
@@ -1147,7 +1148,7 @@ class Component extends DCLogic {
       if (run) { const id = run.getAttribute('data-wf-run'); this._workflowExpanded[id] = !this._workflowExpanded[id]; this.renderWorkflow(this._workflowData || {}); return; }
       const note = e.target.closest && e.target.closest('[data-wf-note]');
       if (note) { const id = 'note:' + note.getAttribute('data-wf-note'); this._workflowExpanded[id] = !this._workflowExpanded[id]; this.renderWorkflow(this._workflowData || {}); return; }
-      if (e.target.closest && e.target.closest('#wf-load-earlier')) { this._workflowVisible += 12; this.renderWorkflow(this._workflowData || {}); }
+      if (e.target.closest && e.target.closest('#wf-load-earlier')) { this._wfRequestEarlier('button'); }
     });
     this._workflowKeydown = e => {
       if (e.key !== 'Escape' || this.state.view !== 'workflows') return;
@@ -1166,8 +1167,62 @@ class Component extends DCLogic {
   _wfAge(ms) { return ms ? this._wfDuration(Math.max(0,Date.now()-Number(ms))/1000) : '—'; }
   _wfDate(ms, compact) { if(!ms)return '—'; return new Date(Number(ms)).toLocaleString([],compact?{month:'short',day:'numeric'}:{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}); }
   _wfSpan(first,last) { return first&&last ? this._wfDuration(Math.max(0,Number(last)-Number(first))/1000) : '—'; }
-  _wfShowIndex() { if(!this._workflowRoot)return; this._workflowRoot.classList.remove('detail-open'); this._workflowRoot.querySelector('#wf-index').hidden=false; this._workflowRoot.querySelector('#wf-detail').hidden=true; }
+  _wfShowIndex() { if(!this._workflowRoot)return; this._wfDisconnectHistoryObserver(); this._workflowRoot.classList.remove('detail-open'); this._workflowRoot.querySelector('#wf-index').hidden=false; this._workflowRoot.querySelector('#wf-detail').hidden=true; }
   _wfShowDetail() { if(!this._workflowRoot)return; this._workflowRoot.classList.add('detail-open'); this._workflowRoot.querySelector('#wf-index').hidden=true; this._workflowRoot.querySelector('#wf-detail').hidden=false; }
+
+  _wfHistory(label) {
+    this._workflowHistoryByLabel=this._workflowHistoryByLabel||{};const key='$'+String(label||'');
+    if(!this._workflowHistoryByLabel[key])this._workflowHistoryByLabel[key]={label:String(label||''),runs:[],notes:[],data:null,nextRunCursor:'',nextNoteCursor:'',runExhausted:false,noteExhausted:false,loaded:false,inFlight:false,autoBatches:0};
+    return this._workflowHistoryByLabel[key];
+  }
+  _wfMergeEntries(primary,secondary,keyOf) {
+    const seen=new Set(),out=[];[primary,secondary].forEach(list=>(Array.isArray(list)?list:[]).forEach(item=>{const key=keyOf(item);if(seen.has(key))return;seen.add(key);out.push(item);}));return out;
+  }
+  _wfApplyWorkflowPage(label,json,mode) {
+    json=json||{};const h=this._wfHistory(label),freshRuns=Array.isArray(json.runs)?json.runs:[],freshNotes=Array.isArray(json.notes)?json.notes:[];
+    if(!h.loaded){
+      h.runs=freshRuns.slice();h.notes=freshNotes.slice();h.nextRunCursor=String(json.nextRunCursor||'');h.nextNoteCursor=String(json.nextNoteCursor||'');h.runExhausted=!h.nextRunCursor;h.noteExhausted=!h.nextNoteCursor;h.loaded=true;
+    }else if(mode==='history'){
+      const oldRunCursor=h.nextRunCursor,oldNoteCursor=h.nextNoteCursor,loadRuns=!h.runExhausted,loadNotes=!h.noteExhausted;
+      if(loadRuns){h.runs=this._wfMergeEntries(h.runs,freshRuns,r=>String(r&&r.runId||''));h.nextRunCursor=String(json.nextRunCursor||'');if(!h.nextRunCursor||h.nextRunCursor===oldRunCursor)h.runExhausted=true;}
+      if(loadNotes){h.notes=this._wfMergeEntries(h.notes,freshNotes,n=>String(n&&n.id||''));h.nextNoteCursor=String(json.nextNoteCursor||'');if(!h.nextNoteCursor||h.nextNoteCursor===oldNoteCursor)h.noteExhausted=true;}
+    }else{
+      // Polls replace overlapping recent entries while retaining the older cursor window.
+      h.runs=this._wfMergeEntries(freshRuns,h.runs,r=>String(r&&r.runId||''));h.notes=this._wfMergeEntries(freshNotes,h.notes,n=>String(n&&n.id||''));
+    }
+    h.data=Object.assign({},h.data||{},json,{runs:h.runs,notes:h.notes,nextRunCursor:h.nextRunCursor,nextNoteCursor:h.nextNoteCursor,truncated:!(h.runExhausted&&h.noteExhausted)});return h.data;
+  }
+  _wfCaptureAnchor(scroll) {
+    if(!scroll)return null;const root=scroll.getBoundingClientRect(),entries=Array.from(scroll.querySelectorAll('[data-wf-entry-key]'));
+    let entry=entries.find(el=>{const r=el.getBoundingClientRect();return r.top>=root.top&&r.bottom<=root.bottom;});
+    if(!entry)entry=entries.find(el=>{const r=el.getBoundingClientRect();return r.bottom>root.top&&r.top<root.bottom;});
+    if(!entry)return {key:'',offset:0,top:scroll.scrollTop};const rect=entry.getBoundingClientRect();return {key:entry.getAttribute('data-wf-entry-key')||'',offset:rect.top-root.top,top:scroll.scrollTop};
+  }
+  _wfRestoreAnchor(scroll,anchor) {
+    if(!scroll||!anchor)return;const entry=Array.from(scroll.querySelectorAll('[data-wf-entry-key]')).find(el=>el.getAttribute('data-wf-entry-key')===anchor.key);
+    if(!entry){scroll.scrollTop=anchor.top||0;return;}const root=scroll.getBoundingClientRect(),rect=entry.getBoundingClientRect();scroll.scrollTop+=rect.top-root.top-anchor.offset;
+  }
+  _wfDisconnectHistoryObserver() { if(this._workflowHistoryObserver){this._workflowHistoryObserver.disconnect();this._workflowHistoryObserver=null;} }
+  _wfSetupHistoryObserver() {
+    this._wfDisconnectHistoryObserver();if(!this._workflowRoot||!this._workflowLabel||typeof IntersectionObserver==='undefined')return;
+    const h=this._wfHistory(this._workflowLabel),root=this._workflowRoot.querySelector('#wfd-scroll'),sentinel=this._workflowRoot.querySelector('#wf-history-sentinel');
+    if(!root||!sentinel||h.inFlight||(h.runExhausted&&h.noteExhausted)||h.autoBatches>=10)return;
+    this._workflowHistoryObserver=new IntersectionObserver(entries=>{if(entries.some(entry=>entry.isIntersecting))this._wfRequestEarlier('auto');},{root:root,rootMargin:'0px 0px 240px 0px',threshold:0});
+    this._workflowHistoryObserver.observe(sentinel);
+  }
+  _wfRequestEarlier(source) {
+    const label=this._workflowLabel,h=label&&this._wfHistory(label);if(!h||h.inFlight||this._workflowDetailLoading||(h.runExhausted&&h.noteExhausted)||(source==='auto'&&h.autoBatches>=10))return;
+    if(this._workflowHistoryTimer){if(source!=='button')return;clearTimeout(this._workflowHistoryTimer);}
+    this._workflowHistoryTimer=setTimeout(()=>{this._workflowHistoryTimer=null;this._wfLoadEarlier(source,label);},250);
+  }
+  _wfLoadEarlier(source,label) {
+    const h=label&&this._wfHistory(label);if(!h||label!==this._workflowLabel||h.inFlight||this._workflowDetailLoading||(h.runExhausted&&h.noteExhausted)||(source==='auto'&&h.autoBatches>=10))return;
+    h.inFlight=true;if(source==='auto')h.autoBatches++;this._wfDisconnectHistoryObserver();const button=this._workflowRoot&&this._workflowRoot.querySelector('#wf-load-earlier');if(button){button.disabled=true;button.textContent='loading earlier…';}
+    const params=new URLSearchParams({maxRuns:'4',maxNotes:'8'});if(h.nextRunCursor)params.set('runCursor',h.nextRunCursor);if(h.nextNoteCursor)params.set('noteCursor',h.nextNoteCursor);const token=this._workflowNavToken||0;
+    fetch('/api/workflow/'+encodeURIComponent(label)+'?'+params.toString(),{cache:'no-store'}).then(r=>r.ok?r.json():r.text().then(t=>Promise.reject(new Error(t.trim()||('HTTP '+r.status)))))
+      .then(json=>{if(token!==this._workflowNavToken||label!==this._workflowLabel){h.inFlight=false;return;}const responseLabel=json&&json.summary&&json.summary.label;if(responseLabel&&responseLabel!==label)throw new Error('workflow response label mismatch');h.inFlight=false;this._workflowData=this._wfApplyWorkflowPage(label,json,'history');this.renderWorkflow(this._workflowData);})
+      .catch(()=>{h.inFlight=false;if(token===this._workflowNavToken&&label===this._workflowLabel){const retry=this._workflowRoot.querySelector('#wf-load-earlier');if(retry){retry.disabled=false;retry.textContent='load earlier failed · retry ↓';}this._wfSetupHistoryObserver();}});
+  }
 
   fetchWorkflows(isPoll) {
     if (!this._workflowRoot || this._workflowIndexLoading) return;
@@ -1215,27 +1270,27 @@ class Component extends DCLogic {
   }
 
   fetchWorkflow(label,isPoll) {
-    if(!label||!this._workflowRoot||(isPoll&&this._workflowDetailLoading))return;
+    const history=label&&this._wfHistory(label);if(!label||!this._workflowRoot||(isPoll&&(this._workflowDetailLoading||(history&&history.inFlight))))return;
     this._workflowLabel=label; this._wfShowDetail();
     if(!isPoll){
       this._workflowNavToken=(this._workflowNavToken||0)+1;
-      if(this._workflowExpansionLabel!==label){this._workflowExpansionLabel=label;this._workflowExpanded={};this._workflowVisible=12;}
+      if(this._workflowExpansionLabel!==label){this._workflowExpansionLabel=label;this._workflowExpanded={};}
       this.renderWorkflowLoading(label);
     }
     const token=this._workflowNavToken||0;
     this._workflowDetailLoading=true;
-    fetch('/api/workflow/'+encodeURIComponent(label)+'?maxRuns=50&maxNotes=200',{cache:'no-store'})
+    fetch('/api/workflow/'+encodeURIComponent(label)+'?maxRuns=4&maxNotes=8',{cache:'no-store'})
       .then(r=>r.ok?r.json():r.text().then(t=>Promise.reject(new Error(t.trim()||('HTTP '+r.status)))))
       .then(json=>{
         if(token!==this._workflowNavToken||label!==this._workflowLabel)return;
         const responseLabel=json&&json.summary&&json.summary.label;
         if(responseLabel&&responseLabel!==label)throw new Error('workflow response label mismatch');
-        this._workflowData=json||{summary:{label:label},runs:[],notes:[]};
+        this._workflowData=this._wfApplyWorkflowPage(label,json||{summary:{label:label},runs:[],notes:[]},history&&history.loaded?'poll':'initial');
         if(!Object.keys(this._workflowExpanded||{}).length){const runs=this._workflowData.runs||[],open=runs.find(r=>r.state==='running')||runs[0];if(open&&open.runId)this._workflowExpanded[open.runId]=true;}
         this.renderWorkflow(this._workflowData);
       })
       .catch(err=>{if(token===this._workflowNavToken&&label===this._workflowLabel&&(!isPoll||!this._workflowData))this.renderWorkflowError(label,err);})
-      .finally(()=>{if(token===this._workflowNavToken)this._workflowDetailLoading=false;});
+      .finally(()=>{if(token===this._workflowNavToken){this._workflowDetailLoading=false;if(label===this._workflowLabel)this._wfSetupHistoryObserver();}});
   }
   renderWorkflowLoading(label) {
     this._wfShowDetail(); const p=this._wfSplitLabel(label);
@@ -1258,11 +1313,11 @@ class Component extends DCLogic {
   _wfTimelineRun(run) {
     const r=this._wfRunShape(run),open=!!this._workflowExpanded[r.id];
     const children=open&&r.children.length?'<div class="wf-children">'+r.children.map(c=>{const state=c.state||'queued';return '<div class="wf-child"><span class="wf-child-dot '+this._wfEsc(state)+'"></span><span class="wf-action">'+this._wfEsc(c.action||'job')+'</span><span>'+this._wfEsc(c.agent||'agent')+'</span><span class="wf-child-state '+this._wfEsc(state)+'">'+this._wfEsc(state)+'</span><span class="wf-elapsed">'+this._wfEsc(c.elapsed_s?this._wfDuration(c.elapsed_s):'—')+'</span></div>';}).join('')+'</div>':'';
-    return '<article class="wft-item"><span class="wft-marker '+this._wfEsc(r.state)+'">'+this._wfStatusGlyph(r.state)+'</span><div class="wf-run-block '+this._wfEsc(r.state)+'"><div class="wf-run-top" data-wf-run="'+this._wfEsc(r.id)+'" role="button" tabindex="0"><span class="wf-chev '+(open?'open':'')+'">▸</span><span class="wf-run-title">'+this._wfEsc(r.title)+'</span><span class="wf-run-status '+this._wfEsc(r.state)+'">'+this._wfEsc(r.state==='succeeded'?'done':r.state)+'</span><span class="wf-elapsed">'+this._wfEsc(this._wfDuration(r.elapsed))+'</span></div><div class="wf-run-meta"><span class="wf-agent '+this._wfRuntime(r.runtime)+'">'+this._wfEsc(r.agent||'agent')+'</span><span>'+this._wfEsc(r.repo||'repository')+'</span><a class="wf-graph-link" href="/?run='+encodeURIComponent(r.id)+'" data-wf-graph="'+this._wfEsc(r.id)+'">view as graph ↗</a></div>'+children+'</div></article>';
+    return '<article class="wft-item" data-wf-entry-key="run:'+this._wfEsc(r.id)+'"><span class="wft-marker '+this._wfEsc(r.state)+'">'+this._wfStatusGlyph(r.state)+'</span><div class="wf-run-block '+this._wfEsc(r.state)+'"><div class="wf-run-top" data-wf-run="'+this._wfEsc(r.id)+'" role="button" tabindex="0"><span class="wf-chev '+(open?'open':'')+'">▸</span><span class="wf-run-title">'+this._wfEsc(r.title)+'</span><span class="wf-run-status '+this._wfEsc(r.state)+'">'+this._wfEsc(r.state==='succeeded'?'done':r.state)+'</span><span class="wf-elapsed">'+this._wfEsc(this._wfDuration(r.elapsed))+'</span></div><div class="wf-run-meta"><span class="wf-agent '+this._wfRuntime(r.runtime)+'">'+this._wfEsc(r.agent||'agent')+'</span><span>'+this._wfEsc(r.repo||'repository')+'</span><a class="wf-graph-link" href="/?run='+encodeURIComponent(r.id)+'" data-wf-graph="'+this._wfEsc(r.id)+'">view as graph ↗</a></div>'+children+'</div></article>';
   }
   _wfTimelineNote(note) {
     const id=String(note.id),open=!!this._workflowExpanded['note:'+id];
-    return '<article class="wft-item wf-note '+(open?'open':'')+'" data-wf-note="'+this._wfEsc(id)+'" role="button" tabindex="0"><span class="wft-marker note"></span><div class="wf-note-head"><span class="wf-note-author">'+this._wfEsc(note.author||'coordinator')+'</span><span>'+this._wfEsc(this._wfDate(note.createdAt))+' · '+this._wfEsc(this._wfAge(note.createdAt))+' ago</span><span class="wf-note-tag">note</span></div><div class="wf-note-body">'+this._wfEsc(note.body||'')+'</div></article>';
+    return '<article class="wft-item wf-note '+(open?'open':'')+'" data-wf-entry-key="note:'+this._wfEsc(id)+'" data-wf-note="'+this._wfEsc(id)+'" role="button" tabindex="0"><span class="wft-marker note"></span><div class="wf-note-head"><span class="wf-note-author">'+this._wfEsc(note.author||'coordinator')+'</span><span>'+this._wfEsc(this._wfDate(note.createdAt))+' · '+this._wfEsc(this._wfAge(note.createdAt))+' ago</span><span class="wf-note-tag">note</span></div><div class="wf-note-body">'+this._wfEsc(note.body||'')+'</div></article>';
   }
   openWorkflowGraph(id) {
     if(!id)return; this.currentRunId=id;this._fitted=false;
@@ -1272,7 +1327,7 @@ class Component extends DCLogic {
   renderWorkflow(data) {
     if(!this._workflowRoot)return; this._wfShowDetail();data=data||{};
     const sum=data.summary||{},label=sum.label||this._workflowLabel||'',runs=Array.isArray(data.runs)?data.runs:[],notes=Array.isArray(data.notes)?data.notes:[],state=data.state||((sum.running||sum.queued)?'active':'settled'),coord=data.coordinator||{},split=this._wfSplitLabel(label);
-    const scroll=this._workflowRoot.querySelector('#wfd-scroll'),top=scroll.scrollTop,tokensIn=Number(sum.tokensIn||0),tokensOut=Number(sum.tokensOut||0);
+    const scroll=this._workflowRoot.querySelector('#wfd-scroll'),anchor=this._wfCaptureAnchor(scroll),tokensIn=Number(sum.tokensIn||0),tokensOut=Number(sum.tokensOut||0);
     const outcome=this._wfOutcomeHTML({running:sum.running,queued:sum.queued,succeeded:sum.succeeded,failed:sum.failed,blocked:sum.blocked})||'<span class="wfi-queue">—</span>';
     const coordHTML='<div class="wfd-coord"><span>coordinator</span><b>'+this._wfEsc(coord.author||'unattended')+'</b><span>· pane '+this._wfEsc(coord.pane||'—')+'</span><span>· sess '+this._wfEsc(coord.session_id||'—')+'</span>'+(coord.session_id?'<button class="wf-copy" data-wf-copy="'+this._wfEsc(coord.session_id)+'">copy</button>':'')+'</div>';
     const stats='<div class="wfd-stats"><div class="wfd-stat"><b>'+this._wfNum(sum.jobs||0)+'</b><span>jobs</span></div><div class="wfd-stat"><b>'+outcome+'</b><span>outcomes</span></div><div class="wfd-stat"><b>'+this._wfNum(tokensIn)+' <small style="color:#697099;font-weight:400">in</small></b><span>'+this._wfNum(tokensOut)+' out · tokens</span></div><div class="wfd-stat"><b>'+this._wfNum(sum.notes||notes.length)+'</b><span>journal notes</span></div><div class="wfd-stat"><b>'+this._wfSpan(sum.firstAt,sum.lastAt)+'</b><span>'+this._wfDate(sum.firstAt)+' → '+(state==='active'?'now':this._wfDate(sum.lastAt))+'</span></div></div>';
@@ -1282,10 +1337,10 @@ class Component extends DCLogic {
       stalled='<section class="wf-stalled-banner"><div><div class="wf-stalled-title">△ Stalled '+this._wfDuration(data.stalled_for_s||0)+' — coordinator silent since '+this._wfDate(sum.lastAt)+'</div><div class="wf-stalled-copy">'+this._wfEsc(failed?failed.title+' failed and no journal note or new run has followed. The goal is not yet reached. A failure alone is not an alarm — the silence after it is.':'No running work or closing note has followed the last activity.')+'</div>'+(latest?'<div class="wf-last-note">last note · “'+this._wfEsc(latest.body||'')+'”</div>':'')+'</div><div class="wf-go"><h4>Pick it up in herdr</h4><div class="wf-go-row"><span>pane</span><b>'+this._wfEsc(coord.pane||'—')+'</b></div><div class="wf-go-row"><span>session</span><b>'+this._wfEsc(coord.session_id||'—')+'</b></div><div class="wf-resume"><code>'+this._wfEsc(resume)+'</code><button class="wf-copy" data-wf-copy="'+this._wfEsc(resume)+'">copy</button></div><div class="wf-readonly">read-only · dashboard points, never runs</div></div></section>';
     }
     const items=[];runs.forEach(run=>{const r=this._wfRunShape(run);items.push({kind:'run',at:r.state==='running'?Date.now():(r.ended||r.started||0),id:r.id,value:run});});notes.forEach(note=>items.push({kind:'note',at:Number(note.createdAt||0),id:String(note.id),value:note}));items.sort((a,b)=>(b.at-a.at)||String(b.id).localeCompare(String(a.id)));
-    const visible=items.slice(0,this._workflowVisible);
-    const timeline=!items.length?'<div class="wf-empty"><div class="wf-empty-icon">☷</div><div class="wf-empty-title">Mission log reserved</div><div class="wf-empty-copy">The first run dispatched under this label opens the mission log here.</div></div>':'<div class="wft-head"><span>Mission log</span><small>journal + run trees · newest first</small>'+(state==='active'?'<span class="wft-live">● live</span>':'')+'</div><div class="wft-list">'+visible.map(item=>item.kind==='run'?this._wfTimelineRun(item.value):this._wfTimelineNote(item.value)).join('')+(items.length>visible.length?'<button id="wf-load-earlier" class="wf-load-earlier">load earlier · '+(items.length-visible.length)+' more runs & notes ↓</button>':'')+'</div>';
+    const history=this._wfHistory(label),hasEarlier=!(history.runExhausted&&history.noteExhausted);
+    const timeline=!items.length?'<div class="wf-empty"><div class="wf-empty-icon">☷</div><div class="wf-empty-title">Mission log reserved</div><div class="wf-empty-copy">The first run dispatched under this label opens the mission log here.</div></div>':'<div class="wft-head"><span>Mission log</span><small>journal + run trees · newest first</small>'+(state==='active'?'<span class="wft-live">● live</span>':'')+'</div><div class="wft-list">'+items.map(item=>item.kind==='run'?this._wfTimelineRun(item.value):this._wfTimelineNote(item.value)).join('')+(hasEarlier?'<div id="wf-history-sentinel" class="wf-history-sentinel" aria-hidden="true"></div>':'')+'<button id="wf-load-earlier" class="wf-load-earlier" '+(hasEarlier?'':'disabled')+'>'+(hasEarlier?'load earlier runs & notes ↓':'all history loaded')+'</button></div>';
     this._workflowRoot.querySelector('#wfd-content').innerHTML='<div class="wfd-head"><button class="wf-back" title="Back to workflows">‹</button><div class="wfd-label">'+(split.namespace?'<span class="ns">'+this._wfEsc(split.namespace)+'/</span>':'')+this._wfEsc(split.campaign)+'</div><span class="wf-state '+this._wfEsc(state)+'">● '+this._wfEsc(state==='empty'?'reserved':state)+'</span>'+coordHTML+'</div>'+stats+stalled+timeline;
-    scroll.scrollTop=top;
+    this._wfRestoreAnchor(scroll,anchor);this._wfSetupHistoryObserver();
   }
 
   // Feature 4: live auto-refresh while the Galaxy view is active.
