@@ -3410,19 +3410,17 @@ class Component extends DCLogic {
       "#charts-root{font-family:Inter,system-ui,sans-serif;color:#c8cce6}",
       "#charts-root .ch-scroll{position:absolute;inset:0;overflow-y:auto}",
       "#charts-root .ch-head{display:flex;align-items:center;gap:16px;padding:18px 24px 14px;flex-wrap:wrap}",
-      "#charts-root .ch-range{display:flex;gap:4px;background:#0f1120;border:1px solid rgba(160,168,220,0.12);border-radius:9px;padding:3px}",
-      "#charts-root .ch-chip{background:none;border:none;color:#868db5;font-family:'JetBrains Mono',monospace;font-size:11.5px;padding:5px 12px;border-radius:7px;cursor:pointer}",
-      "#charts-root .ch-chip:hover{color:#c8cce6}",
-      "#charts-root .ch-chip.on{background:rgba(158,206,106,0.14);color:#c5f882}",
+      "#charts-root .ch-range{display:flex;gap:7px}",
+      "#charts-root .ch-chip{border:1px solid rgba(160,168,220,.14);border-radius:14px;background:#0f1120;color:#8b90b8;font-family:'JetBrains Mono',monospace;font-size:11.5px;padding:5px 12px;cursor:pointer}",
+      "#charts-root .ch-chip:hover{color:#c8cce6;border-color:rgba(160,168,220,.24)}",
+      "#charts-root .ch-chip.on{color:#cabff2;border-color:rgba(187,154,247,.35);background:rgba(187,154,247,.1)}",
       "#charts-root .ch-count{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:11px;color:#7f86ad}",
       // Headline rate tiles (success / failure / total jobs) — replace the old 6-stat grid.
       "#charts-root .ch-tiles{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;padding:0 24px 20px}",
-      "#charts-root .ch-tile{padding:16px 18px;border:1px solid rgba(160,168,220,0.12);border-radius:12px;overflow:hidden}",
-      "#charts-root .ch-tile.ok{background:linear-gradient(180deg,rgba(158,206,106,0.08),#0d0f1c);border-left:3px solid #9ece6a}",
-      "#charts-root .ch-tile.bad{background:linear-gradient(180deg,rgba(247,118,142,0.06),#0d0f1c);border-left:3px solid #f7768e}",
-      "#charts-root .ch-tile.tot{background:linear-gradient(180deg,#15182b,#0d0f1c);border-left:3px solid #7aa2f7}",
-      "#charts-root .ch-tk{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:0.1em;color:#868db5;text-transform:uppercase}",
-      "#charts-root .ch-tv{font-family:'JetBrains Mono',monospace;font-size:40px;font-weight:600;line-height:1;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
+      "#charts-root .ch-tile{padding:16px 18px;border:1px solid rgba(160,168,220,.13);border-radius:8px;background:#0f1120;overflow:hidden}",
+      "#charts-root .ch-tile.ok,#charts-root .ch-tile.bad,#charts-root .ch-tile.tot{background:#0f1120}",
+      "#charts-root .ch-tk{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.12em;color:#8b90b8;text-transform:uppercase}",
+      "#charts-root .ch-tv{font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:600;line-height:1;margin-top:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
       "#charts-root .ch-ts{font-size:11.5px;color:#5a6088;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
       // Card header row: title + optional legend / token total / scale toggle.
       "#charts-root .ch-chead{display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap}",
@@ -3431,10 +3429,10 @@ class Component extends DCLogic {
       "#charts-root .ch-lgi{display:flex;align-items:center;gap:6px;font-size:11px;color:#868db5}",
       "#charts-root .ch-lgi .sw{width:9px;height:9px;border-radius:3px;flex:none}",
       "#charts-root .ch-toktot{font-family:'JetBrains Mono',monospace;font-size:11px;color:#7aa2f7}",
-      "#charts-root .ch-scale{display:flex;background:#0f1120;border:1px solid rgba(160,168,220,0.14);border-radius:8px;padding:2px;gap:2px;margin-left:auto}",
-      "#charts-root .ch-sbtn{background:none;border:none;border-radius:6px;padding:4px 11px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:11px;color:#868db5}",
-      "#charts-root .ch-sbtn:hover{color:#c8cce6}",
-      "#charts-root .ch-sbtn.on{background:rgba(158,206,106,0.14);color:#c5f882}",
+      "#charts-root .ch-scale{display:flex;gap:7px;margin-left:auto}",
+      "#charts-root .ch-sbtn{border:1px solid rgba(160,168,220,.14);border-radius:14px;background:#0f1120;padding:4px 11px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:11px;color:#8b90b8}",
+      "#charts-root .ch-sbtn:hover{color:#c8cce6;border-color:rgba(160,168,220,.24)}",
+      "#charts-root .ch-sbtn.on{color:#cabff2;border-color:rgba(187,154,247,.35);background:rgba(187,154,247,.1)}",
       "#charts-root .ch-foot{display:flex;align-items:center;gap:8px;margin-top:12px;padding-top:11px;border-top:1px solid rgba(160,168,220,0.07)}",
       "#charts-root .ch-foot .ico{font-size:13px;color:#5a6088;flex:none}",
       "#charts-root .ch-foot .txt{font-size:11.5px;color:#5a6088;font-style:italic}",
@@ -3450,8 +3448,8 @@ class Component extends DCLogic {
       "#charts-root .ch-rt{flex:1;height:20px;min-width:20px;background:rgba(160,168,220,0.06);border-radius:4px;overflow:hidden}",
       "#charts-root .ch-rf{height:100%;border-radius:0 4px 4px 0}",
       "#charts-root .ch-rv{width:46px;flex:none;text-align:right;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#a8aecf}",
-      "#charts-root .ch-card{background-color:#0b0d18;border:1px solid rgba(160,168,220,0.09);border-radius:13px;margin:0 24px 16px;padding:14px 16px 10px}",
-      "#charts-root .ch-ct{font-family:'JetBrains Mono',monospace;font-size:10.5px;text-transform:uppercase;letter-spacing:0.12em;color:#7f86ad;margin-bottom:6px}",
+      "#charts-root .ch-card{background:#090b16;border:1px solid rgba(160,168,220,.13);border-radius:10px;margin:0 24px 16px;padding:14px 16px 10px}",
+      "#charts-root .ch-ct{font-family:'JetBrains Mono',monospace;font-size:10.5px;text-transform:uppercase;letter-spacing:.12em;color:#8b90b8;margin-bottom:6px}",
       "#charts-root .ch-plot{width:100%}",
       "#charts-root .ch-two{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:0 24px 16px}",
       "#charts-root .ch-two .ch-card{margin:0}",
@@ -3594,7 +3592,7 @@ class Component extends DCLogic {
       '<div class="ch-ts">' + sub + '</div></div>';
     return tile('ok', 'SUCCESS RATE', pct(ok), '#9ece6a', fi(ok) + ' succeeded / ' + fi(jobs) + ' jobs') +
       tile('bad', 'FAILURE RATE', pct(fail), '#f7768e', fi(fail) + ' failed') +
-      tile('tot', 'TOTAL JOBS · ' + rl, fi(jobs), '#eef0ff', 'across ' + nAgents + ' agent' + (nAgents === 1 ? '' : 's') + ' · ' + nRepos + ' repo' + (nRepos === 1 ? '' : 's'));
+      tile('tot', 'TOTAL JOBS · ' + rl, fi(jobs), '#7aa2f7', 'across ' + nAgents + ' agent' + (nAgents === 1 ? '' : 's') + ' · ' + nRepos + ' repo' + (nRepos === 1 ? '' : 's'));
   }
 
   renderCharts(isPoll) {
@@ -3658,7 +3656,7 @@ class Component extends DCLogic {
       const col = r.color || '#7aa2f7';
       return '<div class="ch-row" role="button" tabindex="0" data-agent="' + esc(r.name) + '" title="View ' + esc(r.name) + ' jobs">' +
         '<span class="ch-rn">' + esc(r.name) + '</span>' +
-        '<div class="ch-rt"><div class="ch-rf" style="width:' + w.toFixed(1) + '%;background:' + col + ';box-shadow:0 0 12px color-mix(in srgb,' + col + ' 45%, transparent)"></div></div>' +
+        '<div class="ch-rt"><div class="ch-rf" style="width:' + w.toFixed(1) + '%;background:' + col + '"></div></div>' +
         '<span class="ch-rv">' + (r.value || 0).toLocaleString('en-US') + '</span></div>';
     }).join('');
   }
@@ -4050,8 +4048,17 @@ class Component extends DCLogic {
     st.textContent = [
       "#health-root{font-family:Inter,system-ui,sans-serif;color:#c8cce6}",
       "#health-root .hl-body{position:absolute;inset:0;overflow-y:auto;box-sizing:border-box;padding:24px 28px 40px;display:flex;flex-direction:column;gap:20px}",
-      "#health-root .hl-banner{display:flex;align-items:center;gap:16px;padding:18px 22px;border-radius:13px}",
-      "#health-root .hl-bnicon{width:44px;height:44px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex:none;font-size:20px}",
+      "#health-root .hl-banner{display:flex;align-items:center;gap:16px;padding:18px 22px;border-radius:10px;background:#090b16;border:1px solid rgba(160,168,220,.13)}",
+      "#health-root .hl-banner.attention{border-color:rgba(224,175,104,.28)}",
+      "#health-root .hl-banner.ok{border-color:rgba(158,206,106,.28)}",
+      "#health-root .hl-banner.down{border-color:rgba(247,118,142,.28)}",
+      "#health-root .hl-bnicon{width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex:none;font-size:20px;border:1px solid rgba(160,168,220,.13);background:#0f1120;color:#8b90b8}",
+      "#health-root .hl-banner.attention .hl-bnicon{background:rgba(224,175,104,.1);border-color:rgba(224,175,104,.28);color:#e0af68}",
+      "#health-root .hl-banner.ok .hl-bnicon{background:rgba(158,206,106,.1);border-color:rgba(158,206,106,.28);color:#9ece6a}",
+      "#health-root .hl-banner.down .hl-bnicon{background:rgba(247,118,142,.1);border-color:rgba(247,118,142,.28);color:#f7768e}",
+      "#health-root .hl-banner.attention .hl-bntitle{color:#e0af68}",
+      "#health-root .hl-banner.ok .hl-bntitle{color:#9ece6a}",
+      "#health-root .hl-banner.down .hl-bntitle{color:#f7768e}",
       "#health-root .hl-bntext{flex:1;min-width:0}",
       "#health-root .hl-bntitle{font-size:16px;font-weight:600;color:#eef0ff}",
       "#health-root .hl-bnsub{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#868db5;margin-top:3px}",
@@ -4061,17 +4068,17 @@ class Component extends DCLogic {
       "#health-root a.hl-upd,#health-root span.hl-upd{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:9px;font-family:'JetBrains Mono',monospace;font-size:11.5px;font-weight:600;color:#e0af68;background:rgba(224,175,104,0.12);border:1px solid rgba(224,175,104,0.34);text-decoration:none;white-space:nowrap}",
       "#health-root a.hl-upd:hover{border-color:rgba(224,175,104,0.6)}",
       "#health-root .hl-vitals{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}",
-      "#health-root .hl-tile{display:flex;flex-direction:column;gap:4px;padding:18px 20px;background:linear-gradient(180deg,#15182b,#111325);border:1px solid rgba(160,168,220,0.12);border-radius:12px}",
-      "#health-root .hl-tlabel{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:0.1em;color:#868db5;text-transform:uppercase}",
-      "#health-root .hl-tval{font-family:'JetBrains Mono',monospace;font-size:38px;font-weight:600;line-height:1;margin-top:2px}",
+      "#health-root .hl-tile{display:flex;flex-direction:column;gap:4px;padding:18px 20px;background:#0f1120;border:1px solid rgba(160,168,220,.13);border-radius:8px}",
+      "#health-root .hl-tlabel{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.12em;color:#8b90b8;text-transform:uppercase}",
+      "#health-root .hl-tval{font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:600;line-height:1;margin-top:7px}",
       "#health-root .hl-tsub{font-size:11.5px;color:#5a6088}",
       "#health-root .hl-second{font-family:'JetBrains Mono',monospace;font-size:11px;color:#5a6088;display:flex;flex-wrap:wrap;gap:2px 4px;align-items:center}",
       "#health-root .hl-second b{color:#7f86ad;font-weight:600}",
-      "#health-root .hl-h{font-family:'JetBrains Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:0.14em;color:#868db5;font-weight:600;display:flex;align-items:center;gap:8px;margin-bottom:11px}",
+      "#health-root .hl-h{font-family:'JetBrains Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:#8b90b8;font-weight:600;display:flex;align-items:center;gap:8px;margin-bottom:11px}",
       "#health-root .hl-hc{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0;color:#5a6088;font-weight:400;text-transform:none}",
       "#health-root .hl-hsub{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0;color:#5a6088;font-weight:400;text-transform:none}",
       "#health-root .hl-list{display:flex;flex-direction:column;gap:7px}",
-      "#health-root .hl-srow{background:linear-gradient(180deg,#15182b,#111325);border:1px solid rgba(160,168,220,0.1);border-radius:11px;overflow:hidden;transition:border-color .14s ease}",
+      "#health-root .hl-srow{background:#0f1120;border:1px solid rgba(160,168,220,.13);border-radius:8px;overflow:hidden;transition:border-color .14s ease}",
       "#health-root .hl-srow:hover{border-color:rgba(125,207,255,0.28)}",
       "#health-root .hl-sline{display:flex;align-items:center;gap:12px;padding:12px 16px;cursor:pointer}",
       "#health-root .hl-dot{width:9px;height:9px;border-radius:50%;flex:none}",
@@ -4085,7 +4092,7 @@ class Component extends DCLogic {
       "#health-root .hl-why:hover{color:#9db4fb}",
       "#health-root .hl-chev{font-size:9px}",
       "#health-root .hl-whybody{padding:12px 16px 14px 44px;font-size:12.5px;color:#a8aecf;line-height:1.55;border-top:1px solid rgba(160,168,220,0.06);white-space:pre-wrap;word-break:break-word}",
-      "#health-root .hl-lrow{display:flex;align-items:center;gap:12px;padding:12px 16px;background:linear-gradient(180deg,#15182b,#111325);border:1px solid rgba(160,168,220,0.1);border-radius:11px;overflow:hidden}",
+      "#health-root .hl-lrow{display:flex;align-items:center;gap:12px;padding:12px 16px;background:#0f1120;border:1px solid rgba(160,168,220,.13);border-radius:8px;overflow:hidden}",
       "#health-root .hl-lname{font-family:'JetBrains Mono',monospace;font-size:12.5px;color:#eef0ff;flex:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:340px}",
       "#health-root .hl-lkind{color:#868db5}",
       "#health-root .hl-lheld{font-size:11.5px;color:#5a6088;flex:none;white-space:nowrap}",
@@ -4155,7 +4162,7 @@ class Component extends DCLogic {
         if (isPoll) return; // keep current view on a transient poll failure
         this._healthLoaded = true;
         const bn = this._healthRoot && this._healthRoot.querySelector('#hl-banner');
-        if (bn) bn.innerHTML = '<div class="hl-banner" style="border:1px solid rgba(247,118,142,0.3);border-left:3px solid #f7768e"><div class="hl-bnicon" style="background:rgba(247,118,142,0.12);color:#f7768e">!</div><div class="hl-bntext"><div class="hl-bntitle" style="color:#f7768e">could not load /api/health</div><div class="hl-bnsub">' + this._galaxyEsc(err && err.message) + '</div></div></div>';
+        if (bn) bn.innerHTML = '<div class="hl-banner down"><div class="hl-bnicon">!</div><div class="hl-bntext"><div class="hl-bntitle">could not load /api/health</div><div class="hl-bnsub">' + this._galaxyEsc(err && err.message) + '</div></div></div>';
       });
   }
 
@@ -4222,7 +4229,7 @@ class Component extends DCLogic {
       { label: 'FAILURES · recent', val: failN, sub: failRate.toFixed(1) + '% overall rate', tone: failN === 0 ? '#9ece6a' : failTone }
     ];
     const vel = root.querySelector('#hl-vitals');
-    if (vel) vel.innerHTML = vitals.map(v => '<div class="hl-tile" style="border-left:3px solid ' + v.tone + '"><span class="hl-tlabel">' + esc(v.label) + '</span><span class="hl-tval" style="color:' + v.tone + '">' + esc(String(v.val)) + '</span><span class="hl-tsub">' + esc(v.sub) + '</span></div>').join('');
+    if (vel) vel.innerHTML = vitals.map(v => '<div class="hl-tile"><span class="hl-tlabel">' + esc(v.label) + '</span><span class="hl-tval" style="color:' + v.tone + '">' + esc(String(v.val)) + '</span><span class="hl-tsub">' + esc(v.sub) + '</span></div>').join('');
 
     // De-emphasized secondary totals (succeeded / cancelled / queued / running + version).
     const sec = root.querySelector('#hl-second');
@@ -4288,15 +4295,15 @@ class Component extends DCLogic {
         : '<span class="hl-upd" title="update available">' + esc(label) + '</span>';
     }
     if (!running) {
-      return '<div class="hl-banner" style="background:linear-gradient(180deg,#1b1420,#111325);border:1px solid rgba(247,118,142,0.3);border-left:3px solid #f7768e">' +
-        '<div class="hl-bnicon" style="background:rgba(247,118,142,0.12);color:#f7768e">✕</div>' +
+      return '<div class="hl-banner down">' +
+        '<div class="hl-bnicon">✕</div>' +
         '<div class="hl-bntext"><div class="hl-bntitle">Daemon stopped — orchestration paused</div>' +
         '<div class="hl-bnsub">no heartbeat · workers idle' + verSeg + '</div></div>' +
         (updHtml ? '<div class="hl-bnright">' + updHtml + '</div>' : '') + '</div>';
     }
     if (s.allClear) {
-      return '<div class="hl-banner" style="background:linear-gradient(180deg,rgba(158,206,106,0.08),#111325);border:1px solid rgba(158,206,106,0.3);border-left:3px solid #9ece6a">' +
-        '<div class="hl-bnicon" style="background:rgba(158,206,106,0.14);color:#9ece6a">✓</div>' +
+      return '<div class="hl-banner ok">' +
+        '<div class="hl-bnicon">✓</div>' +
         '<div class="hl-bntext"><div class="hl-bntitle">All clear — daemon healthy</div>' +
         '<div class="hl-bnsub">' + upSeg + ' · no stuck jobs · no aging locks · failures within threshold</div></div>' +
         '<div class="hl-bnright">' + updHtml + '<button class="hl-toggle" data-hl-toggle="1" type="button">view live state ▸</button></div></div>';
@@ -4304,8 +4311,8 @@ class Component extends DCLogic {
     const n = s.count;
     const noun = n === 1 ? 'item needs' : 'items need';
     const sub = upSeg + ' · ' + s.blocked + ' blocked · ' + s.stuckWorkers + ' stuck · ' + s.aging + ' locks aging · ' + s.failures + ' recent failures';
-    return '<div class="hl-banner" style="background:linear-gradient(180deg,#15182b,#111325);border:1px solid rgba(224,175,104,0.28);border-left:3px solid #e0af68">' +
-      '<div class="hl-bnicon" style="background:rgba(224,175,104,0.12);color:#e0af68">⚠</div>' +
+    return '<div class="hl-banner attention">' +
+      '<div class="hl-bnicon">⚠</div>' +
       '<div class="hl-bntext"><div class="hl-bntitle">Daemon healthy — ' + n + ' ' + noun + ' your attention</div>' +
       '<div class="hl-bnsub">' + sub + '</div></div>' +
       '<div class="hl-bnright">' + updHtml + '<button class="hl-toggle" data-hl-toggle="1" type="button">preview all-clear ▸</button></div></div>';
