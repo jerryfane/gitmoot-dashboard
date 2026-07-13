@@ -3859,6 +3859,7 @@ class Component extends DCLogic {
       "#attention-root .at-rtitle{font-size:13px;font-weight:600;color:#eef0ff;line-height:1.35;word-break:break-word}",
       "#attention-root .at-rmeta{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#7f86ad;margin-top:4px;display:flex;flex-wrap:wrap;gap:8px}",
       "#attention-root .at-chip{display:inline-flex;align-items:center;padding:3px 9px;border-radius:7px;font-family:'JetBrains Mono',monospace;font-size:10.5px;font-weight:600;white-space:nowrap;flex:none}",
+      "#attention-root .at-chip.gate{display:inline-block;max-width:44%;overflow:hidden;text-overflow:ellipsis;line-height:1.7}",
       "#attention-root .at-chip.gate{color:#e0af68;background:rgba(224,175,104,0.12);border:1px solid rgba(224,175,104,0.3)}",
       "#attention-root .at-chip.gap{color:#7dcfff;background:rgba(125,207,255,0.1);border:1px solid rgba(125,207,255,0.28)}",
       "#attention-root .at-chip.score{color:#9ece6a;background:rgba(158,206,106,0.1);border:1px solid rgba(158,206,106,0.28)}",
@@ -3965,7 +3966,7 @@ class Component extends DCLogic {
             '<div class="at-rtop"><span class="at-dot" style="background:' + col(g.state) + ';box-shadow:0 0 8px ' + col(g.state) + '"></span>' +
             '<div class="at-rmain"><div class="at-rtitle">' + esc(g.title || g.jobId) + '</div>' +
             '<div class="at-rmeta">' + meta.join('') + '</div></div>' +
-            '<span class="at-chip gate">' + esc(g.need) + '</span></div>' +
+            '<span class="at-chip gate" title="' + esc(g.need) + '">' + esc(g.need) + '</span></div>' +
             '<div class="at-checks" data-loaded="0"></div></div>';
         }).join('');
       }
