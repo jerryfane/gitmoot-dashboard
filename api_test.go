@@ -603,7 +603,6 @@ func TestFakeWorkflowIndexContractOrderingAndDeterminism(t *testing.T) {
 		t.Fatalf("active ordering is not newest-first: %+v", entries[:3])
 	}
 	var plain *WorkflowIndexEntry
-	auto := 0
 	summaries := 0
 	for i := range entries {
 		entry := &entries[i]
@@ -614,19 +613,16 @@ func TestFakeWorkflowIndexContractOrderingAndDeterminism(t *testing.T) {
 			plain = entry
 		}
 		if entry.Auto {
-			auto++
-			if entry.Namespace != "pipeline" && entry.Namespace != "adhoc" {
-				t.Fatalf("auto namespace = %+v", entry)
-			}
+			t.Fatalf("workflow index emitted deprecated auto row = %+v", entry)
 		}
 		if entry.Counts.Jobs == 0 || entry.FirstAt == 0 || entry.LastAt == 0 || len(entry.Repos) == 0 {
 			t.Fatalf("incomplete workflow row = %+v", entry)
 		}
 	}
-	if plain == nil || plain.Namespace != "" || plain.Campaign != plain.Label || auto < 2 || summaries < 3 {
-		t.Fatalf("split/auto/summary contract plain=%+v auto=%d summaries=%d", plain, auto, summaries)
+	if plain == nil || plain.Namespace != "" || plain.Campaign != plain.Label || summaries < 3 {
+		t.Fatalf("split/summary contract plain=%+v summaries=%d", plain, summaries)
 	}
-	for _, field := range []string{"\"session_id\"", "\"stalled_for_s\"", "\"tokens_in\"", "\"last_note\""} {
+	for _, field := range []string{"\"auto\"", "\"session_id\"", "\"stalled_for_s\"", "\"tokens_in\"", "\"last_note\""} {
 		if !bytes.Contains(body1, []byte(field)) {
 			t.Fatalf("wire payload missing %s: %s", field, body1)
 		}
