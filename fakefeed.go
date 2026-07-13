@@ -2628,6 +2628,11 @@ func fakeAttention() Attention {
 				Agent: "integrator", Repo: "jerryfane/noted", State: "blocked", PR: 42, CreatedAt: at(2 * h)},
 			{JobID: "job-nightly-score-19", Need: "secret:r2-token", Title: "nightly-deploy · score stage",
 				Agent: "claude-a", Repo: "jerryfane/noted", State: "blocked", CreatedAt: at(90 * time.Minute)},
+			// Long suggested-action regression fixture (issue #88): the chip must
+			// ellipsize instead of squeezing the title into a per-character wrap.
+			{JobID: "job-long-action-7", Need: "Commit the intact working-tree changes with: git add internal/memory/cluster.go internal/memory/cluster_test.go internal/db/store.go internal/db/memory_cluster_store.go && git commit -m 'feat(memory): cluster hierarchy' then re-run the gate",
+				Title: "Implement the ENGINE half of the memory cluster hierarchy with bounded fan-out and recursive depth",
+				Agent: "wave-impl", Repo: "jerryfane/gitmoot", State: "blocked", CreatedAt: at(6 * 24 * h)},
 		},
 		SynthItems: []AttentionSynthItem{
 			{ID: "synth-reviewer-0031", TemplateID: "tmpl-reviewer", Repo: "jerryfane/gitmoot",
