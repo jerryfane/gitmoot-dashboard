@@ -369,6 +369,15 @@ func (f *FakeDataSource) Subscribe(ctx context.Context, runID string) (<-chan St
 	return ch, cancel, nil
 }
 
+// ChangeCursor implements the optional dashboard invalidation stream. Each
+// completed fake timeline mutation increments step, so the opaque cursor moves
+// in lockstep with the state snapshots served by the dev harness.
+func (f *FakeDataSource) ChangeCursor(context.Context) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return strconv.Itoa(f.step), nil
+}
+
 // Graph implements DataSource. The fake feed has a single run, so the galaxy is
 // that run's jobs plus a repo hub and per-agent hubs — enough to exercise the
 // Galaxy view standalone.

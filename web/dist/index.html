@@ -683,6 +683,7 @@ class Component extends DCLogic {
     // safety: never leave the Runs column stuck on skeletons if /api/runs hangs
     this._loadTO = setTimeout(() => { if (this.state.listLoading) this.setState({ listLoading: false }); }, 8000);
     this.connectLive();
+    this.startLiveStream();
     this.loadRuns();
     // poll the run list so newly-created / state-changed runs surface live
     // (the selected run's graph already streams via SSE); background refresh.
@@ -718,6 +719,7 @@ class Component extends DCLogic {
     this.stopWorkflowPoll();
     this.stopOverviewPoll();
     this.stopTasksPoll();
+    this.stopLiveStream();
     try { if (this._es) this._es.close(); } catch (e) {}
     window.removeEventListener('resize', this.onResize);
     try { window.removeEventListener('popstate', this._onPopState); } catch (e) {}
@@ -749,6 +751,109 @@ class Component extends DCLogic {
     try { if (this._workflowStrip) this._workflowStrip.remove(); } catch (e) {}
     try { if (this._overviewRoot) this._overviewRoot.remove(); } catch (e) {}
     try { if (this._tasksRoot) this._tasksRoot.remove(); } catch (e) {}
+  }
+
+  // ---- shared invalidation stream -------------------------------------------
+  // /api/events carries opaque change pings only. Every view keeps its existing
+  // polling timer; this module simply invokes the same in-place refresh path
+  // sooner when the stream is healthy.
+  _setLiveStreamState(value) {
+    try { document.documentElement.setAttribute('data-live-stream', value); } catch (e) {}
+  }
+  startLiveStream() {
+    if (this._liveStreamStarted) return;
+    this._liveStreamStarted = true;
+    this._liveStreamStopped = false;
+    this._liveStreamOpened = false;
+    this._liveStreamBackoff = 1000;
+    this._connectLiveStream();
+  }
+  stopLiveStream() {
+    this._liveStreamStopped = true;
+    this._liveStreamStarted = false;
+    try { clearTimeout(this._liveStreamReconnectTimer); } catch (e) {}
+    try { clearTimeout(this._liveStreamRefreshTimer); } catch (e) {}
+    this._liveStreamReconnectTimer = null;
+    this._liveStreamRefreshTimer = null;
+    try { if (this._liveES) this._liveES.close(); } catch (e) {}
+    this._liveES = null;
+    this._setLiveStreamState('closed');
+  }
+  _connectLiveStream() {
+    if (this._liveStreamStopped) return;
+    try { clearTimeout(this._liveStreamReconnectTimer); } catch (e) {}
+    this._liveStreamReconnectTimer = null;
+    if (typeof EventSource === 'undefined') {
+      this._setLiveStreamState('unsupported');
+      return;
+    }
+    try { if (this._liveES) this._liveES.close(); } catch (e) {}
+    this._setLiveStreamState(this._liveStreamOpened ? 'fallback' : 'connecting');
+    let stream;
+    try { stream = new EventSource('/api/events'); } catch (e) { this._scheduleLiveReconnect(); return; }
+    this._liveES = stream;
+    stream.onopen = () => {
+      if (this._liveStreamStopped || this._liveES !== stream) return;
+      const reconnected = this._liveStreamOpened;
+      this._liveStreamOpened = true;
+      this._liveStreamBackoff = 1000;
+      this._setLiveStreamState('open');
+      // No Last-Event-ID replay: refresh once after a reconnect to cover changes
+      // that may have happened while the stream was unavailable.
+      if (reconnected) this._scheduleLiveRefresh();
+    };
+    stream.addEventListener('changed', () => {
+      if (!this._liveStreamStopped && this._liveES === stream) this._scheduleLiveRefresh();
+    });
+    stream.onerror = () => {
+      if (this._liveStreamStopped || this._liveES !== stream) return;
+      try { stream.close(); } catch (e) {}
+      this._liveES = null;
+      this._scheduleLiveReconnect();
+    };
+  }
+  _scheduleLiveReconnect() {
+    if (this._liveStreamStopped || this._liveStreamReconnectTimer) return;
+    this._setLiveStreamState('fallback');
+    const delay = Math.min(30000, Math.max(1000, this._liveStreamBackoff || 1000));
+    this._liveStreamBackoff = Math.min(30000, delay * 2);
+    this._liveStreamReconnectTimer = setTimeout(() => {
+      this._liveStreamReconnectTimer = null;
+      this._connectLiveStream();
+    }, delay);
+  }
+  _scheduleLiveRefresh() {
+    try { clearTimeout(this._liveStreamRefreshTimer); } catch (e) {}
+    this._liveStreamRefreshTimer = setTimeout(() => {
+      this._liveStreamRefreshTimer = null;
+      this._refreshCurrentViewFromLive();
+    }, 300);
+  }
+  _refreshCurrentViewFromLive() {
+    const view = this.state.view;
+    if (view === 'overview') this.fetchOverview(true);
+    else if (view === 'tasks') this.fetchTasks(true);
+    else if (view === 'workflows') { if (this._workflowLabel) this.fetchWorkflow(this._workflowLabel, true); else this.fetchWorkflows(true); }
+    else if (view === 'galaxy') this.fetchGalaxy(this._galaxyRepo || '', true);
+    else if (view === 'jobs') this.fetchJobs(true);
+    else if (view === 'agents') this.fetchAgents(true);
+    else if (view === 'charts') this.fetchCharts(true);
+    else if (view === 'health') this.fetchHealth(true);
+    else if (view === 'config') this.fetchConfig(true);
+    else if (view === 'attention') this.fetchAttention(true);
+    else if (view === 'learning') this.fetchSkills(true);
+    else if (view === 'brain') this.fetchKnowledge(true);
+    else if (view === 'pipelines') {
+      this.fetchPipelines(true);
+      if (this._plDetailName) this.fetchPipelineDetailData(this._plDetailName, true);
+      if (this._plDetailName && this._plSelectedRun) this.fetchPipelineRun(this._plSelectedRun, true);
+    } else if (view === 'chat') {
+      this.fetchChatThreads(true);
+      if (this._chatSelected) this.fetchChatThread(this._chatSelected, true);
+    } else if (view === 'graph') {
+      this.loadState();
+      this.loadRuns();
+    }
   }
 
   // ============================================================

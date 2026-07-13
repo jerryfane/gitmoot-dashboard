@@ -1038,6 +1038,15 @@ type Attention struct {
 	Total      int                  `json:"total"`      // gates + synthItems + candidates
 }
 
+// ChangeCursorDataSource is the optional liveness extension behind
+// GET /api/events. ChangeCursor returns an opaque cursor that changes whenever
+// dashboard-visible data changes. Implementations should make this a cheap,
+// monotonic store query; datasources without the extension retain polling-only
+// behavior.
+type ChangeCursorDataSource interface {
+	ChangeCursor(ctx context.Context) (string, error)
+}
+
 // DataSource is the read-only feed the dashboard renders. Implementations must
 // be safe for concurrent use.
 type DataSource interface {
