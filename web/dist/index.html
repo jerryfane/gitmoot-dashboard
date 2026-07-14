@@ -15,6 +15,7 @@
 <script src="https://cdn.jsdelivr.net/npm/elkjs@0.9.3/lib/elk.bundled.js"></script>
 <script src="https://unpkg.com/force-graph@1.43.5/dist/force-graph.min.js"></script>
 <style>
+ :root{--gm-bg:#07080f;--gm-surface-raised:#0f1120;--gm-border-raised:rgba(160,168,220,.13);--gm-text-strong:#eef0ff;--gm-text-muted:#8b90b8;--gm-text-faint:#5a6088}
  html,body{margin:0;background:#07080f}
  *{box-sizing:border-box}
  @keyframes runpulse{0%,100%{box-shadow:0 0 0 0 var(--gc)}50%{box-shadow:0 0 28px 1px var(--gc)}}
@@ -2161,10 +2162,10 @@ class Component extends DCLogic {
   // #galaxy-root overlay (which covers the per-run detail aside), styled
   // to match the per-run detail panel. Reuses ONE #g-detail element.
   // ============================================================
+  stateFillColors = { succeeded:'#7da357', running:'#6181c5', failed:'#c25e73', blocked:'#b08b56', queued:'#454c6f', cancelled:'#343a56' };
   _galaxyStateColor(state) {
     // Large-area state fills: 78% original semantic hue + 22% #080a14 page background.
-    const M = { succeeded:'#7da357', running:'#6181c5', failed:'#c25e73', blocked:'#b08b56', queued:'#454c6f', cancelled:'#343a56' };
-    return M[state] || '#454c6f';
+    return this.stateFillColors[state] || this.stateFillColors.queued;
   }
   _galaxyEsc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : c === '"' ? '&quot;' : '&#39;'); }
   // Only allow http/https hrefs; server-sourced URLs (e.g. prUrl) could carry a javascript: scheme.
@@ -2809,7 +2810,7 @@ class Component extends DCLogic {
   // everywhere; the word "unknown" is never rendered. Mobile (<=768px)
   // behaves as list -> full-screen detail sheet.
   // ============================================================
-  _agStatusMeta = { busy: { c: '#7aa2f7', label: 'busy' }, failing: { c: '#f7768e', label: 'failing' }, idle: { c: '#5a6088', label: 'idle' } };
+  _agStatusMeta = { busy: { state: 'running', label: 'busy' }, failing: { state: 'failed', label: 'failing' }, idle: { state: 'queued', label: 'idle' } };
   // Derived agent status from the summary counts + health, per the wave-5
   // contract: any running job -> busy (highest precedence); else a failing
   // signal (failures with zero lifetime successes, or an explicit failed health;
@@ -2834,88 +2835,89 @@ class Component extends DCLogic {
     if (this._agentsRoot) return this._agentsRoot;
     const st = document.createElement('style');
     st.textContent = [
-      "#agents-root{display:flex;min-width:0}",
+      "#agents-root{display:flex;min-width:0;overflow:hidden}",
       // ---- LEFT RAIL ----
       "#agents-root .ag-rail{width:340px;flex:none;background:#0a0b16;border-right:1px solid rgba(160,168,220,0.08);display:flex;flex-direction:column;min-height:0}",
       "#agents-root .ag-rl-head{display:flex;align-items:center;padding:14px 14px 10px}",
-      "#agents-root .ag-rl-title{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:0.14em;color:#868db5;font-weight:600}",
-      "#agents-root .ag-rl-count{margin-left:7px;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#5a6088}",
+      "#agents-root .ag-rl-title{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:0.14em;color:var(--gm-text-muted);font-weight:600}",
+      "#agents-root .ag-rl-count{margin-left:7px;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--gm-text-faint)}",
       "#agents-root .ag-search-wrap{padding:0 14px 9px}",
-      "#agents-root .ag-search{width:100%;box-sizing:border-box;padding:8px 12px;background:#0f1120;border:1px solid rgba(160,168,220,0.14);border-radius:9px;color:#eef0ff;font-size:12.5px;font-family:Inter,system-ui,sans-serif;outline:none}",
+      "#agents-root .ag-search{width:100%;box-sizing:border-box;padding:8px 12px;background:var(--gm-surface-raised);border:1px solid rgba(160,168,220,0.14);border-radius:8px;color:var(--gm-text-strong);font-size:12.5px;font-family:Inter,system-ui,sans-serif;outline:none}",
+      "#agents-root .ag-search::placeholder{color:var(--gm-text-muted)}",
       "#agents-root .ag-search:focus{border-color:rgba(158,206,106,0.4)}",
       "#agents-root .ag-rtfilter{padding:0 14px 9px}",
-      "#agents-root .ag-rtseg{display:flex;background:#14172a;border:1px solid rgba(160,168,220,0.14);border-radius:8px;padding:2px;gap:2px}",
-      "#agents-root .ag-rtbtn{flex:1;padding:5px 8px;border:none;border-radius:6px;cursor:pointer;font-family:Inter,system-ui,sans-serif;font-size:11px;font-weight:500;background:transparent;color:#868db5;text-transform:lowercase}",
-      "#agents-root .ag-rtbtn:hover{color:#c8cce6}",
-      "#agents-root .ag-rtbtn.on{background:rgba(158,206,106,0.14);color:#c5f882}",
+      "#agents-root .ag-rtseg{display:flex;gap:7px}",
+      "#agents-root .ag-rtbtn{flex:1;padding:5px 8px;border:1px solid rgba(160,168,220,0.14);border-radius:14px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:500;background:var(--gm-surface-raised);color:var(--gm-text-muted);text-transform:lowercase}",
+      "#agents-root .ag-rtbtn:hover{color:#c8cce6;border-color:rgba(160,168,220,0.24)}",
+      "#agents-root .ag-rtbtn.on{color:#cabff2;border-color:rgba(187,154,247,0.35);background:rgba(187,154,247,0.1)}",
       "#agents-root .ag-rollup{padding:0 14px 11px;display:flex;gap:7px}",
-      "#agents-root .ag-roll{display:flex;align-items:center;gap:6px;flex:1;padding:7px 8px;border:1px solid rgba(160,168,220,0.12);background:rgba(160,168,220,0.04);border-radius:8px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:11px;color:#a8aecf;justify-content:center;white-space:nowrap}",
+      "#agents-root .ag-roll{display:flex;align-items:center;gap:6px;flex:1;padding:3px 9px;border:1px solid rgba(160,168,220,0.12);background:rgba(160,168,220,0.04);border-radius:7px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:10.5px;font-weight:600;color:#a8aecf;justify-content:center;white-space:nowrap}",
       "#agents-root .ag-roll-dot{width:6px;height:6px;border-radius:50%;flex:none}",
-      "#agents-root .ag-list{flex:1;overflow-y:auto;min-height:0}",
-      "#agents-root .ag-empty{padding:40px 18px;text-align:center;color:#5a6088;font-size:12.5px}",
-      "#agents-root .ag-row{display:flex;align-items:center;gap:9px;padding:9px 11px;margin:2px 4px;border-radius:9px;cursor:pointer;border:1px solid transparent}",
-      "#agents-root .ag-row:hover{background:rgba(160,168,220,0.05)}",
-      "#agents-root .ag-row.sel{background:rgba(158,206,106,0.09);border-color:rgba(158,206,106,0.22)}",
-      "#agents-root .ag-row.sel:hover{background:rgba(158,206,106,0.11)}",
+      "#agents-root .ag-list{flex:1;overflow-y:auto;min-height:0;display:flex;flex-direction:column;gap:7px;padding:0 4px}",
+      "#agents-root .ag-empty{padding:40px 18px;text-align:center;color:var(--gm-text-faint);font-size:12.5px}",
+      "#agents-root .ag-row{display:flex;align-items:center;gap:9px;padding:9px 11px;margin:0;border-radius:8px;cursor:pointer;border:1px solid var(--gm-border-raised);background:var(--gm-surface-raised)}",
+      "#agents-root .ag-row:hover{border-color:rgba(125,207,255,0.28)}",
+      "#agents-root .ag-row.sel{background:rgba(187,154,247,0.1);border-color:rgba(187,154,247,0.35)}",
+      "#agents-root .ag-row.sel:hover{background:rgba(187,154,247,0.12)}",
       "#agents-root .ag-rdot{width:8px;height:8px;border-radius:50%;flex:none}",
-      "#agents-root .ag-rname{font-size:13px;font-weight:600;color:#eef0ff;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
+      "#agents-root .ag-rname{font-size:13px;font-weight:600;color:var(--gm-text-strong);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
       "#agents-root .ag-rrt{font-family:'JetBrains Mono',monospace;font-size:9.5px;border-radius:5px;padding:1px 6px;flex:none}",
       "#agents-root .ag-rspace{flex:1;min-width:6px}",
       "#agents-root .ag-rmini{font-family:'JetBrains Mono',monospace;font-size:10.5px;flex:none}",
-      "#agents-root .ag-ractive{font-family:'JetBrains Mono',monospace;font-size:9.5px;color:#5a6088;flex:none;min-width:52px;text-align:right;white-space:nowrap}",
-      "#agents-root .ag-fleet{flex:none;margin:8px;padding:12px 13px;border:1px dashed rgba(125,207,255,0.32);border-radius:11px;background:rgba(125,207,255,0.05)}",
+      "#agents-root .ag-ractive{font-family:'JetBrains Mono',monospace;font-size:9.5px;color:var(--gm-text-faint);flex:none;min-width:52px;text-align:right;white-space:nowrap}",
+      "#agents-root .ag-fleet{flex:none;margin:8px;padding:12px 13px;border:1px solid var(--gm-border-raised);border-radius:8px;background:var(--gm-surface-raised)}",
       "#agents-root .ag-fleet-top{display:flex;align-items:center;gap:9px}",
       "#agents-root .ag-fleet-dot{width:8px;height:8px;border-radius:50%;background:#7dcfff;box-shadow:0 0 8px rgba(125,207,255,0.6);flex:none;animation:dotpulse 1.4s ease-in-out infinite}",
       "#agents-root .ag-fleet-name{font-size:12.5px;font-weight:600;color:#cdeaff}",
-      "#agents-root .ag-fleet-tag{font-family:'JetBrains Mono',monospace;font-size:9px;color:#7dcfff;background:rgba(125,207,255,0.12);border-radius:5px;padding:1px 6px}",
+      "#agents-root .ag-fleet-tag{font-family:'JetBrains Mono',monospace;font-size:10.5px;font-weight:600;color:#7dcfff;background:rgba(125,207,255,0.1);border:1px solid rgba(125,207,255,0.28);border-radius:7px;padding:3px 9px}",
       "#agents-root .ag-fleet-stats{display:flex;align-items:center;gap:12px;margin-top:7px;padding-left:17px;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#7c9fc0}",
       // ---- RIGHT PANE ----
-      "#agents-root .ag-pane{flex:1;display:flex;flex-direction:column;min-width:0;overflow:auto;background:#0b0d16}",
+      "#agents-root .ag-pane{flex:1;display:flex;flex-direction:column;min-width:0;overflow:auto;background:var(--gm-bg)}",
       "#agents-root .ag-pane-inner{padding:20px 24px 28px;display:flex;flex-direction:column;gap:20px}",
-      "#agents-root .ag-pane-empty{flex:1;display:flex;align-items:center;justify-content:center;color:#5a6088;font-size:13px}",
+      "#agents-root .ag-pane-empty{flex:1;display:flex;align-items:center;justify-content:center;color:var(--gm-text-faint);font-size:13px}",
       "#agents-root .ag-back{display:none;align-self:flex-start;background:rgba(160,168,220,0.08);border:1px solid rgba(160,168,220,0.14);border-radius:8px;color:#a8aecf;font-family:Inter,system-ui,sans-serif;font-size:12.5px;padding:7px 12px;cursor:pointer}",
       "#agents-root .ag-ph{display:flex;align-items:center;gap:14px}",
       "#agents-root .ag-mono{width:40px;height:40px;border-radius:12px;flex:none;display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:17px}",
       "#agents-root .ag-ph-main{flex:1;min-width:0}",
       "#agents-root .ag-ph-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}",
-      "#agents-root .ag-ph-name{font-family:'Space Grotesk',sans-serif;font-size:19px;font-weight:600;color:#eef0ff;word-break:break-word}",
-      "#agents-root .ag-ph-pill{font-family:'JetBrains Mono',monospace;font-size:10.5px;border-radius:6px;padding:2px 9px;font-weight:600}",
+      "#agents-root .ag-ph-name{font-family:'Space Grotesk',sans-serif;font-size:19px;font-weight:600;color:var(--gm-text-strong);word-break:break-word}",
+      "#agents-root .ag-ph-pill{font-family:'JetBrains Mono',monospace;font-size:10.5px;border-radius:7px;padding:3px 9px;font-weight:600}",
       "#agents-root .ag-ph-rt{font-family:'JetBrains Mono',monospace;font-size:10.5px;border-radius:6px;padding:2px 8px;margin-top:5px;display:inline-block}",
       "#agents-root .ag-tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}",
-      "#agents-root .ag-tile{padding:14px 16px;background:linear-gradient(180deg,#15182b,#111325);border:1px solid rgba(160,168,220,0.12);border-radius:11px;display:flex;flex-direction:column;gap:3px}",
-      "#agents-root .ag-tile-l{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:0.1em;color:#868db5}",
-      "#agents-root .ag-tile-v{font-family:'JetBrains Mono',monospace;font-size:26px;font-weight:600;line-height:1;margin-top:3px}",
+      "#agents-root .ag-tile{padding:16px 18px;background:var(--gm-surface-raised);border:1px solid var(--gm-border-raised);border-radius:8px;display:flex;flex-direction:column;gap:3px}",
+      "#agents-root .ag-tile-l{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:0.12em;color:var(--gm-text-muted)}",
+      "#agents-root .ag-tile-v{font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:600;line-height:1;margin-top:7px}",
       "#agents-root .ag-cols{display:grid;grid-template-columns:1fr 1.35fr;gap:16px}",
       "#agents-root .ag-colL{display:flex;flex-direction:column;gap:16px}",
-      "#agents-root .ag-sec{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:0.13em;color:#5a6088;margin-bottom:10px}",
-      "#agents-root .ag-cfg{background:linear-gradient(180deg,#15182b,#111325);border:1px solid rgba(160,168,220,0.1);border-radius:11px;padding:6px 14px}",
+      "#agents-root .ag-sec{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:0.13em;color:var(--gm-text-faint);margin-bottom:10px}",
+      "#agents-root .ag-cfg{background:var(--gm-surface-raised);border:1px solid var(--gm-border-raised);border-radius:8px;padding:6px 14px}",
       "#agents-root .ag-cfg-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid rgba(160,168,220,0.06)}",
       "#agents-root .ag-cfg-row:last-child{border-bottom:none}",
-      "#agents-root .ag-cfg-k{font-size:12px;color:#868db5}",
+      "#agents-root .ag-cfg-k{font-size:12px;color:var(--gm-text-muted)}",
       "#agents-root .ag-cfg-v{font-family:'JetBrains Mono',monospace;font-size:12px;color:#e7e9f7;text-align:right;word-break:break-word}",
       "#agents-root .ag-vh{display:flex;gap:8px;flex-wrap:wrap}",
-      "#agents-root .ag-vchip{display:flex;flex-direction:column;gap:2px;padding:8px 12px;border-radius:9px;border:1px solid rgba(160,168,220,0.12);background:rgba(160,168,220,0.03)}",
-      "#agents-root .ag-vchip.cur{border-color:rgba(158,206,106,0.3);background:rgba(158,206,106,0.08)}",
+      "#agents-root .ag-vchip{display:flex;flex-direction:column;gap:2px;padding:8px 12px;border-radius:7px;border:1px solid var(--gm-border-raised);background:var(--gm-surface-raised)}",
+      "#agents-root .ag-vchip.cur{border-color:rgba(158,206,106,0.28);background:rgba(158,206,106,0.1)}",
       "#agents-root .ag-vchip-num{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;color:#a8aecf}",
-      "#agents-root .ag-vchip.cur .ag-vchip-num{color:#c5f882}",
-      "#agents-root .ag-vchip-when{font-family:'JetBrains Mono',monospace;font-size:9.5px;color:#5a6088}",
-      "#agents-root .ag-vempty{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#5a6088}",
+      "#agents-root .ag-vchip.cur .ag-vchip-num{color:#9ece6a}",
+      "#agents-root .ag-vchip-when{font-family:'JetBrains Mono',monospace;font-size:9.5px;color:var(--gm-text-faint)}",
+      "#agents-root .ag-vempty{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--gm-text-faint)}",
       "#agents-root .ag-tmpl-head{display:flex;align-items:center;gap:9px;margin-bottom:10px;flex-wrap:wrap}",
-      "#agents-root .ag-tmpl-name{font-family:'JetBrains Mono',monospace;font-size:12px;color:#eef0ff;word-break:break-word}",
+      "#agents-root .ag-tmpl-name{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--gm-text-strong);word-break:break-word}",
       "#agents-root .ag-tmpl-ver{font-family:'JetBrains Mono',monospace;font-size:10px;color:#a8aecf;background:rgba(160,168,220,0.08);border-radius:5px;padding:1px 6px}",
-      "#agents-root .ag-tmpl-box{background:#0a0b16;border:1px solid rgba(160,168,220,0.12);border-radius:11px;padding:14px 16px}",
+      "#agents-root .ag-tmpl-box{background:var(--gm-surface-raised);border:1px solid var(--gm-border-raised);border-radius:8px;padding:14px 16px}",
       "#agents-root .ag-tmpl-excerpt{font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:1.6;color:#c7c9e5;white-space:pre-wrap;word-break:break-word;max-height:150px;overflow:hidden;-webkit-mask-image:linear-gradient(#000 70%,transparent);mask-image:linear-gradient(#000 70%,transparent)}",
-      "#agents-root .ag-tmpl-none{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#5a6088;background:#0a0b16;border:1px dashed rgba(160,168,220,0.14);border-radius:11px;padding:16px;text-align:center}",
-      "#agents-root .ag-runs{border:1px solid rgba(160,168,220,0.1);border-radius:11px;overflow:hidden}",
-      "#agents-root .ag-run{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid rgba(160,168,220,0.05);cursor:pointer}",
+      "#agents-root .ag-tmpl-none{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--gm-text-faint);background:#0a0b16;border:1px dashed rgba(160,168,220,0.14);border-radius:11px;padding:16px;text-align:center}",
+      "#agents-root .ag-runs{background:var(--gm-surface-raised);border:1px solid var(--gm-border-raised);border-radius:8px;overflow:hidden}",
+      "#agents-root .ag-run{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid rgba(160,168,220,0.06);cursor:pointer}",
       "#agents-root .ag-run:last-child{border-bottom:none}",
       "#agents-root .ag-run:hover{background:rgba(160,168,220,0.045)}",
       "#agents-root .ag-run-dot{width:8px;height:8px;border-radius:50%;flex:none}",
       "#agents-root .ag-run-title{font-size:12.5px;color:#e7e9f7;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
-      "#agents-root .ag-run-repo{font-family:'JetBrains Mono',monospace;font-size:11px;color:#5a6088;flex:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px}",
+      "#agents-root .ag-run-repo{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--gm-text-faint);flex:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px}",
       "#agents-root .ag-run-dur{font-family:'JetBrains Mono',monospace;font-size:11px;color:#7c83a8;width:66px;text-align:right;flex:none}",
-      "#agents-root .ag-run-age{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#5a6088;width:56px;text-align:right;flex:none}",
-      "#agents-root .ag-runs-empty{border:1px solid rgba(160,168,220,0.1);border-radius:11px;padding:20px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#5a6088}",
+      "#agents-root .ag-run-age{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--gm-text-faint);width:56px;text-align:right;flex:none}",
+      "#agents-root .ag-runs-empty{background:var(--gm-surface-raised);border:1px solid var(--gm-border-raised);border-radius:8px;padding:20px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--gm-text-faint)}",
       // shared collapsible prompt viewer (template card)
       "#agents-root .ad-prompt{margin-top:12px}",
       "#agents-root .ad-prompt-bar{display:flex;align-items:center;gap:8px}",
@@ -2923,7 +2925,7 @@ class Component extends DCLogic {
       "#agents-root .ad-prompt-toggle:hover{color:#c7c9e5}",
       "#agents-root .ad-prompt-chev{display:inline-block;width:9px;flex:none;color:#7f86ad}",
       "#agents-root .ad-prompt-lbl{flex:none}",
-      "#agents-root .ad-prompt-hint{color:#5a6088;font-size:9.5px;margin-left:2px;white-space:nowrap}",
+      "#agents-root .ad-prompt-hint{color:var(--gm-text-faint);font-size:9.5px;margin-left:2px;white-space:nowrap}",
       "#agents-root .ad-prompt-view{margin-top:8px;max-height:44vh;overflow:auto;background:#07080f;border:1px solid rgba(160,168,220,0.14);border-radius:8px;padding:10px 12px;font-family:'JetBrains Mono',monospace;font-size:11px;line-height:1.55;color:#c7c9e5;white-space:pre-wrap;word-break:break-word}",
       "#agents-root .ad-prompt-view[hidden]{display:none}",
       // Mobile: rail and pane each fill the width; show the rail by default and swap to
@@ -3057,10 +3059,10 @@ class Component extends DCLogic {
     if (roll) {
       const cur = this._agStatusFilter || 'all';
       const chip = (status, n, label) => {
-        const c = this._agStatusMeta[status].c;
+        const c = this._galaxyStateColor(this._agStatusMeta[status].state);
         const on = cur === status;
         const style = on
-          ? 'border-color:color-mix(in srgb,' + c + ' 40%, transparent);background:color-mix(in srgb,' + c + ' 12%, transparent);color:' + c
+          ? 'border-color:color-mix(in srgb,' + c + ' 30%, transparent);background:color-mix(in srgb,' + c + ' 12%, transparent);color:' + c
           : '';
         return '<div class="ag-roll" data-status="' + status + '"' + (style ? ' style="' + style + '"' : '') + '><span class="ag-roll-dot" style="background:' + c + '"></span>' + n + ' ' + label + '</div>';
       };
@@ -3099,10 +3101,11 @@ class Component extends DCLogic {
   _agRowHtml(a, st) {
     const esc = (s) => this._galaxyEsc(s);
     const meta = this._agStatusMeta[st] || this._agStatusMeta.idle;
+    const stateCol = this._galaxyStateColor(meta.state);
     const rtCol = this._runtimeColor(a.runtime || '');
     const sel = this._agentsSelected === a.name;
     const pulse = (st === 'busy' || st === 'failing');
-    const dot = '<span class="ag-rdot" style="background:' + meta.c + (st === 'idle' ? '' : ';box-shadow:0 0 8px ' + meta.c) + (pulse ? ';animation:dotpulse 1.4s ease-in-out infinite' : '') + '"></span>';
+    const dot = '<span class="ag-rdot" style="background:' + stateCol + (st === 'idle' ? '' : ';box-shadow:0 0 8px ' + stateCol) + (pulse ? ';animation:dotpulse 1.4s ease-in-out infinite' : '') + '"></span>';
     const rtChip = a.runtime
       ? '<span class="ag-rrt" style="color:' + rtCol + ';background:color-mix(in srgb,' + rtCol + ' 12%, transparent);border:1px solid color-mix(in srgb,' + rtCol + ' 24%, transparent)">' + esc(a.runtime) + '</span>'
       : '';
@@ -3239,6 +3242,7 @@ class Component extends DCLogic {
     const a = (this._agentsData || []).find(x => x.name === name) || { name: name };
     const st = this._agDerivedStatus(a);
     const meta = this._agStatusMeta[st];
+    const stateCol = this._galaxyStateColor(meta.state);
     const runtime = a.runtime || '';
     const rtCol = this._runtimeColor(runtime);
     const detailReady = this._agDetailName === name;
@@ -3338,7 +3342,7 @@ class Component extends DCLogic {
         '<div class="ag-mono" style="color:' + rtCol + ';background:color-mix(in srgb,' + rtCol + ' 16%, transparent);border:1px solid color-mix(in srgb,' + rtCol + ' 30%, transparent)">' + esc(mono) + '</div>' +
         '<div class="ag-ph-main">' +
           '<div class="ag-ph-row"><span class="ag-ph-name">' + esc(name) + '</span>' +
-            '<span class="ag-ph-pill" style="color:' + meta.c + ';background:color-mix(in srgb,' + meta.c + ' 14%, transparent);border:1px solid color-mix(in srgb,' + meta.c + ' 30%, transparent)' + (pillPulse ? ';animation:livedot 1.8s ease-in-out infinite' : '') + '">' + meta.label + '</span>' +
+            '<span class="ag-ph-pill" style="color:' + stateCol + ';background:color-mix(in srgb,' + stateCol + ' 12%, transparent);border:1px solid color-mix(in srgb,' + stateCol + ' 30%, transparent)' + (pillPulse ? ';animation:livedot 1.8s ease-in-out infinite' : '') + '">' + meta.label + '</span>' +
           '</div>' +
           (rtChip || '') +
         '</div>' +
@@ -3419,7 +3423,7 @@ class Component extends DCLogic {
       "#charts-root .ch-count{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:11px;color:#7f86ad}",
       // Headline rate tiles (success / failure / total jobs) — replace the old 6-stat grid.
       "#charts-root .ch-tiles{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;padding:0 24px 20px}",
-      "#charts-root .ch-tile{padding:16px 18px;border:1px solid rgba(160,168,220,.13);border-radius:8px;background:#0f1120;overflow:hidden}",
+      "#charts-root .ch-tile{padding:16px 18px;border:1px solid var(--gm-border-raised);border-radius:8px;background:var(--gm-surface-raised);overflow:hidden}",
       "#charts-root .ch-tile.ok,#charts-root .ch-tile.bad,#charts-root .ch-tile.tot{background:#0f1120}",
       "#charts-root .ch-tk{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.12em;color:#8b90b8;text-transform:uppercase}",
       "#charts-root .ch-tv{font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:600;line-height:1;margin-top:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
@@ -3631,7 +3635,8 @@ class Component extends DCLogic {
   // order), shared by the stacked-bar builder, the hover tooltip and — for the
   // first four — the header legend. queued vs cancelled get distinct greys.
   _jobSegs() {
-    return [['succeeded', '#7da357'], ['running', '#6181c5'], ['blocked', '#b08b56'], ['queued', '#454c6f'], ['cancelled', '#343a56'], ['failed', '#c25e73']];
+    const M = this.stateFillColors;
+    return [['succeeded', M.succeeded], ['running', M.running], ['blocked', M.blocked], ['queued', M.queued], ['cancelled', M.cancelled], ['failed', M.failed]];
   }
 
   // SVG path for a bar with rounded TOP corners and a square base. Used for the
@@ -4070,7 +4075,7 @@ class Component extends DCLogic {
       "#health-root a.hl-upd,#health-root span.hl-upd{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:9px;font-family:'JetBrains Mono',monospace;font-size:11.5px;font-weight:600;color:#e0af68;background:rgba(224,175,104,0.12);border:1px solid rgba(224,175,104,0.34);text-decoration:none;white-space:nowrap}",
       "#health-root a.hl-upd:hover{border-color:rgba(224,175,104,0.6)}",
       "#health-root .hl-vitals{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}",
-      "#health-root .hl-tile{display:flex;flex-direction:column;gap:4px;padding:18px 20px;background:#0f1120;border:1px solid rgba(160,168,220,.13);border-radius:8px}",
+      "#health-root .hl-tile{display:flex;flex-direction:column;gap:4px;padding:18px 20px;background:var(--gm-surface-raised);border:1px solid var(--gm-border-raised);border-radius:8px}",
       "#health-root .hl-tlabel{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.12em;color:#8b90b8;text-transform:uppercase}",
       "#health-root .hl-tval{font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:600;line-height:1;margin-top:7px}",
       "#health-root .hl-tsub{font-size:11.5px;color:#5a6088}",
@@ -4080,7 +4085,7 @@ class Component extends DCLogic {
       "#health-root .hl-hc{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0;color:#5a6088;font-weight:400;text-transform:none}",
       "#health-root .hl-hsub{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0;color:#5a6088;font-weight:400;text-transform:none}",
       "#health-root .hl-list{display:flex;flex-direction:column;gap:7px}",
-      "#health-root .hl-srow{background:#0f1120;border:1px solid rgba(160,168,220,.13);border-radius:8px;overflow:hidden;transition:border-color .14s ease}",
+      "#health-root .hl-srow{background:var(--gm-surface-raised);border:1px solid var(--gm-border-raised);border-radius:8px;overflow:hidden;transition:border-color .14s ease}",
       "#health-root .hl-srow:hover{border-color:rgba(125,207,255,0.28)}",
       "#health-root .hl-sline{display:flex;align-items:center;gap:12px;padding:12px 16px;cursor:pointer}",
       "#health-root .hl-dot{width:9px;height:9px;border-radius:50%;flex:none}",
