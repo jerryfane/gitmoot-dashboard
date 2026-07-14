@@ -789,8 +789,11 @@ type Knowledge struct {
 // PipelineSummary is one row of the Pipelines list: a declared pipeline
 // (gitmoot #681) plus its schedule state and recent run outcomes.
 type PipelineSummary struct {
-	Name       string               `json:"name"`
-	Repo       string               `json:"repo,omitempty"`
+	Name string `json:"name"`
+	Repo string `json:"repo,omitempty"`
+	// Group is the display section resolved by the server from the pipeline spec's
+	// group, or its repository when the spec leaves group unset. It is never empty.
+	Group      string               `json:"group"`
 	Enabled    bool                 `json:"enabled"`
 	Mode       string               `json:"mode,omitempty"`     // display mode from the server: "email-triggered (bound|pending|error|unbound)[, scheduled <interval>]" | "scheduled <interval>" | "manual"
 	Interval   string               `json:"interval,omitempty"` // Go duration, e.g. "24h"
