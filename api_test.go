@@ -2013,9 +2013,17 @@ func TestHandlePipelines(t *testing.T) {
 	srv := httptest.NewServer(Serve(NewFakeDataSource()))
 	defer srv.Close()
 
+	raw := getRaw(t, srv.URL+"/api/pipelines")
 	var pipelines []PipelineSummary
-	if err := json.Unmarshal(getRaw(t, srv.URL+"/api/pipelines"), &pipelines); err != nil {
+	if err := json.Unmarshal(raw, &pipelines); err != nil {
 		t.Fatalf("decode: %v", err)
+	}
+	var wireRows []map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &wireRows); err != nil {
+		t.Fatalf("decode wire rows: %v", err)
+	}
+	if len(wireRows) != len(pipelines) {
+		t.Fatalf("wire rows = %d, decoded pipelines = %d", len(wireRows), len(pipelines))
 	}
 	if len(pipelines) < 3 {
 		t.Fatalf("len(pipelines) = %d, want >= 3", len(pipelines))
@@ -2030,9 +2038,17 @@ func TestHandlePipelines(t *testing.T) {
 
 	enabled, disabled := 0, 0
 	byName := map[string]PipelineSummary{}
-	for _, p := range pipelines {
+	for i, p := range pipelines {
 		if p.Name == "" {
 			t.Fatalf("pipeline missing name: %+v", p)
+		}
+		group, ok := wireRows[i]["group"]
+		if !ok {
+			t.Fatalf("pipeline %s wire payload missing group: %s", p.Name, raw)
+		}
+		var wireGroup string
+		if err := json.Unmarshal(group, &wireGroup); err != nil || wireGroup == "" || p.Group == "" {
+			t.Fatalf("pipeline %s group = wire %q decoded %q, err=%v", p.Name, wireGroup, p.Group, err)
 		}
 		byName[p.Name] = p
 		if p.StageCount <= 0 {
@@ -2072,6 +2088,28 @@ func TestHandlePipelines(t *testing.T) {
 	// both directions.
 	if enabled == 0 || disabled == 0 {
 		t.Fatalf("want at least one enabled and one disabled pipeline; got enabled=%d disabled=%d", enabled, disabled)
+	}
+
+	// Group fixture coverage: a custom group spans two repos, acme/api is split
+	// between two groups, repo-fallback groups are already resolved, and the
+	// built-in system group has two pipelines.
+	if byName["nightly-deploy"].Group != "Release Automation" || byName["api-contract-check"].Group != "Release Automation" {
+		t.Fatalf("expected cross-repo Release Automation group: %+v", pipelines)
+	}
+	if byName["api-contract-check"].Repo != "acme/api" || byName["bench-suite"].Repo != "acme/api" || byName["bench-suite"].Group != "Quality" {
+		t.Fatalf("expected acme/api to span Release Automation and Quality: %+v", pipelines)
+	}
+	if byName["listing-refresh"].Group != byName["listing-refresh"].Repo || byName["noted-search-index"].Group != byName["noted-search-index"].Repo {
+		t.Fatalf("expected resolved repo fallback groups: %+v", pipelines)
+	}
+	system := 0
+	for _, p := range pipelines {
+		if p.Group == "Gitmoot System" {
+			system++
+		}
+	}
+	if system != 2 {
+		t.Fatalf("Gitmoot System rows = %d, want 2", system)
 	}
 
 	// nightly-deploy: enabled scheduled pipeline with a next-due time whose recent

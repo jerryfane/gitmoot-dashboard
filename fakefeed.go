@@ -2108,11 +2108,9 @@ func fakePipelineRunSummary(run PipelineRun) PipelineRunSummary {
 	}
 }
 
-// fakePipelines builds the fixed Pipelines-list fixture (gitmoot #681): three
-// declared pipelines that together exercise the UI — a healthy enabled scheduled
-// pipeline with a next-due time and a linear last run (nightly-deploy); an
-// enabled manual pipeline whose last run is parked-blocked (listing-refresh);
-// and a disabled scheduled pipeline whose last run failed (bench-suite). Every
+// fakePipelines builds the fixed Pipelines-list fixture (gitmoot #681). Its
+// groups exercise a cross-repository custom group, a repository split across
+// groups, server-resolved repository fallbacks, and Gitmoot System. Every
 // timestamp is anchored on fakeChartsNow (never time.Now()); the pipeline list
 // is sorted by name and each Recent strip is sorted newest-first (StartedAt
 // desc, then ID desc — matching the store's ORDER BY started_at DESC, id DESC)
@@ -2143,8 +2141,65 @@ func fakePipelines() []PipelineSummary {
 
 	pipelines := []PipelineSummary{
 		{
+			Name:       "api-contract-check",
+			Repo:       "acme/api",
+			Group:      "Release Automation",
+			Enabled:    true,
+			Mode:       "scheduled 24h",
+			Interval:   "24h",
+			StageCount: 2,
+			Recent:     []PipelineRunSummary{},
+		},
+		{
+			Name:       "bench-suite",
+			Repo:       "acme/api",
+			Group:      "Quality",
+			Enabled:    false,
+			Mode:       "scheduled 168h",
+			Interval:   "168h",
+			StageCount: 3,
+			LastRunID:  "prun-bench-suite-0001",
+			LastStatus: "failed",
+			LastRunAt:  runs["prun-bench-suite-0001"].StartedAt,
+			Recent:     runsFor("prun-bench-suite-0001"),
+		},
+		{
+			Name: "listing-refresh",
+			Repo: "jerryfane/noted",
+			// Server-resolved fallback for a spec with no explicit group.
+			Group:      "jerryfane/noted",
+			Enabled:    true,
+			Mode:       "manual",
+			StageCount: 4,
+			LastRunID:  "prun-listing-refresh-0001",
+			LastStatus: "blocked",
+			LastRunAt:  runs["prun-listing-refresh-0001"].StartedAt,
+			Recent:     runsFor("prun-listing-refresh-0001"),
+		},
+		{
+			Name:       "memory-groom-propose",
+			Repo:       "jerryfane/gitmoot",
+			Group:      "Gitmoot System",
+			Enabled:    true,
+			Mode:       "scheduled 24h",
+			Interval:   "24h",
+			StageCount: 3,
+			Recent:     []PipelineRunSummary{},
+		},
+		{
+			Name:       "memory-ingest-sweep",
+			Repo:       "jerryfane/gitmoot",
+			Group:      "Gitmoot System",
+			Enabled:    true,
+			Mode:       "scheduled 6h",
+			Interval:   "6h",
+			StageCount: 2,
+			Recent:     []PipelineRunSummary{},
+		},
+		{
 			Name:       "nightly-deploy",
 			Repo:       "acme/webapp",
+			Group:      "Release Automation",
 			Enabled:    true,
 			Mode:       "email-triggered (bound), scheduled 24h",
 			Interval:   "24h",
@@ -2157,27 +2212,14 @@ func fakePipelines() []PipelineSummary {
 			Recent:     runsFor("prun-nightly-deploy-0002", "prun-nightly-deploy-0001", "prun-nightly-deploy-0000"),
 		},
 		{
-			Name:       "listing-refresh",
-			Repo:       "jerryfane/noted",
+			Name: "noted-search-index",
+			Repo: "jerryfane/noted",
+			// A second spec with no explicit group, resolved by the server to Repo.
+			Group:      "jerryfane/noted",
 			Enabled:    true,
 			Mode:       "manual",
-			StageCount: 4,
-			LastRunID:  "prun-listing-refresh-0001",
-			LastStatus: "blocked",
-			LastRunAt:  runs["prun-listing-refresh-0001"].StartedAt,
-			Recent:     runsFor("prun-listing-refresh-0001"),
-		},
-		{
-			Name:       "bench-suite",
-			Repo:       "acme/api",
-			Enabled:    false,
-			Mode:       "scheduled 168h",
-			Interval:   "168h",
-			StageCount: 3,
-			LastRunID:  "prun-bench-suite-0001",
-			LastStatus: "failed",
-			LastRunAt:  runs["prun-bench-suite-0001"].StartedAt,
-			Recent:     runsFor("prun-bench-suite-0001"),
+			StageCount: 2,
+			Recent:     []PipelineRunSummary{},
 		},
 	}
 

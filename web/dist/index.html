@@ -7682,6 +7682,8 @@ class Component extends DCLogic {
       "#pipelines-root .pl-title .pl-tdot{color:#7aa2f7;margin-left:1px}",
       "#pipelines-root .pl-sub{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#5a6088}",
       "#pipelines-root .pl-tablewrap{padding:12px 24px 34px}",
+      "#pipelines-root .pl-group+.pl-group{margin-top:26px}",
+      "#pipelines-root .pl-group-head{padding:0 0 8px;font-family:'JetBrains Mono',monospace;font-size:9.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:#8b90b8}",
       "#pipelines-root .pl-table{width:100%;table-layout:fixed;border-collapse:collapse;font-size:13px}",
       "#pipelines-root .pl-table th:nth-child(2){width:110px}",
       "#pipelines-root .pl-table th:nth-child(3){width:320px}",
@@ -7965,8 +7967,20 @@ class Component extends DCLogic {
       table.innerHTML = '<div class="pl-empty">' + (this._pipelinesLoaded ? 'no pipelines declared yet — <code>gitmoot pipeline add &lt;spec.yaml&gt;</code>' : 'loading…') + '</div>';
       return;
     }
-    const rows = list.map(p => this._pipelineRowHtml(p)).join('');
-    table.innerHTML = '<table class="pl-table"><thead><tr><th>pipeline</th><th>enabled</th><th>schedule</th><th>last run</th><th>next due</th><th>recent</th></tr></thead><tbody>' + rows + '</tbody></table>';
+    const groups = {};
+    list.forEach(p => {
+      if (!p) return;
+      // New servers resolve group. The repo fallback keeps older responses legible.
+      const group = (typeof p.group === 'string' && p.group.trim()) || p.repo || 'Other pipelines';
+      (groups[group] = groups[group] || []).push(p);
+    });
+    const names = Object.keys(groups).sort((a, b) => {
+      if (a === 'Gitmoot System') return b === 'Gitmoot System' ? 0 : 1;
+      if (b === 'Gitmoot System') return -1;
+      return a.localeCompare(b);
+    });
+    const heading = '<thead><tr><th>pipeline</th><th>enabled</th><th>schedule</th><th>last run</th><th>next due</th><th>recent</th></tr></thead>';
+    table.innerHTML = names.map(name => '<section class="pl-group"><div class="pl-group-head">' + this._galaxyEsc(name) + '</div><table class="pl-table">' + heading + '<tbody>' + groups[name].map(p => this._pipelineRowHtml(p)).join('') + '</tbody></table></section>').join('');
     this.refreshPipelineCountdowns();
   }
 
