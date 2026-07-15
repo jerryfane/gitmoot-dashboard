@@ -1,3 +1,3 @@
-module github.com/jerryfane/gitmoot-dashboard
+module github.com/gitmoot/gitmoot-dashboard
 
 go 1.23
