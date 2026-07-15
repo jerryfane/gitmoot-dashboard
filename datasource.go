@@ -795,7 +795,7 @@ type PipelineSummary struct {
 	// group, or its repository when the spec leaves group unset. It is never empty.
 	Group      string               `json:"group"`
 	Enabled    bool                 `json:"enabled"`
-	Mode       string               `json:"mode,omitempty"`     // display mode from the server: "email-triggered (bound|pending|error|unbound)[, scheduled <interval>]" | "scheduled <interval>" | "manual"
+	Mode       string               `json:"mode,omitempty"`     // display mode from the server: "email-triggered (bound|pending|error|unbound)[, scheduled <interval>]" | "scheduled <interval>" | "after: <pipeline>" | "manual"
 	Interval   string               `json:"interval,omitempty"` // Go duration, e.g. "24h"
 	Jitter     string               `json:"jitter,omitempty"`
 	StageCount int                  `json:"stageCount"`

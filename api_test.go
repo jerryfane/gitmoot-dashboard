@@ -2111,6 +2111,12 @@ func TestHandlePipelines(t *testing.T) {
 	if system != 2 {
 		t.Fatalf("Gitmoot System rows = %d, want 2", system)
 	}
+	if ingest := byName["memory-ingest-sweep"]; ingest.Mode != "after: memory-groom-propose" {
+		t.Fatalf("memory-ingest-sweep Mode = %q, want after trigger", ingest.Mode)
+	}
+	if groom := byName["memory-groom-propose"]; groom.NextDueAt == 0 || groom.LastStatus != "succeeded" {
+		t.Fatalf("memory-groom-propose should exercise due + health rollups: %+v", groom)
+	}
 
 	// nightly-deploy: enabled scheduled pipeline with a next-due time whose recent
 	// strip carries an in-flight running run alongside a succeeded and a failed run.
