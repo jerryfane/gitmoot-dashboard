@@ -1016,7 +1016,7 @@ var fakeAgents = []fakeAgent{
 		config: &AgentConfigInfo{Memory: true, MaxBackground: 4, IdleTimeout: "10m", JobTimeout: "1h", Model: "gpt-5.5", Template: "coordinator", Capabilities: []string{"orchestrate", "review"}}},
 	{name: "implementer", role: "implementer", runtime: "codex", model: "gpt-5.5", capabilities: []string{"implement"}, autonomyPolicy: "workspace-write", health: "healthy", repoScope: []string{fakeRepo},
 		config: &AgentConfigInfo{Memory: false, MaxBackground: 6, IdleTimeout: "5m", JobTimeout: "45m", Model: "gpt-5.5", Capabilities: []string{"implement"}}},
-	{name: "integrator", role: "integrator", runtime: "codex", model: "gpt-5.5", capabilities: []string{"review", "integrate"}, autonomyPolicy: "workspace-write", health: "healthy", repoScope: []string{fakeRepo}},
+	{name: "integrator", role: "integrator", runtime: "codex", capabilities: []string{"review", "integrate"}, autonomyPolicy: "workspace-write", health: "healthy", repoScope: []string{fakeRepo}},
 	{name: "researcher", role: "researcher", runtime: "claude", model: "claude-opus-4-8", capabilities: []string{"research"}, autonomyPolicy: "read-only", health: "healthy",
 		memory: true, memFacts: 42, memObs: 17,
 		config: &AgentConfigInfo{Memory: true, MaxBackground: 2, IdleTimeout: "15m", JobTimeout: "30m", Model: "claude-opus-4-8", Template: "researcher", Capabilities: []string{"research"}}},
@@ -1106,6 +1106,10 @@ func (f *FakeDataSource) Agents(ctx context.Context) ([]AgentSummary, error) {
 // nil. It is deliberately an agent that does not appear in the seeded run so its
 // summary counts (and thus its whole AgentDetail) are byte-stable across calls.
 const fakeTemplatedAgent = "researcher"
+
+// fakeGalaxyPanelAgent appears in the seeded graph and carries a compact
+// template record so the Galaxy inspector exercises its complete state.
+const fakeGalaxyPanelAgent = "project-lead"
 
 // The three prompt bodies below are fakeTemplatedAgent's full template content at
 // each version. They are multi-line markdown and deliberately DIFFERENT per
@@ -1221,11 +1225,33 @@ var fakeAgentVersions = []TemplateVersionInfo{
 	},
 }
 
+var fakeCoordinatorTemplate = AgentTemplateInfo{
+	ID:             "tmpl-coordinator",
+	Name:           "coordinator",
+	Description:    "Coordinates delegation trees and synthesizes their outcomes",
+	SourceRepo:     "jerryfane/gitmoot",
+	SourceRef:      "main",
+	SourcePath:     "agents/coordinator.md",
+	ResolvedCommit: "6f4c9d218a37b510e2f6548bd90ac1734ef21865",
+}
+
+var fakeCoordinatorVersions = []TemplateVersionInfo{{
+	ID:             "tmpl-coordinator-v4",
+	Number:         4,
+	State:          "current",
+	Name:           "coordinator",
+	Description:    "current coordinator policy",
+	SourceRef:      "main",
+	ResolvedCommit: "6f4c9d218a37b510e2f6548bd90ac1734ef21865",
+	CreatedAt:      fakeChartsNow.AddDate(0, 0, -6).UnixMilli(),
+	PromotedAt:     fakeChartsNow.AddDate(0, 0, -5).UnixMilli(),
+	Current:        true,
+}}
+
 // Agent implements DataSource. It returns the click-through detail for a single
 // agent: the same AgentSummary row Agents() lists (so counts line up with the
-// Agents page) plus a template and version history for the one seeded agent that
-// carries them (fakeTemplatedAgent) — every other agent's detail has Template
-// nil. Unknown names return ErrAgentNotFound.
+// Agents page), plus template histories for the Agents-page fixture and the
+// Galaxy-visible coordinator. Unknown names return ErrAgentNotFound.
 func (f *FakeDataSource) Agent(ctx context.Context, name string) (AgentDetail, error) {
 	agents, err := f.Agents(ctx)
 	if err != nil {
@@ -1240,6 +1266,10 @@ func (f *FakeDataSource) Agent(ctx context.Context, name string) (AgentDetail, e
 			tmpl := fakeAgentTemplate
 			detail.Template = &tmpl
 			detail.Versions = append([]TemplateVersionInfo(nil), fakeAgentVersions...)
+		} else if name == fakeGalaxyPanelAgent {
+			tmpl := fakeCoordinatorTemplate
+			detail.Template = &tmpl
+			detail.Versions = append([]TemplateVersionInfo(nil), fakeCoordinatorVersions...)
 		}
 		// Config section + memory pool sizes come from the registered fakeAgent (nil
 		// config => "no config entry" in the panel). Constant, so the detail stays

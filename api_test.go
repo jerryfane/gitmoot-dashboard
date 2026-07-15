@@ -565,6 +565,64 @@ func TestFakeWorkflowContractAndPagination(t *testing.T) {
 	}
 }
 
+func TestFakeGalaxyAgentsResolveToAgentRecords(t *testing.T) {
+	ds := NewFakeDataSource()
+	agents, err := ds.Agents(context.Background())
+	if err != nil {
+		t.Fatalf("Agents: %v", err)
+	}
+	byName := make(map[string]AgentSummary, len(agents))
+	for _, agent := range agents {
+		byName[agent.Name] = agent
+	}
+
+	graph, err := ds.Graph(context.Background(), "")
+	if err != nil {
+		t.Fatalf("Graph: %v", err)
+	}
+	seenPanelAgent := false
+	for _, node := range graph.Nodes {
+		if node.Type != "agent" {
+			continue
+		}
+		name := node.Agent
+		if name == "" {
+			name = node.Label
+		}
+		if _, ok := byName[name]; !ok {
+			t.Fatalf("galaxy agent %q has no matching AgentSummary", name)
+		}
+		if name == fakeGalaxyPanelAgent {
+			seenPanelAgent = true
+		}
+	}
+	if !seenPanelAgent {
+		t.Fatalf("graph missing full-panel fixture agent %q", fakeGalaxyPanelAgent)
+	}
+
+	detail, err := ds.Agent(context.Background(), fakeGalaxyPanelAgent)
+	if err != nil {
+		t.Fatalf("Agent(%q): %v", fakeGalaxyPanelAgent, err)
+	}
+	if detail.Template == nil || len(detail.Versions) == 0 || !detail.Versions[0].Current {
+		t.Fatalf("full-panel fixture missing template/current version: %+v", detail)
+	}
+	jobs, err := ds.Jobs(context.Background())
+	if err != nil {
+		t.Fatalf("Jobs: %v", err)
+	}
+	var hasTokenJob bool
+	for _, job := range jobs {
+		if job.Agent == fakeGalaxyPanelAgent && job.TokensIn > 0 && job.TokensOut > 0 {
+			hasTokenJob = true
+			break
+		}
+	}
+	if !hasTokenJob {
+		t.Fatalf("full-panel fixture agent %q has no token-bearing job", fakeGalaxyPanelAgent)
+	}
+}
+
 func TestFakeWorkflowIndexContractOrderingAndDeterminism(t *testing.T) {
 	t.Setenv("FAKEFEED_WORKFLOWS", "1")
 	srv := httptest.NewServer(Serve(NewFakeDataSource()))

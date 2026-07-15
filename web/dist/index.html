@@ -729,6 +729,7 @@ class Component extends DCLogic {
     try { window.removeEventListener('resize', this._galaxyResize); } catch (e) {}
     try { window.removeEventListener('resize', this._chartsResize); } catch (e) {}
     try { document.removeEventListener('keydown', this._jobsKeydown); } catch (e) {}
+    try { document.removeEventListener('keydown', this._galaxyKeydown); } catch (e) {}
     try { document.removeEventListener('keydown', this._agentsKeydown); } catch (e) {}
     try { document.removeEventListener('keydown', this._healthKeydown); } catch (e) {}
     try { document.removeEventListener('keydown', this._attentionKeydown); } catch (e) {}
@@ -1520,12 +1521,40 @@ class Component extends DCLogic {
       "#galaxy-root #g-detail .gd-block{background:#0a0b16;border:1px solid rgba(160,168,220,0.1);border-radius:9px;padding:12px 13px;font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:1.6;color:#c7c9e5;white-space:pre-wrap;word-break:break-word;margin-bottom:18px;max-height:260px;overflow-y:auto}",
       "#galaxy-root #g-detail .gd-pr{display:flex;align-items:center;gap:10px;padding:12px 14px;background:rgba(158,206,106,0.1);border:1px solid rgba(158,206,106,0.24);border-radius:10px;color:#c5f882;text-decoration:none;font-size:13px;font-weight:500}",
       "#galaxy-root #g-detail .gd-pr span{flex:1;font-family:'JetBrains Mono',monospace;font-size:12px;word-break:break-all}",
+      "#galaxy-root #g-detail.gd-agent-panel{top:18px;right:18px;bottom:auto;width:372px;max-height:calc(100% - 36px);box-sizing:border-box;background:#0f1120;border:1px solid rgba(160,168,220,.13);border-radius:10px;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none;overflow:hidden}",
+      "#galaxy-root #g-detail.gd-agent-panel .gd-head{padding:16px 17px 13px;border-bottom:1px solid rgba(160,168,220,.10)}",
+      "#galaxy-root #g-detail.gd-agent-panel .gd-dot{width:9px;height:9px;margin-top:5px}",
+      "#galaxy-root #g-detail.gd-agent-panel .gd-close{background:transparent;border-color:rgba(160,168,220,.13)}",
+      "#galaxy-root #g-detail.gd-agent-panel .gd-body{padding:14px 17px 17px;overflow-y:auto}",
+      "#galaxy-root .ga-headmeta{display:flex;align-items:center;gap:7px;margin-top:7px;flex-wrap:wrap}",
+      "#galaxy-root .ga-chip{display:inline-flex;align-items:center;padding:2px 7px;border:1px solid rgba(160,168,220,.13);border-radius:6px;font-family:'JetBrains Mono',monospace;font-size:10px;color:#8b90b8;background:#090b16}",
+      "#galaxy-root .ga-live{display:inline-flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:10px;color:#8b90b8}",
+      "#galaxy-root .ga-live-dot{width:7px;height:7px;border-radius:50%;flex:none}",
+      "#galaxy-root .ga-section{margin:16px 0 8px;font-family:'JetBrains Mono',monospace;font-size:9.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:#8b90b8}",
+      "#galaxy-root .ga-section:first-child{margin-top:0}",
+      "#galaxy-root .ga-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}",
+      "#galaxy-root .ga-stat{min-width:0;padding:9px 10px;background:#090b16;border:1px solid rgba(160,168,220,.13);border-radius:8px}",
+      "#galaxy-root .ga-stat b{display:block;font:600 15px 'JetBrains Mono',monospace;color:#c8cbe6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
+      "#galaxy-root .ga-stat span{display:block;margin-top:4px;font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:#656b91}",
+      "#galaxy-root .ga-profile{border-top:1px solid rgba(160,168,220,.08)}",
+      "#galaxy-root .ga-row{display:grid;grid-template-columns:92px minmax(0,1fr);gap:12px;padding:8px 0;border-bottom:1px solid rgba(160,168,220,.07)}",
+      "#galaxy-root .ga-key{font-family:'JetBrains Mono',monospace;font-size:10px;color:#656b91;text-transform:uppercase;letter-spacing:.06em}",
+      "#galaxy-root .ga-val{font-size:12px;color:#c8cbe6;line-height:1.45;word-break:break-word}",
+      "#galaxy-root .ga-val.mono{font-family:'JetBrains Mono',monospace;font-size:11px}",
+      "#galaxy-root .ga-caps{display:flex;gap:5px;flex-wrap:wrap}",
+      "#galaxy-root .ga-cap{padding:2px 6px;border:1px solid rgba(160,168,220,.13);border-radius:5px;background:#090b16;font-family:'JetBrains Mono',monospace;font-size:9.5px;color:#8b90b8}",
+      "#galaxy-root .ga-template{display:flex;align-items:center;gap:8px;padding:10px 11px;background:#090b16;border:1px solid rgba(160,168,220,.13);border-radius:8px}",
+      "#galaxy-root .ga-template-name{flex:1;min-width:0;font-size:12px;color:#c8cbe6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
+      "#galaxy-root .ga-template-ver{font-family:'JetBrains Mono',monospace;font-size:10px;color:#cabff2}",
+      "#galaxy-root .ga-action{display:flex;align-items:center;justify-content:space-between;margin-top:15px;padding:9px 11px;border:1px solid rgba(160,168,220,.13);border-radius:8px;color:#cabff2;text-decoration:none;font-size:11.5px;background:#090b16}",
+      "#galaxy-root .ga-action:hover{border-color:rgba(202,191,242,.34);background:rgba(202,191,242,.06)}",
+      "#galaxy-root .ga-empty{padding:14px 2px;color:#8b90b8;font-size:12px;line-height:1.5}",
       ".graph-tooltip{font-family:'Inter',sans-serif!important;font-size:12px!important;background:rgba(9,11,22,.94)!important;color:#c8cce6!important;border:1px solid rgba(125,207,255,.18)!important;border-radius:10px!important;padding:9px 12px!important;box-shadow:0 8px 30px rgba(0,0,0,.6)!important;backdrop-filter:blur(6px);max-width:320px;line-height:1.5}",
       ".graph-tooltip .tt-title{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:12.5px;margin-bottom:4px}",
       ".graph-tooltip .tt-row{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#7f86ad}",
       ".graph-tooltip .tt-row b{font-weight:500}",
       // Mobile: the node-detail panel becomes a full-screen sheet.
-      "@media (max-width:768px){#galaxy-root #g-detail{width:100%;left:0;border-left:none}}",
+      "@media (max-width:768px){#galaxy-root #g-detail{width:100%;left:0;border-left:none}#galaxy-root #g-detail.gd-agent-panel{left:12px;right:12px;top:12px;width:auto;max-height:calc(100% - 24px);border:1px solid rgba(160,168,220,.13)}}",
       // Coarse pointers: bump the close target to >=44px.
       "@media (pointer:coarse){#galaxy-root #g-detail .gd-close{width:44px;height:44px;font-size:17px}}"
     ].join('\n');
@@ -1568,6 +1597,10 @@ class Component extends DCLogic {
     this._galaxyGraphEl = root.querySelector('#g-graph');
     const sel = root.querySelector('#g-repoFilter');
     sel.addEventListener('change', () => { this._galaxyRepo = sel.value; this.fetchGalaxy(sel.value); });
+    this._galaxyKeydown = (e) => {
+      if (e.key === 'Escape' && this.state.view === 'galaxy' && this._galaxyDetailEl) this.closeGalaxyDetail();
+    };
+    document.addEventListener('keydown', this._galaxyKeydown);
     this._galaxyResize = () => {
       if (this.state.view !== 'galaxy' || !this._galaxyGraph) return;
       const r = this._galaxyGraphEl.getBoundingClientRect();
@@ -2224,7 +2257,8 @@ class Component extends DCLogic {
     // the panel DOM/fetch below don't depend on the render loop).
     if (this._galaxyWake) this._galaxyWake();
 
-    if (node.type === 'repo' || node.type === 'agent') { this.renderGalaxyHubDetail(node); return; }
+    if (node.type === 'agent') { this.loadGalaxyAgentDetail(node); return; }
+    if (node.type === 'repo') { this.renderGalaxyHubDetail(node); return; }
     // job node -> fetch full detail.
     this.renderGalaxyJobDetail(node, null, 'loading');
     const fid = (this._galaxyDetailFetchId = node.id);
@@ -2234,8 +2268,157 @@ class Component extends DCLogic {
       .catch(() => { if (this._galaxyDetailFetchId === fid) this.renderGalaxyJobDetail(node, null, 'error'); });
   }
 
+  _galaxyAgentName(node) {
+    return String((node && (node.agent || node.label)) || (node && node.id) || '').replace(/^agent::/, '');
+  }
+
+  _galaxyFetchJSON(url) {
+    return fetch(url, { cache: 'no-store' }).then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)));
+  }
+
+  _galaxyAgentSummaries() {
+    if (Array.isArray(this._agentsData)) return Promise.resolve(this._agentsData);
+    if (this._galaxyAgentsFetch) return this._galaxyAgentsFetch;
+    this._galaxyAgentsFetch = this._galaxyFetchJSON('/api/agents').then(json => {
+      this._agentsData = Array.isArray(json) ? json : [];
+      this._agentsLoaded = true;
+      return this._agentsData;
+    }).finally(() => { this._galaxyAgentsFetch = null; });
+    return this._galaxyAgentsFetch;
+  }
+
+  _galaxyAgentRecord(name) {
+    if (!this._galaxyAgentDetails) this._galaxyAgentDetails = {};
+    if (Object.prototype.hasOwnProperty.call(this._galaxyAgentDetails, name)) return Promise.resolve(this._galaxyAgentDetails[name]);
+    if (this._agDetailName === name && this._agDetailStatus === 'ok') return Promise.resolve(this._agDetail || null);
+    return this._galaxyFetchJSON('/api/agent/' + encodeURIComponent(name)).then(detail => {
+      this._galaxyAgentDetails[name] = detail || null;
+      return this._galaxyAgentDetails[name];
+    });
+  }
+
+  _galaxyAgentJobs() {
+    if (Array.isArray(this._agAllJobs) && Date.now() - (this._agAllJobsAt || 0) < 10000) return Promise.resolve(this._agAllJobs);
+    if (this._galaxyAgentJobsFetch) return this._galaxyAgentJobsFetch;
+    this._galaxyAgentJobsFetch = this._galaxyFetchJSON('/api/jobs').then(json => {
+      this._agAllJobs = Array.isArray(json) ? json : [];
+      this._agAllJobsAt = Date.now();
+      return this._agAllJobs;
+    }).finally(() => { this._galaxyAgentJobsFetch = null; });
+    return this._galaxyAgentJobsFetch;
+  }
+
+  loadGalaxyAgentDetail(node) {
+    const name = this._galaxyAgentName(node);
+    const fid = (this._galaxyDetailFetchId = node.id);
+    this.renderGalaxyAgentDetail(node, null, null, null, 'loading');
+    const safe = (promise, fallback) => promise.then(value => value).catch(() => fallback);
+    Promise.all([
+      safe(this._galaxyAgentSummaries(), []),
+      safe(this._galaxyAgentRecord(name), null),
+      safe(this._galaxyAgentJobs(), null)
+    ]).then(([agents, detail, jobs]) => {
+      if (this._galaxyDetailFetchId !== fid) return;
+      const summary = (agents || []).find(a => a && a.name === name) || detail || null;
+      this.renderGalaxyAgentDetail(node, summary, detail, jobs, summary ? 'ok' : 'missing');
+    });
+  }
+
+  _galaxyPanelShell(options) {
+    const esc = (s) => this._galaxyEsc(s);
+    const el = this.ensureGalaxyDetailEl();
+    el.className = options.className || '';
+    el.innerHTML = '<div class="gd-head"><div class="gd-hrow">' +
+      '<span class="gd-dot" style="background:' + esc(options.color || '#8b90b8') + '"></span>' +
+      '<div style="flex:1;min-width:0"><div class="gd-title">' + esc(options.title || '—') + '</div>' +
+      '<div class="gd-sub">' + esc(options.subtitle || '') + '</div>' + (options.headerMeta || '') + '</div>' +
+      '<button class="gd-close" type="button" title="close" aria-label="Close">✕</button></div></div>' +
+      '<div class="gd-body">' + (options.body || '') + '</div>';
+    el.querySelector('.gd-close').addEventListener('click', () => this.closeGalaxyDetail());
+    return el;
+  }
+
+  _galaxyAgentToday(jobs, name) {
+    if (!Array.isArray(jobs)) return null;
+    const start = new Date(); start.setHours(0, 0, 0, 0);
+    const end = new Date(start); end.setDate(end.getDate() + 1);
+    const today = jobs.filter(j => {
+      const at = Number((j && (j.started || j.updated)) || 0);
+      return j && j.agent === name && at >= start.getTime() && at < end.getTime();
+    });
+    const hasTokens = today.some(j => Object.prototype.hasOwnProperty.call(j, 'tokensIn') || Object.prototype.hasOwnProperty.call(j, 'tokensOut'));
+    return {
+      succeeded: today.filter(j => j.state === 'succeeded').length,
+      failed: today.filter(j => j.state === 'failed').length,
+      tokensIn: today.reduce((n, j) => n + (Number(j.tokensIn) || 0), 0),
+      tokensOut: today.reduce((n, j) => n + (Number(j.tokensOut) || 0), 0),
+      hasTokens: hasTokens
+    };
+  }
+
+  renderGalaxyAgentDetail(node, summary, detail, jobs, status) {
+    const esc = (s) => this._galaxyEsc(s);
+    const name = this._galaxyAgentName(node);
+    const a = summary || {};
+    const d = detail || {};
+    const cfg = d.config || {};
+    const runtime = a.runtime || d.runtime || '';
+    const model = cfg.model || a.model || d.model || '';
+    const health = String(a.health || d.health || '').toLowerCase();
+    const running = Number(a.runningCount || d.runningCount || 0);
+    const state = running > 0 ? 'running' : (health === 'failed' ? 'failed' : (health === 'degraded' ? 'blocked' : (health === 'healthy' ? 'succeeded' : 'queued')));
+    const color = this._galaxyStateColor(state);
+    const liveLabel = running > 0 ? (running + ' running') : (health || 'idle');
+    const runtimeLabel = runtime + (model ? (runtime ? ' · ' : '') + model : '');
+    const headerMeta = '<div class="ga-headmeta">' +
+      (runtimeLabel ? '<span class="ga-chip">' + esc(runtimeLabel) + '</span>' : '') +
+      '<span class="ga-live"><span class="ga-live-dot" style="background:' + color + '"></span>' + esc(liveLabel) + '</span></div>';
+
+    if (status === 'loading') {
+      this._galaxyPanelShell({ className: 'gd-agent-panel', title: name, subtitle: 'agent', color: '#8b90b8', headerMeta: '', body: '<div class="ga-empty">Loading agent record…</div>' });
+      return;
+    }
+    if (status === 'missing') {
+      this._galaxyPanelShell({ className: 'gd-agent-panel', title: name, subtitle: 'agent', color: '#8b90b8', headerMeta: '', body: '<div class="ga-empty">No matching agent record was returned by /api/agents.</div>' });
+      return;
+    }
+
+    let connected = 0;
+    try { const set = this._galaxyAdj && this._galaxyAdj.neighbors[node.id]; connected = set ? set.size : 0; } catch (e) {}
+    const today = this._galaxyAgentToday(jobs, name);
+    const tokenFmt = (n) => n > 0 ? this._fmtTokens(n) : '0';
+    let stats = '<div class="ga-stat"><b>' + connected + '</b><span>connected jobs</span></div>';
+    if (today) {
+      stats += '<div class="ga-stat"><b style="color:#7da357">' + today.succeeded + '</b><span>succeeded today</span></div>' +
+        '<div class="ga-stat"><b style="color:' + (today.failed ? '#c25e73' : '#8b90b8') + '">' + today.failed + '</b><span>failed today</span></div>';
+      if (today.hasTokens) stats += '<div class="ga-stat"><b>' + esc(tokenFmt(today.tokensIn)) + ' / ' + esc(tokenFmt(today.tokensOut)) + '</b><span>tokens in / out today</span></div>';
+    }
+
+    const rows = [];
+    if (a.role || d.role) rows.push('<div class="ga-row"><span class="ga-key">role</span><span class="ga-val">' + esc(a.role || d.role) + '</span></div>');
+    if (a.autonomyPolicy || d.autonomyPolicy) rows.push('<div class="ga-row"><span class="ga-key">autonomy</span><span class="ga-val mono">' + esc(a.autonomyPolicy || d.autonomyPolicy) + '</span></div>');
+    const capabilities = Array.isArray(a.capabilities) ? a.capabilities : (Array.isArray(d.capabilities) ? d.capabilities : []);
+    if (capabilities.length) rows.push('<div class="ga-row"><span class="ga-key">capabilities</span><span class="ga-caps">' + capabilities.map(c => '<span class="ga-cap">' + esc(c) + '</span>').join('') + '</span></div>');
+    if (a.lastActive || d.lastActive) rows.push('<div class="ga-row"><span class="ga-key">last activity</span><span class="ga-val mono">' + esc(this._agRelShort(a.lastActive || d.lastActive) || 'now') + '</span></div>');
+
+    const tmpl = d.template || null;
+    const versions = Array.isArray(d.versions) ? d.versions : [];
+    const current = versions.find(v => v && v.current) || versions[0] || null;
+    const templateName = (tmpl && (tmpl.name || tmpl.id)) || cfg.template || '';
+    const version = current && current.number != null ? ('v' + current.number) : '';
+    const templateHTML = templateName ? '<div class="ga-section">Template</div><div class="ga-template"><span class="ga-template-name">' + esc(templateName) + '</span>' + (version ? '<span class="ga-template-ver">' + esc(version) + '</span>' : '') + '</div>' : '';
+    const jobsHref = '/jobs?agent=' + encodeURIComponent(name);
+    const body = '<div class="ga-section">Activity</div><div class="ga-stats">' + stats + '</div>' +
+      (rows.length ? '<div class="ga-section">Profile</div><div class="ga-profile">' + rows.join('') + '</div>' : '') +
+      templateHTML + '<a class="ga-action" href="' + jobsHref + '"><span>Jobs for this agent</span><span>↗</span></a>';
+    const el = this._galaxyPanelShell({ className: 'gd-agent-panel', title: name, subtitle: 'agent', color: color, headerMeta: headerMeta, body: body });
+    const link = el.querySelector('.ga-action');
+    if (link) link.addEventListener('click', (e) => { e.preventDefault(); this.closeGalaxyDetail(); this.showJobs(name); });
+  }
+
   renderGalaxyHubDetail(node) {
     const el = this.ensureGalaxyDetailEl();
+    el.className = '';
     const esc = (s) => this._galaxyEsc(s);
     const isRepo = node.type === 'repo';
     const col = isRepo ? '#7dcfff' : '#bb9af7';
@@ -2266,6 +2449,7 @@ class Component extends DCLogic {
 
   renderGalaxyJobDetail(node, job, status) {
     const el = this.ensureGalaxyDetailEl();
+    el.className = '';
     const esc = (s) => this._galaxyEsc(s);
     // on fetch error, fall back to what the node itself carries.
     const state = (job && job.state) || node.state || 'queued';
