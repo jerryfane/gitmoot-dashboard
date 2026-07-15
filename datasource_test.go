@@ -19,13 +19,15 @@ func TestPipelineStageProgressJSON(t *testing.T) {
 		if stage.ProgressActivity != "" || stage.ProgressAt != 0 {
 			t.Fatalf("legacy PipelineStage gained progress fields: %+v", stage)
 		}
+		stage.Deps = []string{}
 
 		got, err := json.Marshal(stage)
 		if err != nil {
 			t.Fatalf("marshal legacy PipelineStage: %v", err)
 		}
-		if string(got) != payload {
-			t.Fatalf("legacy PipelineStage JSON = %s, want %s", got, payload)
+		const want = `{"id":"build","state":"running","deps":[]}`
+		if string(got) != want {
+			t.Fatalf("legacy PipelineStage JSON = %s, want %s", got, want)
 		}
 	})
 
@@ -41,13 +43,15 @@ func TestPipelineStageProgressJSON(t *testing.T) {
 		if stage.ProgressActivity != "compiled package 42/100" || stage.ProgressAt != 1_720_000_123_456 {
 			t.Fatalf("progress PipelineStage fields = %+v", stage)
 		}
+		stage.Deps = []string{}
 
 		got, err := json.Marshal(stage)
 		if err != nil {
 			t.Fatalf("marshal progress PipelineStage: %v", err)
 		}
-		if string(got) != payload {
-			t.Fatalf("progress PipelineStage JSON = %s, want %s", got, payload)
+		const want = `{"id":"build","state":"running","deps":[],"progressActivity":"compiled package 42/100","progressAt":1720000123456}`
+		if string(got) != want {
+			t.Fatalf("progress PipelineStage JSON = %s, want %s", got, want)
 		}
 	})
 
@@ -60,13 +64,15 @@ func TestPipelineStageProgressJSON(t *testing.T) {
 		if stage.Kind != "agent_ask" || stage.AgentRuntime != "codex" || stage.JobID != "job-1" {
 			t.Fatalf("kind/runtime PipelineStage fields = %+v", stage)
 		}
+		stage.Deps = []string{}
 
 		got, err := json.Marshal(stage)
 		if err != nil {
 			t.Fatalf("marshal kind/runtime PipelineStage: %v", err)
 		}
-		if string(got) != payload {
-			t.Fatalf("kind/runtime PipelineStage JSON = %s, want %s", got, payload)
+		const want = `{"id":"answer","state":"running","kind":"agent_ask","agentRuntime":"codex","deps":[],"jobId":"job-1"}`
+		if string(got) != want {
+			t.Fatalf("kind/runtime PipelineStage JSON = %s, want %s", got, want)
 		}
 	})
 }

@@ -2057,14 +2057,14 @@ func fakePipelineRuns() map[string]PipelineRun {
 			StartedAt:  ago(6 * h),
 			FinishedAt: ago(6*h - 13*m),
 			Stages: []PipelineStage{
-				{ID: "source", State: "succeeded", Kind: "shell", Cmd: "git fetch --all && git checkout main", JobID: "job-nd1-source", Summary: "checked out main @ a1b2c3d", StartedAt: ago(6 * h), FinishedAt: ago(6*h - 3*m)},
+				{ID: "source", State: "succeeded", Kind: "shell", Deps: []string{}, Cmd: "git fetch --all && git checkout main", JobID: "job-nd1-source", Summary: "checked out main @ a1b2c3d", StartedAt: ago(6 * h), FinishedAt: ago(6*h - 3*m)},
 				{ID: "build", State: "succeeded", Kind: "agent_ask", AgentRuntime: "codex", Deps: []string{"source"}, Cmd: "make build", JobID: "job-nd1-build", Summary: "built 42 packages, 0 warnings", StartedAt: ago(6*h - 3*m), FinishedAt: ago(6*h - 10*m)},
 				{ID: "deploy", State: "succeeded", Kind: "gate", Deps: []string{"build"}, Cmd: "./scripts/deploy.sh --env prod", JobID: "job-nd1-deploy", Summary: "deployed to prod, health green", StartedAt: ago(6*h - 10*m), FinishedAt: ago(6*h - 13*m)},
 			},
 		},
-		// In-flight run: source succeeded, build running, deploy pending (no job
-		// assigned yet). A static snapshot of a previous hung cycle (StartedAt 30h
-		// ago), so poll-stable byte-equality still holds.
+		// In-flight run: source succeeded, build running with progress, deploy
+		// pending (no job assigned yet). A static snapshot of a previous hung cycle
+		// (StartedAt 30h ago), so poll-stable byte-equality still holds.
 		"prun-nightly-deploy-0002": {
 			ID:        "prun-nightly-deploy-0002",
 			Pipeline:  "nightly-deploy",
@@ -2074,8 +2074,8 @@ func fakePipelineRuns() map[string]PipelineRun {
 			SpecHash:  "sha256:9c1f0ade",
 			StartedAt: ago(30 * h),
 			Stages: []PipelineStage{
-				{ID: "source", State: "succeeded", Kind: "shell", Cmd: "git fetch --all && git checkout main", JobID: "job-nd2-source", Summary: "checked out main @ b2c3d4e", StartedAt: ago(30 * h), FinishedAt: ago(30*h - 4*m)},
-				{ID: "build", State: "running", Kind: "agent_ask", AgentRuntime: "codex", Deps: []string{"source"}, Cmd: "make build", JobID: "job-nd2-build", Summary: "compiling packages", StartedAt: ago(30*h - 4*m)},
+				{ID: "source", State: "succeeded", Kind: "shell", Deps: []string{}, Cmd: "git fetch --all && git checkout main", JobID: "job-nd2-source", Summary: "checked out main @ b2c3d4e", StartedAt: ago(30 * h), FinishedAt: ago(30*h - 4*m)},
+				{ID: "build", State: "running", Kind: "agent_ask", AgentRuntime: "codex", Deps: []string{"source"}, Cmd: "make build", JobID: "job-nd2-build", Summary: "compiling packages", ProgressActivity: "compiled 31 of 42 packages", ProgressAt: ago(29*h + 42*m), StartedAt: ago(30*h - 4*m)},
 				{ID: "deploy", State: "pending", Kind: "gate", Deps: []string{"build"}, Cmd: "./scripts/deploy.sh --env prod"},
 			},
 		},
@@ -2093,7 +2093,7 @@ func fakePipelineRuns() map[string]PipelineRun {
 			StartedAt:  ago(3 * 24 * h),
 			FinishedAt: ago(3*24*h - 9*m),
 			Stages: []PipelineStage{
-				{ID: "source", State: "succeeded", Kind: "shell", Cmd: "git fetch --all && git checkout main", JobID: "job-nd0-source", Summary: "checked out main @ 0f1e2d3", StartedAt: ago(3 * 24 * h), FinishedAt: ago(3*24*h - 2*m)},
+				{ID: "source", State: "succeeded", Kind: "shell", Deps: []string{}, Cmd: "git fetch --all && git checkout main", JobID: "job-nd0-source", Summary: "checked out main @ 0f1e2d3", StartedAt: ago(3 * 24 * h), FinishedAt: ago(3*24*h - 2*m)},
 				{ID: "build", State: "succeeded", Kind: "agent_ask", AgentRuntime: "codex", Deps: []string{"source"}, Cmd: "make build", JobID: "job-nd0-build", Summary: "built 41 packages", StartedAt: ago(3*24*h - 2*m), FinishedAt: ago(3*24*h - 7*m)},
 				{ID: "deploy", State: "failed", Kind: "gate", Deps: []string{"build"}, Cmd: "./scripts/deploy.sh --env prod", JobID: "job-nd0-deploy", Summary: "deploy script exited 1: prod healthcheck failed", StartedAt: ago(3*24*h - 7*m), FinishedAt: ago(3*24*h - 9*m)},
 			},
@@ -2115,7 +2115,7 @@ func fakePipelineRuns() map[string]PipelineRun {
 			Needs:      []string{"set R2 token: gitmoot config set r2.token"},
 			StartedAt:  ago(2 * h),
 			Stages: []PipelineStage{
-				{ID: "fetch", State: "succeeded", Kind: "shell", Cmd: "gitmoot listings fetch --source noted", JobID: "job-lr1-fetch", Summary: "fetched 128 listings", StartedAt: ago(2 * h), FinishedAt: ago(2*h - 3*m)},
+				{ID: "fetch", State: "succeeded", Kind: "shell", Deps: []string{}, Cmd: "gitmoot listings fetch --source noted", JobID: "job-lr1-fetch", Summary: "fetched 128 listings", StartedAt: ago(2 * h), FinishedAt: ago(2*h - 3*m)},
 				{ID: "score", State: "blocked", Kind: "agent_ask", AgentRuntime: "codex", Deps: []string{"fetch"}, Cmd: "gitmoot listings score --model r2", JobID: "job-lr1-score", Retry: 2, Needs: []string{"set R2 token: gitmoot config set r2.token"}, Summary: "blocked: scoring needs the R2 token & <credentials> before it can run", StartedAt: ago(2*h - 3*m)},
 				{ID: "dedupe", State: "succeeded", Kind: "shell", Deps: []string{"fetch"}, Cmd: "gitmoot listings dedupe", JobID: "job-lr1-dedupe", Summary: "removed 9 duplicates", StartedAt: ago(2*h - 3*m), FinishedAt: ago(2*h - 6*m)},
 				{ID: "publish", State: "skipped", Kind: "gate", Deps: []string{"score", "dedupe"}, Cmd: "gitmoot listings publish", Summary: "skipped: upstream stage score is blocked"},
@@ -2136,7 +2136,7 @@ func fakePipelineRuns() map[string]PipelineRun {
 			StartedAt:  ago(26 * h),
 			FinishedAt: ago(26*h - 34*m),
 			Stages: []PipelineStage{
-				{ID: "setup", State: "succeeded", Kind: "shell", Cmd: "make bench-setup", JobID: "job-bs1-setup", Summary: "warmed caches, seeded 10k rows", StartedAt: ago(26 * h), FinishedAt: ago(26*h - 4*m)},
+				{ID: "setup", State: "succeeded", Kind: "shell", Deps: []string{}, Cmd: "make bench-setup", JobID: "job-bs1-setup", Summary: "warmed caches, seeded 10k rows", StartedAt: ago(26 * h), FinishedAt: ago(26*h - 4*m)},
 				{ID: "bench", State: "failed", Kind: "shell", Deps: []string{"setup"}, Cmd: `./scripts/bench.sh --filter "p<95> && q>1"`, JobID: "job-bs1-bench", Attempt: 2, Retry: 2, Summary: "benchmark timeout after 2 retries (filter p<95> && q>1)", StartedAt: ago(26*h - 4*m), FinishedAt: ago(26*h - 34*m)},
 				{ID: "report", State: "skipped", Kind: "shell", Deps: []string{"bench"}, Cmd: "./scripts/report.sh", Summary: "skipped: upstream stage bench failed"},
 			},
@@ -2415,7 +2415,7 @@ func fakePipelineDetail(name string) (PipelineDetail, bool) {
 	switch name {
 	case "nightly-deploy":
 		declared := []PipelineStage{
-			{ID: "source", State: "pending", Kind: "shell", Cmd: "git fetch --all && git checkout main"},
+			{ID: "source", State: "pending", Kind: "shell", Deps: []string{}, Cmd: "git fetch --all && git checkout main"},
 			{ID: "build", State: "pending", Kind: "agent_ask", AgentRuntime: "codex", Deps: []string{"source"}, Cmd: "make build"},
 			{ID: "deploy", State: "pending", Kind: "gate", Deps: []string{"build"}, Cmd: "./scripts/deploy.sh --env prod"},
 		}
@@ -2434,7 +2434,7 @@ func fakePipelineDetail(name string) (PipelineDetail, bool) {
 
 	case "listing-refresh":
 		declared := []PipelineStage{
-			{ID: "fetch", State: "pending", Kind: "shell", Cmd: "gitmoot listings fetch --source noted"},
+			{ID: "fetch", State: "pending", Kind: "shell", Deps: []string{}, Cmd: "gitmoot listings fetch --source noted"},
 			{ID: "score", State: "pending", Kind: "agent_ask", AgentRuntime: "codex", Deps: []string{"fetch"}, Cmd: "gitmoot listings score --model r2", Retry: 2},
 			{ID: "dedupe", State: "pending", Kind: "shell", Deps: []string{"fetch"}, Cmd: "gitmoot listings dedupe"},
 			{ID: "publish", State: "pending", Kind: "gate", Deps: []string{"score", "dedupe"}, Cmd: "gitmoot listings publish"},
@@ -2460,7 +2460,7 @@ func fakePipelineDetail(name string) (PipelineDetail, bool) {
 
 	case "bench-suite":
 		declared := []PipelineStage{
-			{ID: "setup", State: "pending", Kind: "shell", Cmd: "make bench-setup"},
+			{ID: "setup", State: "pending", Kind: "shell", Deps: []string{}, Cmd: "make bench-setup"},
 			{ID: "bench", State: "pending", Kind: "shell", Deps: []string{"setup"}, Cmd: `./scripts/bench.sh --filter "p<95> && q>1"`, Retry: 2},
 			{ID: "report", State: "pending", Kind: "shell", Deps: []string{"bench"}, Cmd: "./scripts/report.sh"},
 		}
