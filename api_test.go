@@ -2254,9 +2254,32 @@ func TestHandlePipelineRun(t *testing.T) {
 	defer srv.Close()
 
 	// The parked-blocked diamond fixture exercises needs + a skipped branch.
+	raw := getRaw(t, srv.URL+"/api/pipeline/run/prun-listing-refresh-0001")
 	var run PipelineRun
-	if err := json.Unmarshal(getRaw(t, srv.URL+"/api/pipeline/run/prun-listing-refresh-0001"), &run); err != nil {
+	if err := json.Unmarshal(raw, &run); err != nil {
 		t.Fatalf("decode: %v", err)
+	}
+	var wire struct {
+		Stages []map[string]json.RawMessage `json:"stages"`
+	}
+	if err := json.Unmarshal(raw, &wire); err != nil {
+		t.Fatalf("decode wire stages: %v", err)
+	}
+	for i, stage := range wire.Stages {
+		depsRaw, ok := stage["deps"]
+		if !ok {
+			t.Fatalf("stage %d wire object omitted deps: %s", i, stage["id"])
+		}
+		var deps []string
+		if err := json.Unmarshal(depsRaw, &deps); err != nil {
+			t.Fatalf("stage %d deps wire value: %v", i, err)
+		}
+		if deps == nil {
+			t.Fatalf("stage %d deps wire value = %s, want an array", i, depsRaw)
+		}
+	}
+	if depsRaw := wire.Stages[0]["deps"]; string(depsRaw) != "[]" {
+		t.Fatalf("root stage deps wire value = %s, want []", depsRaw)
 	}
 	if run.ID != "prun-listing-refresh-0001" {
 		t.Fatalf("run.ID = %q, want prun-listing-refresh-0001", run.ID)

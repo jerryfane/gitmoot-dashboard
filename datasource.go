@@ -843,7 +843,7 @@ type PipelineStage struct {
 	State        string   `json:"state"`                  // pending | queued | running | succeeded | blocked | failed | skipped | cancelled
 	Kind         string   `json:"kind,omitempty"`         // shell | agent_ask | agent_review | agent_implement | produce | gate | orchestrate
 	AgentRuntime string   `json:"agentRuntime,omitempty"` // runtime backing an agent stage, when known
-	Deps         []string `json:"deps,omitempty"`
+	Deps         []string `json:"deps"`                   // DAG dependency IDs in payload order; may be empty
 	Cmd          string   `json:"cmd,omitempty"`
 	JobID        string   `json:"jobId,omitempty"`
 	Attempt      int      `json:"attempt,omitempty"`
