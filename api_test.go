@@ -565,7 +565,7 @@ func TestFakeWorkflowContractAndPagination(t *testing.T) {
 	}
 }
 
-func TestFakeGalaxyAgentsResolveToAgentRecords(t *testing.T) {
+func TestFakeGalaxyAgentRecordCoverage(t *testing.T) {
 	ds := NewFakeDataSource()
 	agents, err := ds.Agents(context.Background())
 	if err != nil {
@@ -581,6 +581,7 @@ func TestFakeGalaxyAgentsResolveToAgentRecords(t *testing.T) {
 		t.Fatalf("Graph: %v", err)
 	}
 	seenPanelAgent := false
+	seenEphemeral := false
 	for _, node := range graph.Nodes {
 		if node.Type != "agent" {
 			continue
@@ -589,8 +590,16 @@ func TestFakeGalaxyAgentsResolveToAgentRecords(t *testing.T) {
 		if name == "" {
 			name = node.Label
 		}
-		if _, ok := byName[name]; !ok {
-			t.Fatalf("galaxy agent %q has no matching AgentSummary", name)
+		_, registered := byName[name]
+		if name == fakeEphemeralAgent {
+			seenEphemeral = true
+			if registered {
+				t.Fatalf("ephemeral galaxy agent %q unexpectedly has an AgentSummary", name)
+			}
+			continue
+		}
+		if !registered {
+			t.Fatalf("registered galaxy agent %q has no matching AgentSummary", name)
 		}
 		if name == fakeGalaxyPanelAgent {
 			seenPanelAgent = true
@@ -598,6 +607,12 @@ func TestFakeGalaxyAgentsResolveToAgentRecords(t *testing.T) {
 	}
 	if !seenPanelAgent {
 		t.Fatalf("graph missing full-panel fixture agent %q", fakeGalaxyPanelAgent)
+	}
+	if !seenEphemeral {
+		t.Fatalf("graph missing ephemeral-panel fixture agent %q", fakeEphemeralAgent)
+	}
+	if _, err := ds.Agent(context.Background(), fakeEphemeralAgent); err != ErrAgentNotFound {
+		t.Fatalf("Agent(%q) error = %v, want %v", fakeEphemeralAgent, err, ErrAgentNotFound)
 	}
 
 	detail, err := ds.Agent(context.Background(), fakeGalaxyPanelAgent)
@@ -611,15 +626,20 @@ func TestFakeGalaxyAgentsResolveToAgentRecords(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Jobs: %v", err)
 	}
-	var hasTokenJob bool
+	var hasTokenJob, hasEphemeralTokenJob bool
 	for _, job := range jobs {
 		if job.Agent == fakeGalaxyPanelAgent && job.TokensIn > 0 && job.TokensOut > 0 {
 			hasTokenJob = true
-			break
+		}
+		if job.Agent == fakeEphemeralAgent && job.TokensIn > 0 && job.TokensOut > 0 {
+			hasEphemeralTokenJob = true
 		}
 	}
 	if !hasTokenJob {
 		t.Fatalf("full-panel fixture agent %q has no token-bearing job", fakeGalaxyPanelAgent)
+	}
+	if !hasEphemeralTokenJob {
+		t.Fatalf("ephemeral-panel fixture agent %q has no token-bearing job", fakeEphemeralAgent)
 	}
 }
 

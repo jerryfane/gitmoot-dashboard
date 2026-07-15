@@ -35,6 +35,8 @@ const (
 	fakeRunTitle        = "noted: add note search, delete, and export"
 	fakeWorkflow        = "fable/dashboard-redesign"
 	fakeStalledWorkflow = "fable/arxiv-retry-hardening"
+	fakeEphemeralAgent  = "wave-impl-temp-7f3a"
+	fakeEphemeralJobID  = "job-ephemeral-demo"
 	// fakeRepo is the repository the fake run operates on (shared by Jobs/Graph).
 	fakeRepo = "acme/webapp"
 	// fakeTickInterval is how often the background goroutine advances the run.
@@ -344,6 +346,9 @@ func (f *FakeDataSource) Job(ctx context.Context, jobID string) (Node, error) {
 	if f.workflowsEnabled && jobID == "demo-single-job" {
 		return fakeWorkflowSingleNode(f.st.Nodes[0].StartedAt), nil
 	}
+	if jobID == fakeEphemeralJobID {
+		return fakeEphemeralGalaxyNode(f.st.Nodes[0].StartedAt), nil
+	}
 	return Node{}, ErrJobNotFound
 }
 
@@ -411,6 +416,13 @@ func (f *FakeDataSource) Graph(ctx context.Context, repo string) (Graph, error) 
 			g.Links = append(g.Links, GraphLink{Source: n.ID, Target: "agent::" + n.Agent, Kind: "agent"})
 		}
 	}
+	ephemeral := fakeEphemeralGalaxyNode(snap.Nodes[0].StartedAt)
+	g.Nodes = append(g.Nodes, GraphNode{ID: ephemeral.ID, Type: "job", Label: ephemeral.Title, State: ephemeral.State, Agent: ephemeral.Agent, Repo: fakeRepo, Run: snap.RunID})
+	g.Links = append(g.Links,
+		GraphLink{Source: ephemeral.ID, Target: "repo::" + fakeRepo, Kind: "repo"},
+		GraphLink{Source: ephemeral.ID, Target: "agent::" + ephemeral.Agent, Kind: "agent"},
+	)
+	agents[ephemeral.Agent] = true
 	g.Nodes = append(g.Nodes, GraphNode{ID: "repo::" + fakeRepo, Type: "repo", Label: fakeRepo, Repo: fakeRepo})
 	for a := range agents {
 		g.Nodes = append(g.Nodes, GraphNode{ID: "agent::" + a, Type: "agent", Label: a, Agent: a})
@@ -434,6 +446,19 @@ func (f *FakeDataSource) Graph(ctx context.Context, repo string) (Graph, error) 
 		})
 	}
 	return g, nil
+}
+
+// fakeEphemeralGalaxyNode is intentionally present in Graph and Jobs but absent
+// from Agents/Agent, matching a one-off worker with no persistent registration.
+func fakeEphemeralGalaxyNode(anchor int64) Node {
+	started := anchor - int64(4*time.Minute/time.Millisecond)
+	ended := started + int64(2*time.Minute/time.Millisecond)
+	return Node{
+		ID: fakeEphemeralJobID, Title: "implement: transient delegation patch",
+		Agent: fakeEphemeralAgent, Runtime: "codex", Model: "gpt-5.5",
+		State: "succeeded", StartedAt: started, EndedAt: ended,
+		Events: []Event{{T: started, Label: "started"}, {T: ended, Label: "completed"}},
+	}
 }
 
 func fakeWorkflowSingleNode(anchor int64) Node {
@@ -965,6 +990,7 @@ func (f *FakeDataSource) Jobs(ctx context.Context) ([]JobSummary, error) {
 	for _, n := range snap.Nodes {
 		jobs = append(jobs, jobSummaryFor(n, snap.RunID))
 	}
+	jobs = append(jobs, jobSummaryFor(fakeEphemeralGalaxyNode(snap.Nodes[0].StartedAt), snap.RunID))
 	sort.SliceStable(jobs, func(i, j int) bool {
 		if jobs[i].Updated != jobs[j].Updated {
 			return jobs[i].Updated > jobs[j].Updated // Updated desc
