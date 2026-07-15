@@ -7637,6 +7637,10 @@ class Component extends DCLogic {
       const due = +el.getAttribute('data-due');
       el.textContent = this._plFmtCountdown(due, now);
     });
+    this._pipelinesRoot.querySelectorAll('.pl-ledger-due').forEach(el => {
+      const due = +el.getAttribute('data-due');
+      el.textContent = this._plFmtLedgerDue(due, now);
+    });
     // the RUNS-rail footer carries a "next run in …" countdown of its own.
     this._pipelinesRoot.querySelectorAll('.pl-nextdue').forEach(el => {
       const due = +el.getAttribute('data-due');
@@ -7672,46 +7676,62 @@ class Component extends DCLogic {
     if (this._pipelinesRoot) return this._pipelinesRoot;
     // Runs-rail collapse pref (persisted; the Graph runsOpen pattern) + default tab.
     if (this._plRunsOpen == null) { let v = true; try { const s = localStorage.getItem('gitmoot.plRunsOpen'); if (s != null) v = s === '1'; } catch (e) {} this._plRunsOpen = v; }
+    if (!(this._plExpandedGroups instanceof Set)) this._plExpandedGroups = this._plLoadExpandedGroups();
     if (!this._plTab) this._plTab = 'dag';
     const st = document.createElement('style');
     st.textContent = [
       "#pipelines-root{font-family:Inter,system-ui,sans-serif;color:#c8cce6;overflow:hidden}",
       "#pipelines-root #pl-list{height:100%;overflow-y:auto;box-sizing:border-box}",
-      "#pipelines-root .pl-head{display:flex;align-items:baseline;gap:14px;padding:18px 24px 6px;flex-wrap:wrap}",
-      "#pipelines-root .pl-title{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:20px;color:#eef0ff;letter-spacing:-0.02em}",
-      "#pipelines-root .pl-title .pl-tdot{color:#7aa2f7;margin-left:1px}",
-      "#pipelines-root .pl-sub{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#5a6088}",
-      "#pipelines-root .pl-tablewrap{padding:12px 24px 34px}",
-      "#pipelines-root .pl-group+.pl-group{margin-top:26px}",
-      "#pipelines-root .pl-group-head{padding:0 0 8px;font-family:'JetBrains Mono',monospace;font-size:9.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:#8b90b8}",
-      "#pipelines-root .pl-table{width:100%;table-layout:fixed;border-collapse:collapse;font-size:13px}",
-      "#pipelines-root .pl-table th:nth-child(2){width:110px}",
-      "#pipelines-root .pl-table th:nth-child(3){width:320px}",
-      "#pipelines-root .pl-table th:nth-child(4){width:130px}",
-      "#pipelines-root .pl-table th:nth-child(5){width:140px}",
-      "#pipelines-root .pl-table th:nth-child(6){width:150px}",
-      "#pipelines-root .pl-table thead th{text-align:left;padding:9px 12px;font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:0.1em;color:#5a6088;font-weight:600;border-bottom:1px solid rgba(160,168,220,0.1);white-space:nowrap}",
-      "#pipelines-root .pl-table tbody tr.pl-row{border-bottom:1px solid rgba(160,168,220,0.05);cursor:pointer}",
-      "#pipelines-root .pl-table tbody tr.pl-row:hover{background:rgba(160,168,220,0.04)}",
-      "#pipelines-root .pl-table td{padding:11px 12px;vertical-align:middle;color:#a8aecf;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
-      "#pipelines-root .pl-name{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:14px;color:#eef0ff;overflow:hidden;text-overflow:ellipsis}",
-      "#pipelines-root .pl-repo{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#5a6088;margin-top:2px;overflow:hidden;text-overflow:ellipsis}",
+      "#pipelines-root .pl-ledger{width:calc(100% - 48px);max-width:1012px;box-sizing:border-box;margin:24px;background:#090b16;border:1px solid rgba(160,168,220,.13);border-radius:12px;padding:24px 22px 12px}",
+      "#pipelines-root .pl-head{display:flex;align-items:baseline;gap:11px;margin:0 0 8px;flex-wrap:wrap}",
+      "#pipelines-root .pl-title{font-family:Inter,system-ui,sans-serif;font-weight:700;font-size:19px;color:#e7e9f6;letter-spacing:0}",
+      "#pipelines-root .pl-title .pl-tdot{color:inherit;margin-left:1px}",
+      "#pipelines-root .pl-sub{font-family:'JetBrains Mono',monospace;font-size:11px;color:#6b7192}",
+      "#pipelines-root .pl-tablewrap{padding:0}",
+      "#pipelines-root .pl-group{border-top:1px solid rgba(160,168,220,.08)}",
+      "#pipelines-root .pl-group-toggle{appearance:none;width:100%;display:grid;grid-template-columns:14px minmax(0,1fr) 104px 132px 92px 96px;align-items:center;gap:14px;padding:14px 8px;border:0;border-radius:7px;background:transparent;color:inherit;text-align:left;cursor:pointer}",
+      "#pipelines-root .pl-group-toggle:hover{background:rgba(202,191,242,.03)}",
+      "#pipelines-root .pl-group-toggle:focus-visible{outline:1px solid rgba(202,191,242,.42);outline-offset:-1px}",
+      "#pipelines-root .pl-group-chev{display:inline-block;width:14px;text-align:center;font-size:12px;line-height:1;color:#6b7192;transition:transform .18s ease,color .18s ease}",
+      "#pipelines-root .pl-group-toggle[aria-expanded=true] .pl-group-chev{transform:rotate(90deg);color:#cabff2}",
+      "#pipelines-root .pl-group-main{display:flex;align-items:center;gap:10px;min-width:0}",
+      "#pipelines-root .pl-group-name{font-family:'JetBrains Mono',monospace;font-size:12.5px;color:#c8cbe6;letter-spacing:.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
+      "#pipelines-root .pl-group.system .pl-group-name{color:#8f95bc}",
+      "#pipelines-root .pl-built-in{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.11em;text-transform:uppercase;color:#5a6088;border:1px solid rgba(160,168,220,.14);padding:1px 5px;border-radius:4px;white-space:nowrap;flex:none}",
+      "#pipelines-root .pl-group-count{font-family:'JetBrains Mono',monospace;font-size:11px;color:#565d80;white-space:nowrap;flex:none}",
+      "#pipelines-root .pl-group-on{font-family:'JetBrains Mono',monospace;font-size:11.5px;text-align:right;white-space:nowrap;color:#565d80}",
+      "#pipelines-root .pl-group-on b{font-weight:400;color:#9cc470}",
+      "#pipelines-root .pl-group-on.zero b{color:#6b7192}",
+      "#pipelines-root .pl-group-dots{display:flex;gap:3px;align-items:center;justify-content:flex-start}",
+      "#pipelines-root .pl-group-dot{width:11px;height:11px;border-radius:3px;flex:none}",
+      "#pipelines-root .pl-group-activity{font-family:'JetBrains Mono',monospace;font-size:11px;color:#6b7192;text-align:right;white-space:nowrap}",
+      "#pipelines-root .pl-group-due{text-align:right}",
+      "#pipelines-root .pl-ledger-due{font-family:'JetBrains Mono',monospace;font-size:11px;color:#8fbd68;white-space:nowrap;letter-spacing:.01em}",
+      "#pipelines-root .pl-ledger-none{font-family:'JetBrains Mono',monospace;font-size:11px;color:#3f4568}",
+      "#pipelines-root .pl-group-rows{padding:0 0 12px;animation:plExpand .2s ease}",
+      "#pipelines-root .pl-row{display:grid;grid-template-columns:24px minmax(150px,1.4fr) 92px minmax(140px,1.1fr) 118px 84px 186px;align-items:start;gap:12px;padding:12px 8px;border-top:1px solid rgba(160,168,220,.055);border-radius:7px;cursor:pointer}",
+      "#pipelines-root .pl-row:hover{background:#0f1120}",
+      "#pipelines-root .pl-row-cell{min-width:0;overflow:hidden}",
+      "#pipelines-root .pl-name{font-family:Inter,system-ui,sans-serif;font-weight:600;font-size:13.5px;color:#dfe1f2;letter-spacing:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
+      "#pipelines-root .pl-repo{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#565d80;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
       "#pipelines-root .pl-mono{font-family:'JetBrains Mono',monospace;font-size:12px;color:#a8aecf}",
-      "#pipelines-root .pl-chip{display:inline-flex;align-items:center;font-family:'JetBrains Mono',monospace;font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:7px}",
-      "#pipelines-root .pl-chip.on{color:#9ece6a;background:rgba(158,206,106,0.1);border:1px solid rgba(158,206,106,0.26)}",
-      "#pipelines-root .pl-chip.off{color:#5a6088;background:rgba(90,96,136,0.1);border:1px solid rgba(90,96,136,0.3)}",
-      "#pipelines-root .pl-modechip{display:inline-flex;align-items:center;max-width:100%;box-sizing:border-box;font-family:'JetBrains Mono',monospace;font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border:1px solid transparent}",
+      "#pipelines-root .pl-chip{display:inline-flex;align-items:center;font-family:'JetBrains Mono',monospace;font-size:10.5px;font-weight:400;line-height:1.5;padding:2px 8px;border-radius:6px}",
+      "#pipelines-root .pl-chip.on{color:#9cc470;background:rgba(140,190,90,.05);border:1px solid rgba(140,190,90,.30)}",
+      "#pipelines-root .pl-chip.off{color:#6b7192;background:transparent;border:1px solid rgba(160,168,220,.16)}",
+      "#pipelines-root .pl-modechip{display:inline-flex;align-items:center;max-width:100%;box-sizing:border-box;font-family:'JetBrains Mono',monospace;font-size:10.5px;font-weight:400;line-height:1.5;padding:3px 9px;border-radius:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border:1px solid rgba(160,168,220,.13)}",
       "#pipelines-root .pl-modechip.bound{color:#9ece6a;background:rgba(158,206,106,0.10);border-color:rgba(158,206,106,0.28)}",
       "#pipelines-root .pl-modechip.warn{color:#e0af68;background:rgba(224,175,104,0.11);border-color:rgba(224,175,104,0.30)}",
       "#pipelines-root .pl-modechip.error{color:#f7768e;background:rgba(247,118,142,0.10);border-color:rgba(247,118,142,0.30)}",
-      "#pipelines-root .pl-modechip.muted{color:#868db5;background:rgba(134,141,181,0.08);border-color:rgba(134,141,181,0.20)}",
+      "#pipelines-root .pl-modechip.muted{color:#6b7192;background:transparent;border-color:rgba(160,168,220,.16)}",
+      "#pipelines-root .pl-modechip.after{color:#8b90b8;background:rgba(255,255,255,.02);border-color:rgba(160,168,220,.13)}",
       "#pipelines-root .pl-statechip{display:inline-flex;align-items:center;font-family:'JetBrains Mono',monospace;font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:7px}",
-      "#pipelines-root .pl-due{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#c8cce6}",
-      "#pipelines-root .pl-nohist{font-family:'JetBrains Mono',monospace;font-size:11px;color:#5a6088}",
-      "#pipelines-root .pl-strip{display:flex;align-items:center;gap:4px;flex-wrap:wrap}",
+      "#pipelines-root .pl-due{font-family:'JetBrains Mono',monospace;font-size:11px;color:#8fbd68;white-space:nowrap}",
+      "#pipelines-root .pl-nohist{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#3f4568}",
+      "#pipelines-root .pl-strip{display:flex;align-items:center;gap:3px;flex-wrap:wrap}",
       "#pipelines-root .pl-pip{width:9px;height:9px;border-radius:2px;flex:none}",
       "#pipelines-root .pl-empty{padding:60px 20px;text-align:center;color:#5a6088;font-size:13px}",
       "#pipelines-root .pl-empty code{font-family:'JetBrains Mono',monospace;font-size:12px;color:#c7c9e5;background:#0a0b16;border:1px solid rgba(160,168,220,0.14);border-radius:6px;padding:2px 7px}",
+      "@keyframes plExpand{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}",
       // ---- detail workbench: [ RUNS rail | main ] ----
       "#pipelines-root #pl-detail{height:100%;min-width:0;min-height:0;background:#0b0d16}",
       // left RUNS rail
@@ -7841,7 +7861,7 @@ class Component extends DCLogic {
       // ---- declared-DAG preview (v1.6) ----
       "#pipelines-root .pl-declared-note{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#868db5;margin-bottom:12px;display:flex;align-items:center;gap:9px;flex-wrap:wrap}",
       "#pipelines-root .pl-declared-note code{font-family:'JetBrains Mono',monospace;font-size:11px;color:#c7c9e5;background:#0a0b16;border:1px solid rgba(160,168,220,0.14);border-radius:6px;padding:3px 8px}",
-      "@media (max-width:768px){#pipelines-root .pl-head{padding-left:16px;padding-right:16px}#pipelines-root .pl-tablewrap{padding-left:14px;padding-right:14px}#pipelines-root .pl-table,#pipelines-root .pl-table tbody{display:block}#pipelines-root .pl-table thead{display:none}#pipelines-root .pl-table tr.pl-row{display:block;background:#0d0f1c;border:1px solid rgba(160,168,220,0.1);border-radius:11px;padding:11px 13px;margin-bottom:8px}#pipelines-root .pl-table tr.pl-row td{display:block;width:auto;padding:5px 0;border:none;white-space:normal;overflow:visible;text-overflow:clip}#pipelines-root .xd-panel{width:100%;left:0;border-left:none}}",
+      "@media (max-width:768px){#pipelines-root .pl-ledger{width:calc(100% - 20px);margin:10px;padding:18px 12px 10px}#pipelines-root .pl-group-toggle{grid-template-columns:14px minmax(0,1fr) auto;gap:8px;padding:12px 6px}#pipelines-root .pl-group-on{grid-column:3}#pipelines-root .pl-group-dots{grid-column:2;grid-row:2}#pipelines-root .pl-group-activity{grid-column:2;grid-row:3;text-align:left}#pipelines-root .pl-group-due{grid-column:3;grid-row:2}#pipelines-root .pl-row{grid-template-columns:minmax(0,1fr) auto;padding:12px 6px 12px 28px;gap:8px 12px}#pipelines-root .pl-row-indent{display:none}#pipelines-root .pl-row-primary{grid-column:1}#pipelines-root .pl-row-enabled{grid-column:2}#pipelines-root .pl-row-mode,#pipelines-root .pl-row-status,#pipelines-root .pl-row-due,#pipelines-root .pl-row-recent{grid-column:1 / -1}#pipelines-root .xd-panel{width:100%;left:0;border-left:none}}",
       // detail workbench, mobile: the runs rail collapses to a horizontal run-chip strip above the main area
       "@media (max-width:768px){#pipelines-root #pl-detail{flex-direction:column}#pipelines-root .pl-rail{width:auto!important;flex:none;border-right:none;border-bottom:1px solid rgba(160,168,220,0.08);max-height:120px}#pipelines-root .pl-rail-mini{display:none!important}#pipelines-root .pl-rail-head{display:none}#pipelines-root .pl-rail-foot{display:none}#pipelines-root .pl-runs{flex-direction:row;overflow-x:auto;overflow-y:hidden;padding:9px 8px;gap:8px}#pipelines-root .pl-runrow{flex:none;min-width:134px;margin:0}#pipelines-root .pl-main-head{padding:11px 14px;gap:9px;flex-wrap:wrap}#pipelines-root .pl-h-name{max-width:none}#pipelines-root .pl-main-body{padding:14px}}",
       "@media (max-width:768px){#pipelines-root .pl-htable,#pipelines-root .pl-htable tbody{display:block}#pipelines-root .pl-htable thead{display:none}#pipelines-root .pl-htable tr.pl-htrow{display:block;background:#0d0f1c;border:1px solid rgba(160,168,220,0.1);border-radius:11px;padding:11px 13px;margin-bottom:8px}#pipelines-root .pl-htable tr.pl-htrow td{display:block;width:auto;padding:4px 0;border:none;white-space:normal}#pipelines-root .pl-mx-lbl{position:static;background:transparent}}",
@@ -7851,11 +7871,13 @@ class Component extends DCLogic {
 
     const root = document.createElement('div');
     root.id = 'pipelines-root';
-    root.style.cssText = 'position:fixed;left:216px;top:54px;right:0;bottom:0;z-index:40;background:#07080f;display:none';
+    root.style.cssText = 'position:fixed;left:216px;top:54px;right:0;bottom:0;z-index:40;background:#080a14;display:none';
     root.innerHTML = [
       '<div id="pl-list">',
-      '  <div class="pl-head"><div class="pl-title">Pipelines<span class="pl-tdot">.</span></div><div class="pl-sub" id="pl-sub"></div></div>',
-      '  <div class="pl-tablewrap" id="pl-table"><div class="pl-empty">loading…</div></div>',
+      '  <div class="pl-ledger">',
+      '    <div class="pl-head"><div class="pl-title">Pipelines<span class="pl-tdot">.</span></div><div class="pl-sub" id="pl-sub"></div></div>',
+      '    <div class="pl-tablewrap" id="pl-table"><div class="pl-empty">loading…</div></div>',
+      '  </div>',
       '</div>',
       '<div id="pl-detail" style="display:none">',
       '  <div class="pl-rail">',
@@ -7913,8 +7935,10 @@ class Component extends DCLogic {
       if (htr) { const rid = htr.getAttribute('data-run'); if (rid) this.selectPipelineRun(rid); return; }
       const node = (e.target.closest && e.target.closest('.pl-node')) || null;
       if (node) { const sid = node.getAttribute('data-stage'); if (sid) this.openPipelineStageDetail(sid); return; }
-      const prow = (e.target.closest && e.target.closest('tr.pl-row')) || null;
+      const prow = (e.target.closest && e.target.closest('.pl-row[data-name]')) || null;
       if (prow && prow.getAttribute('data-name')) { const nm = prow.getAttribute('data-name'); this.openPipelineDetail(nm); this._navRoute('pipelines', { name: nm }); return; }
+      const group = (e.target.closest && e.target.closest('.pl-group-toggle[data-pl-group]')) || null;
+      if (group) { this._plToggleGroup(group.getAttribute('data-pl-group')); return; }
     });
     // Escape: close the stage panel first, else back out of the detail.
     this._pipelinesKeydown = (e) => {
@@ -7980,18 +8004,75 @@ class Component extends DCLogic {
       if (b === 'Gitmoot System') return -1;
       return a.localeCompare(b);
     });
-    const heading = '<thead><tr><th>pipeline</th><th>enabled</th><th>schedule</th><th>last run</th><th>next due</th><th>recent</th></tr></thead>';
-    table.innerHTML = names.map(name => '<section class="pl-group"><div class="pl-group-head">' + this._galaxyEsc(name) + '</div><table class="pl-table">' + heading + '<tbody>' + groups[name].map(p => this._pipelineRowHtml(p)).join('') + '</tbody></table></section>').join('');
+    table.innerHTML = names.map(name => this._pipelineGroupHtml(name, groups[name])).join('');
     this.refreshPipelineCountdowns();
+  }
+
+  _plLoadExpandedGroups() {
+    try {
+      const value = JSON.parse(localStorage.getItem('gitmoot.pl.expandedGroups.v1') || '[]');
+      return new Set(Array.isArray(value) ? value.filter(name => typeof name === 'string') : []);
+    } catch (e) { return new Set(); }
+  }
+
+  _plToggleGroup(name) {
+    if (!name) return;
+    if (!(this._plExpandedGroups instanceof Set)) this._plExpandedGroups = new Set();
+    if (this._plExpandedGroups.has(name)) this._plExpandedGroups.delete(name);
+    else this._plExpandedGroups.add(name);
+    try { localStorage.setItem('gitmoot.pl.expandedGroups.v1', JSON.stringify(Array.from(this._plExpandedGroups))); } catch (e) {}
+    this.renderPipelines();
+  }
+
+  _plLedgerStateColor(state) {
+    const colors = { succeeded: '#7fa65a', failed: '#bd5f70', running: '#6181c5', blocked: '#b08b56', queued: '#333a5e', cancelled: '#333a5e' };
+    return colors[state] || '#333a5e';
+  }
+
+  _plFmtLedgerDue(ms, now) {
+    return this._plFmtCountdown(ms, now).replace(/^due in /, 'due ');
+  }
+
+  _pipelineGroupHtml(name, members) {
+    const esc = (s) => this._galaxyEsc(s);
+    const pipes = (Array.isArray(members) ? members.slice() : []).sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+    const expanded = this._plExpandedGroups instanceof Set && this._plExpandedGroups.has(name);
+    const enabled = pipes.filter(p => p && p.enabled).length;
+    const latestAt = pipes.reduce((latest, p) => Math.max(latest, Number(p && p.lastRunAt) || 0), 0);
+    const dueAt = pipes.reduce((soonest, p) => {
+      const due = Number(p && p.nextDueAt) || 0;
+      return due > 0 ? Math.min(soonest, due) : soonest;
+    }, Infinity);
+    const countLabel = pipes.length + ' pipeline' + (pipes.length === 1 ? '' : 's');
+    const dots = pipes.map(p => {
+      const state = (p && p.lastStatus) || '';
+      return '<span class="pl-group-dot" style="background:' + this._plLedgerStateColor(state) + '" title="' + esc((p && p.name) || '') + ' · ' + esc(state || 'no runs') + '"></span>';
+    }).join('');
+    const activity = latestAt ? esc(this._relFromMs(latestAt)) : '—';
+    const due = Number.isFinite(dueAt)
+      ? '<span class="pl-ledger-due" data-due="' + dueAt + '">' + esc(this._plFmtLedgerDue(dueAt)) + '</span>'
+      : '<span class="pl-ledger-none">—</span>';
+    const system = name === 'Gitmoot System';
+    const children = expanded ? '<div class="pl-group-rows">' + pipes.map(p => this._pipelineRowHtml(p)).join('') + '</div>' : '';
+    return '<section class="pl-group' + (system ? ' system' : '') + '">' +
+      '<button type="button" class="pl-group-toggle" data-pl-group="' + esc(name) + '" aria-expanded="' + (expanded ? 'true' : 'false') + '">' +
+        '<span class="pl-group-chev" aria-hidden="true">▸</span>' +
+        '<span class="pl-group-main"><span class="pl-group-name">' + esc(name) + '</span>' +
+          (system ? '<span class="pl-built-in">built-in</span>' : '') +
+          '<span class="pl-group-count">' + countLabel + '</span></span>' +
+        '<span class="pl-group-on' + (enabled ? '' : ' zero') + '"><b>' + enabled + '</b>/' + pipes.length + ' on</span>' +
+        '<span class="pl-group-dots">' + dots + '</span>' +
+        '<span class="pl-group-activity">' + activity + '</span>' +
+        '<span class="pl-group-due">' + due + '</span>' +
+      '</button>' + children +
+    '</section>';
   }
 
   _pipelineRowHtml(p) {
     const esc = (s) => this._galaxyEsc(s);
-    const sched = p.interval ? ('every ' + esc(p.interval) + (p.jitter ? ' +' + esc(p.jitter) : '')) : 'manual';
+    const sched = p.interval ? ('every ' + p.interval + (p.jitter ? ' +' + p.jitter : '')) : 'manual';
     const mode = (p && typeof p.mode === 'string') ? p.mode.trim() : '';
-    const scheduleCell = mode
-      ? '<td>' + this._plModeChip(mode) + '</td>'
-      : '<td class="pl-mono">' + sched + '</td>';
+    const scheduleCell = this._plModeChip(mode || sched);
     const enChip = p.enabled ? '<span class="pl-chip on">enabled</span>' : '<span class="pl-chip off">disabled</span>';
     const lastCol = this._galaxyStateColor(p.lastStatus);
     let lastChip;
@@ -8007,22 +8088,23 @@ class Component extends DCLogic {
       lastChip = '<span class="pl-nohist">—</span>';
     }
     const due = p.nextDueAt ? '<span class="pl-due" data-due="' + p.nextDueAt + '">' + esc(this._plFmtCountdown(p.nextDueAt)) + '</span>' : '<span class="pl-nohist">—</span>';
-    const recent = (Array.isArray(p.recent) ? p.recent.slice() : []).reverse(); // oldest -> newest (left -> right)
+    const recent = Array.isArray(p.recent) ? p.recent : [];
     const strip = recent.length
-      ? '<div class="pl-strip">' + recent.slice().reverse().map(r => { const c = this._galaxyStateColor(r.state); return '<span class="pl-pip" style="background:' + c + '" title="' + esc(r.state) + (r.startedAt ? ' · ' + esc(this._relFromMs(r.startedAt)) : '') + '"></span>'; }).join('') + '</div>'
+      ? '<div class="pl-strip">' + recent.map(r => { const c = this._plLedgerStateColor(r.state); return '<span class="pl-pip" style="background:' + c + '" title="' + esc(r.state) + (r.startedAt ? ' · ' + esc(this._relFromMs(r.startedAt)) : '') + '"></span>'; }).join('') + '</div>'
       : '<span class="pl-nohist">no runs</span>';
     // v1.6: success rate + avg duration computed client-side from recent[].
     const rate = this._plSuccessRate(p.recent);
     const avg = this._plAvgDuration(p.recent);
     const stats = (rate || avg) ? '<div class="pl-rate">' + [rate, avg].filter(Boolean).join(' · ') + '</div>' : '';
-    return '<tr class="pl-row" data-name="' + esc(p.name) + '" title="open ' + esc(p.name) + '">' +
-      '<td><div class="pl-name">' + esc(p.name) + '</div>' + (p.repo ? '<div class="pl-repo">' + esc(p.repo) + '</div>' : '') + '</td>' +
-      '<td>' + enChip + '</td>' +
-      scheduleCell +
-      '<td>' + lastChip + '</td>' +
-      '<td>' + due + '</td>' +
-      '<td>' + strip + stats + '</td>' +
-    '</tr>';
+    return '<div class="pl-row" data-name="' + esc(p.name) + '" title="open ' + esc(p.name) + '">' +
+      '<span class="pl-row-indent"></span>' +
+      '<div class="pl-row-cell pl-row-primary"><div class="pl-name">' + esc(p.name) + '</div>' + (p.repo ? '<div class="pl-repo">' + esc(p.repo) + '</div>' : '') + '</div>' +
+      '<div class="pl-row-cell pl-row-enabled">' + enChip + '</div>' +
+      '<div class="pl-row-cell pl-row-mode">' + scheduleCell + '</div>' +
+      '<div class="pl-row-cell pl-row-status">' + lastChip + '</div>' +
+      '<div class="pl-row-cell pl-row-due">' + due + '</div>' +
+      '<div class="pl-row-cell pl-row-recent">' + strip + stats + '</div>' +
+    '</div>';
   }
 
   _plModeChip(mode) {
@@ -8035,6 +8117,8 @@ class Component extends DCLogic {
       if (m.indexOf('(bound)') !== -1) cls = 'bound';
       else if (m.indexOf('(error)') !== -1) cls = 'error';
       else cls = 'warn';
+    } else if (m.indexOf('after:') === 0) {
+      cls = 'after';
     } else if (m.indexOf('pending') !== -1 || m.indexOf('unbound') !== -1) cls = 'warn';
     return '<span class="pl-modechip ' + cls + '" title="' + esc(raw) + '">' + esc(raw) + '</span>';
   }
