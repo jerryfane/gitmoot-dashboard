@@ -2273,7 +2273,12 @@ class Component extends DCLogic {
   }
 
   _galaxyFetchJSON(url) {
-    return fetch(url, { cache: 'no-store' }).then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)));
+    return fetch(url, { cache: 'no-store' }).then(r => {
+      if (r.ok) return r.json();
+      const err = new Error('HTTP ' + r.status);
+      err.status = r.status;
+      throw err;
+    });
   }
 
   _galaxyAgentSummaries() {
@@ -2312,15 +2317,23 @@ class Component extends DCLogic {
     const name = this._galaxyAgentName(node);
     const fid = (this._galaxyDetailFetchId = node.id);
     this.renderGalaxyAgentDetail(node, null, null, null, 'loading');
-    const safe = (promise, fallback) => promise.then(value => value).catch(() => fallback);
+    const settle = (promise) => promise.then(value => ({ value: value, error: null })).catch(error => ({ value: null, error: error }));
     Promise.all([
-      safe(this._galaxyAgentSummaries(), []),
-      safe(this._galaxyAgentRecord(name), null),
-      safe(this._galaxyAgentJobs(), null)
-    ]).then(([agents, detail, jobs]) => {
+      settle(this._galaxyAgentSummaries()),
+      settle(this._galaxyAgentRecord(name)),
+      settle(this._galaxyAgentJobs())
+    ]).then(([agentsResult, detailResult, jobsResult]) => {
       if (this._galaxyDetailFetchId !== fid) return;
+      const agents = Array.isArray(agentsResult.value) ? agentsResult.value : [];
+      const detail = detailResult.value || null;
+      const jobs = Array.isArray(jobsResult.value) ? jobsResult.value : null;
       const summary = (agents || []).find(a => a && a.name === name) || detail || null;
-      this.renderGalaxyAgentDetail(node, summary, detail, jobs, summary ? 'ok' : 'missing');
+      const recordError = detailResult.error || null;
+      if (recordError && recordError.status !== 404) {
+        this.renderGalaxyAgentDetail(node, null, null, jobs, 'error', recordError);
+      } else {
+        this.renderGalaxyAgentDetail(node, summary, detail, jobs, summary ? 'ok' : 'ephemeral');
+      }
     });
   }
 
@@ -2356,7 +2369,7 @@ class Component extends DCLogic {
     };
   }
 
-  renderGalaxyAgentDetail(node, summary, detail, jobs, status) {
+  renderGalaxyAgentDetail(node, summary, detail, jobs, status, loadError) {
     const esc = (s) => this._galaxyEsc(s);
     const name = this._galaxyAgentName(node);
     const a = summary || {};
@@ -2378,8 +2391,9 @@ class Component extends DCLogic {
       this._galaxyPanelShell({ className: 'gd-agent-panel', title: name, subtitle: 'agent', color: '#8b90b8', headerMeta: '', body: '<div class="ga-empty">Loading agent record…</div>' });
       return;
     }
-    if (status === 'missing') {
-      this._galaxyPanelShell({ className: 'gd-agent-panel', title: name, subtitle: 'agent', color: '#8b90b8', headerMeta: '', body: '<div class="ga-empty">No matching agent record was returned by /api/agents.</div>' });
+    if (status === 'error') {
+      const failure = loadError && loadError.status ? ('HTTP ' + loadError.status) : 'network error';
+      this._galaxyPanelShell({ className: 'gd-agent-panel', title: name, subtitle: 'agent', color: '#8b90b8', headerMeta: '', body: '<div class="ga-empty">Could not load agent record (' + esc(failure) + ')</div>' });
       return;
     }
 
@@ -2392,6 +2406,20 @@ class Component extends DCLogic {
       stats += '<div class="ga-stat"><b style="color:#7da357">' + today.succeeded + '</b><span>succeeded today</span></div>' +
         '<div class="ga-stat"><b style="color:' + (today.failed ? '#c25e73' : '#8b90b8') + '">' + today.failed + '</b><span>failed today</span></div>';
       if (today.hasTokens) stats += '<div class="ga-stat"><b>' + esc(tokenFmt(today.tokensIn)) + ' / ' + esc(tokenFmt(today.tokensOut)) + '</b><span>tokens in / out today</span></div>';
+    }
+
+    const agentJobs = Array.isArray(jobs) ? jobs.filter(j => j && j.agent === name) : [];
+    const lastJobAt = agentJobs.reduce((latest, j) => Math.max(latest, Number(j.updated || j.started) || 0), 0);
+    const jobsHref = '/jobs?agent=' + encodeURIComponent(name);
+    const actionHTML = '<a class="ga-action" href="' + jobsHref + '"><span>Jobs for this agent</span><span>↗</span></a>';
+    if (status === 'ephemeral') {
+      const activityHTML = lastJobAt ? '<div class="ga-section">Profile</div><div class="ga-profile"><div class="ga-row"><span class="ga-key">last activity</span><span class="ga-val mono">' + esc(this._agRelShort(lastJobAt) || 'now') + '</span></div></div>' : '';
+      const body = '<div class="ga-empty">One-off worker spawned for a single job or delegation; no persistent record.</div>' +
+        '<div class="ga-section">Activity</div><div class="ga-stats">' + stats + '</div>' + activityHTML + actionHTML;
+      const el = this._galaxyPanelShell({ className: 'gd-agent-panel', title: name, subtitle: 'ephemeral worker · not registered', color: '#656b91', headerMeta: '', body: body });
+      const link = el.querySelector('.ga-action');
+      if (link) link.addEventListener('click', (e) => { e.preventDefault(); this.closeGalaxyDetail(); this.showJobs(name); });
+      return;
     }
 
     const rows = [];
@@ -2407,10 +2435,9 @@ class Component extends DCLogic {
     const templateName = (tmpl && (tmpl.name || tmpl.id)) || cfg.template || '';
     const version = current && current.number != null ? ('v' + current.number) : '';
     const templateHTML = templateName ? '<div class="ga-section">Template</div><div class="ga-template"><span class="ga-template-name">' + esc(templateName) + '</span>' + (version ? '<span class="ga-template-ver">' + esc(version) + '</span>' : '') + '</div>' : '';
-    const jobsHref = '/jobs?agent=' + encodeURIComponent(name);
     const body = '<div class="ga-section">Activity</div><div class="ga-stats">' + stats + '</div>' +
       (rows.length ? '<div class="ga-section">Profile</div><div class="ga-profile">' + rows.join('') + '</div>' : '') +
-      templateHTML + '<a class="ga-action" href="' + jobsHref + '"><span>Jobs for this agent</span><span>↗</span></a>';
+      templateHTML + actionHTML;
     const el = this._galaxyPanelShell({ className: 'gd-agent-panel', title: name, subtitle: 'agent', color: color, headerMeta: headerMeta, body: body });
     const link = el.querySelector('.ga-action');
     if (link) link.addEventListener('click', (e) => { e.preventDefault(); this.closeGalaxyDetail(); this.showJobs(name); });
