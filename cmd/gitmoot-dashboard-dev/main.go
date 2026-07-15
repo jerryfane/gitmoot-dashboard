@@ -7,7 +7,7 @@ import (
 	"log"
 	"net/http"
 
-	dashboard "github.com/jerryfane/gitmoot-dashboard"
+	dashboard "github.com/gitmoot/gitmoot-dashboard"
 )
 
 func main() {
