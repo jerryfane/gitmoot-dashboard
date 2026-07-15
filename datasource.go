@@ -885,9 +885,12 @@ type PipelineRunHistoryEntry struct {
 // declared stage DAG (from the stored spec, every stage pending) plus the run
 // history, newest-first, capped at 100 runs.
 type PipelineDetail struct {
-	Name     string                    `json:"name"`
-	Declared []PipelineStage           `json:"declared"` // current spec DAG, state "pending"; never nil
-	Runs     []PipelineRunHistoryEntry `json:"runs"`     // newest-first, capped at 100; never nil
+	Name string `json:"name"`
+	// Description is optional free-form display text from the pipeline spec. It
+	// may be absent when the pipeline has no declared description.
+	Description string                    `json:"description,omitempty"`
+	Declared    []PipelineStage           `json:"declared"` // current spec DAG, state "pending"; never nil
+	Runs        []PipelineRunHistoryEntry `json:"runs"`     // newest-first, capped at 100; never nil
 }
 
 // Chat — the Gitmoot-native agent chat layer (gitmoot #534): durable,

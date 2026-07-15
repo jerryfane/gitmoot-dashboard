@@ -7756,6 +7756,7 @@ class Component extends DCLogic {
       "#pipelines-root .pl-main-body{flex:1;overflow:auto;min-height:0;padding:22px 24px}",
       "#pipelines-root .pl-tabbody{display:none}",
       "#pipelines-root .pl-tabbody.on{display:block}",
+      "#pipelines-root .pl-description{max-width:720px;margin:0 0 18px;color:#7c83aa;font-size:13px;line-height:1.55;white-space:pre-line}",
       "#pipelines-root .pl-history-lbl{font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:0.12em;color:#5a6088;margin-bottom:8px}",
       // ---- banner (blocked / failed) : design accent-bar alert ----
       "#pipelines-root .pl-banner{display:flex;flex-direction:column;gap:12px;border-radius:12px;padding:16px 18px;margin-bottom:18px;border:1px solid;border-left-width:3px}",
@@ -8220,7 +8221,7 @@ class Component extends DCLogic {
       this._plSyncRunSelection(id);
       this._plRenderMainHead();
       const dag = this._pipelinesRoot.querySelector('#pl-tab-dag');
-      if (dag) dag.innerHTML = '<div class="pl-empty">loading run…</div>';
+      if (dag) dag.innerHTML = this._plDescriptionHtml() + '<div class="pl-empty">loading run…</div>';
     }
     this.fetchPipelineRun(id, false);
     this.startPipelineRunPoll();
@@ -8246,26 +8247,33 @@ class Component extends DCLogic {
         const fb = this._plRunFromHistory(id);
         if (fb) { this._plRun = fb; this.renderPipelineRun(fb); return; }
         const area = this._pipelinesRoot && this._pipelinesRoot.querySelector('#pl-tab-dag');
-        if (area) area.innerHTML = '<div class="pl-empty" style="color:#f7768e">could not load this run (' + this._galaxyEsc(err && err.message) + ')</div>';
+        if (area) area.innerHTML = this._plDescriptionHtml() + '<div class="pl-empty" style="color:#f7768e">could not load this run (' + this._galaxyEsc(err && err.message) + ')</div>';
         this._plRenderMainHead();
       });
   }
 
-  // DAG-tab content, in the design's order: (a) blocked/failed banner FIRST, (b) the
-  // run summary caption, (c) the STAGE GRAPH (scroll cue + right-edge fade), (d) the
-  // STAGES tally chips. Renders into #pl-tab-dag; History/Matrix live in their tabs.
+  _plDescriptionHtml() {
+    const detail = this._plDetail;
+    const description = detail && typeof detail.description === 'string' ? detail.description.trim() : '';
+    return description ? '<div class="pl-description">' + this._galaxyEsc(description) + '</div>' : '';
+  }
+
+  // DAG-tab content: optional description first, then the blocked/failed banner,
+  // run summary caption, stage graph (scroll cue + right-edge fade), and tally.
+  // Renders into #pl-tab-dag; History/Matrix live in their tabs.
   renderPipelineRun(run) {
     if (!this._pipelinesRoot) return;
     const area = this._pipelinesRoot.querySelector('#pl-tab-dag');
     if (!area) return;
+    const description = this._plDescriptionHtml();
     if (!run) {
       // a never-run pipeline shows its DECLARED DAG (all pending) once the detail
       // data has landed; otherwise the plain empty note.
       const d = this._plDetail;
       if (d && (!Array.isArray(d.runs) || !d.runs.length) && Array.isArray(d.declared) && d.declared.length) {
-        area.innerHTML = this._plDeclaredDagHtml(d);
+        area.innerHTML = description + this._plDeclaredDagHtml(d);
       } else {
-        area.innerHTML = '<div class="pl-empty">no runs for this pipeline yet</div>';
+        area.innerHTML = description + '<div class="pl-empty">no runs for this pipeline yet</div>';
       }
       this._plRenderMainHead();
       this._plUpdateScrollCue();
@@ -8310,7 +8318,7 @@ class Component extends DCLogic {
     const sg = '<div class="pl-sg-lbl">STAGE GRAPH<span class="pl-sg-cue"></span></div>' +
       '<div class="pl-sg-wrap">' + this._pipelineStageDag(stages) + '<div class="pl-sg-fade"></div></div>';
     const tally = stages.length ? '<div class="pl-tally">' + this._plTallyHtml(stages) + '</div>' : '';
-    area.innerHTML = banner + caption + sg + tally;
+    area.innerHTML = description + banner + caption + sg + tally;
     this.refreshPipelineStageProgress();
     this._plRenderMainHead();
     this._plUpdateScrollCue();
@@ -8634,7 +8642,12 @@ class Component extends DCLogic {
       // never-run pipeline: paint the declared DAG preview.
       this.renderPipelineRun(null);
     }
-    if (this._plSelectedRun) this._plSyncRunSelection(this._plSelectedRun);
+    if (this._plSelectedRun) {
+      this._plSyncRunSelection(this._plSelectedRun);
+      // A run response may arrive before its detail payload. Repaint so the
+      // description appears as soon as the detail endpoint has supplied it.
+      if (this._plRun && this._plRun.id === this._plSelectedRun) this.renderPipelineRun(this._plRun);
+    }
     this._plApplyTab();
     this.refreshPipelineCountdowns();
   }

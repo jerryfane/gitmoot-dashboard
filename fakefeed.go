@@ -2323,7 +2323,7 @@ func fakePipelineDetail(name string) (PipelineDetail, bool) {
 
 	// finalize sorts a run history newest-first (StartedAt desc, ID desc) and caps
 	// it at 100 so the view is fully deterministic.
-	finalize := func(pname string, declared []PipelineStage, history []PipelineRunHistoryEntry) PipelineDetail {
+	finalize := func(pname, description string, declared []PipelineStage, history []PipelineRunHistoryEntry) PipelineDetail {
 		sort.SliceStable(history, func(i, j int) bool {
 			if history[i].StartedAt != history[j].StartedAt {
 				return history[i].StartedAt > history[j].StartedAt // newest first
@@ -2333,7 +2333,7 @@ func fakePipelineDetail(name string) (PipelineDetail, bool) {
 		if len(history) > 100 {
 			history = history[:100]
 		}
-		return PipelineDetail{Name: pname, Declared: declared, Runs: history}
+		return PipelineDetail{Name: pname, Description: description, Declared: declared, Runs: history}
 	}
 
 	switch name {
@@ -2354,7 +2354,7 @@ func fakePipelineDetail(name string) (PipelineDetail, bool) {
 			mk("prun-nightly-deploy-0103", "schedule", "succeeded", "", ago(6*d), ago(6*d-12*m), ok...),
 			mk("prun-nightly-deploy-0104", "schedule", "succeeded", "", ago(8*d), ago(8*d-13*m), ok...),
 		}
-		return finalize("nightly-deploy", declared, history), true
+		return finalize("nightly-deploy", "Builds and deploys the web application after the nightly source refresh.", declared, history), true
 
 	case "listing-refresh":
 		declared := []PipelineStage{
@@ -2380,7 +2380,7 @@ func fakePipelineDetail(name string) (PipelineDetail, bool) {
 				sm("fetch", "succeeded"), sm("score", "blocked"), sm("dedupe", "succeeded"), sm("publish", "skipped")),
 			mk("prun-listing-refresh-0101", "schedule", "succeeded", "", ago(1*d), ago(1*d-8*m), okRun()...),
 		}
-		return finalize("listing-refresh", declared, history), true
+		return finalize("listing-refresh", "Refreshes the public listings index from Noted.\nScores, deduplicates, and gates publication.", declared, history), true
 
 	case "bench-suite":
 		declared := []PipelineStage{
@@ -2391,7 +2391,7 @@ func fakePipelineDetail(name string) (PipelineDetail, bool) {
 		history := []PipelineRunHistoryEntry{
 			entry("prun-bench-suite-0001"), // the single failed run
 		}
-		return finalize("bench-suite", declared, history), true
+		return finalize("bench-suite", "", declared, history), true
 	}
 
 	return PipelineDetail{}, false

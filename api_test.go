@@ -2265,12 +2265,37 @@ func TestHandlePipelineDetail(t *testing.T) {
 
 	// The flaky-diamond fixture exercises the declared DAG + a multi-run history
 	// whose score stage keeps changing state.
+	raw := getRaw(t, srv.URL+"/api/pipelines/listing-refresh")
 	var detail PipelineDetail
-	if err := json.Unmarshal(getRaw(t, srv.URL+"/api/pipelines/listing-refresh"), &detail); err != nil {
+	if err := json.Unmarshal(raw, &detail); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
 	if detail.Name != "listing-refresh" {
 		t.Fatalf("detail.Name = %q, want listing-refresh", detail.Name)
+	}
+	const wantDescription = "Refreshes the public listings index from Noted.\nScores, deduplicates, and gates publication."
+	if detail.Description != wantDescription {
+		t.Fatalf("detail.Description = %q, want %q", detail.Description, wantDescription)
+	}
+	var wire map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &wire); err != nil {
+		t.Fatalf("decode detail wire payload: %v", err)
+	}
+	description, ok := wire["description"]
+	if !ok {
+		t.Fatalf("detail wire payload missing description: %s", raw)
+	}
+	var wireDescription string
+	if err := json.Unmarshal(description, &wireDescription); err != nil || wireDescription != wantDescription {
+		t.Fatalf("detail wire description = %q, want %q, err=%v", wireDescription, wantDescription, err)
+	}
+	benchRaw := getRaw(t, srv.URL+"/api/pipelines/bench-suite")
+	var benchWire map[string]json.RawMessage
+	if err := json.Unmarshal(benchRaw, &benchWire); err != nil {
+		t.Fatalf("decode bench detail wire payload: %v", err)
+	}
+	if _, ok := benchWire["description"]; ok {
+		t.Fatalf("bench-suite empty description should be absent from wire payload: %s", benchRaw)
 	}
 
 	// Declared: current spec DAG, in spec (topological) order — deliberately NOT
