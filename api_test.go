@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -2508,6 +2509,125 @@ func TestHandlePipelineDetail(t *testing.T) {
 	// history (the "which stage keeps failing" demo).
 	if len(scoreStates) < 2 {
 		t.Fatalf("expected the score stage to be flaky (>=2 distinct states), got %v", scoreStates)
+	}
+}
+
+func TestHandlePipelineDetailKeys(t *testing.T) {
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+
+	allowedStatuses := map[string]bool{"none": true, "ok": true, "missing": true, "bad_mode": true, "bad_owner": true, "bad_location": true, "invalid": true}
+	allowedSources := map[string]bool{"own": true, "shared": true, "default": true}
+	allowedModes := map[string]bool{"injected": true, "proxied": true}
+
+	decode := func(name string) ([]byte, PipelineDetail) {
+		t.Helper()
+		raw := getRaw(t, srv.URL+"/api/pipelines/"+name)
+		var wire map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &wire); err != nil {
+			t.Fatalf("decode %s wire payload: %v", name, err)
+		}
+		keysRaw, ok := wire["keys"]
+		if !ok {
+			t.Fatalf("%s wire payload omitted keys: %s", name, raw)
+		}
+		var keysWire map[string]json.RawMessage
+		if err := json.Unmarshal(keysRaw, &keysWire); err != nil {
+			t.Fatalf("decode %s keys wire payload: %v", name, err)
+		}
+		if _, ok := keysWire["envFile"]; !ok {
+			t.Fatalf("%s keys wire payload omitted envFile: %s", name, keysRaw)
+		}
+		stagesRaw, ok := keysWire["stages"]
+		if !ok {
+			t.Fatalf("%s keys wire payload omitted stages: %s", name, keysRaw)
+		}
+		var stageWires []map[string]json.RawMessage
+		if err := json.Unmarshal(stagesRaw, &stageWires); err != nil || stageWires == nil {
+			t.Fatalf("%s keys.stages wire value = %s, want an array, err=%v", name, stagesRaw, err)
+		}
+		for i, stageWire := range stageWires {
+			if _, ok := stageWire["keys"]; !ok {
+				t.Fatalf("%s keys.stages[%d] omitted keys: %s", name, i, stagesRaw)
+			}
+			if _, ok := stageWire["unresolvedSelectors"]; !ok {
+				t.Fatalf("%s keys.stages[%d] omitted unresolvedSelectors: %s", name, i, stagesRaw)
+			}
+		}
+		var detail PipelineDetail
+		if err := json.Unmarshal(raw, &detail); err != nil {
+			t.Fatalf("decode %s detail: %v", name, err)
+		}
+		if !allowedStatuses[detail.Keys.EnvFile.Status] {
+			t.Fatalf("%s envFile.status = %q outside frozen enum", name, detail.Keys.EnvFile.Status)
+		}
+		if detail.Keys.Stages == nil {
+			t.Fatalf("%s keys.stages must be non-nil", name)
+		}
+		for i, stage := range detail.Keys.Stages {
+			if stage.Keys == nil {
+				t.Fatalf("%s keys.stages[%d].keys must be non-nil", name, i)
+			}
+			if stage.UnresolvedSelectors == nil {
+				t.Fatalf("%s keys.stages[%d].unresolvedSelectors must be non-nil", name, i)
+			}
+			for _, key := range stage.Keys {
+				if !allowedSources[key.Source] {
+					t.Fatalf("%s stage %s key %s source = %q outside frozen enum", name, stage.ID, key.Name, key.Source)
+				}
+				if !allowedModes[key.Mode] {
+					t.Fatalf("%s stage %s key %s mode = %q outside frozen enum", name, stage.ID, key.Name, key.Mode)
+				}
+				if key.Source == "shared" {
+					t.Fatalf("%s fixture must not fake shared key rows: %+v", name, key)
+				}
+			}
+		}
+		return raw, detail
+	}
+
+	_, own := decode("nightly-deploy")
+	if own.Keys.EnvFile.Status != "ok" || own.Keys.EnvFile.Path != "/home/gitmoot/.config/gitmoot/pipelines/nightly-deploy.env" {
+		t.Fatalf("nightly-deploy envFile = %+v", own.Keys.EnvFile)
+	}
+	wantStages := []string{"source", "build", "deploy"}
+	if len(own.Keys.Stages) != len(wantStages) {
+		t.Fatalf("nightly-deploy key stages = %d, want %d", len(own.Keys.Stages), len(wantStages))
+	}
+	for i, want := range wantStages {
+		if own.Keys.Stages[i].ID != want {
+			t.Fatalf("nightly-deploy key stage[%d] = %q, want %q", i, own.Keys.Stages[i].ID, want)
+		}
+	}
+	if len(own.Keys.Stages[0].Keys) != 0 {
+		t.Fatalf("source should render the no-credentials row: %+v", own.Keys.Stages[0])
+	}
+	if got := own.Keys.Stages[1].Keys; len(got) != 1 || got[0] != (PipelineKeyEntry{Name: "BUILD_PROFILE", Source: "default", Mode: "injected"}) {
+		t.Fatalf("build key rows = %+v", got)
+	}
+	if got := own.Keys.Stages[2].Keys; len(got) != 2 || got[0].Name != "TELEGRAM_BOT_TOKEN" || got[1].Name != "TELEGRAM_CHAT_ID" {
+		t.Fatalf("deploy own key rows = %+v", got)
+	}
+	for _, key := range own.Keys.Stages[2].Keys {
+		if key.Source != "own" || key.Mode != "injected" {
+			t.Fatalf("deploy key row = %+v, want own/injected", key)
+		}
+	}
+
+	_, missing := decode("listing-refresh")
+	if missing.Keys.EnvFile.Status != "missing" {
+		t.Fatalf("listing-refresh envFile.status = %q, want missing", missing.Keys.EnvFile.Status)
+	}
+	if len(missing.Keys.Stages) != 4 || missing.Keys.Stages[1].ID != "score" {
+		t.Fatalf("listing-refresh key stages = %+v", missing.Keys.Stages)
+	}
+	if got := missing.Keys.Stages[1].UnresolvedSelectors; !reflect.DeepEqual(got, []string{"R2_*", "MODEL_*"}) {
+		t.Fatalf("score unresolvedSelectors = %v, want [R2_* MODEL_*]", got)
+	}
+
+	_, empty := decode("bench-suite")
+	if empty.Keys.EnvFile.Status != "none" || empty.Keys.Stages == nil || len(empty.Keys.Stages) != 0 {
+		t.Fatalf("bench-suite normalized empty keys = %+v", empty.Keys)
 	}
 }
 

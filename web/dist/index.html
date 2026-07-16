@@ -7987,6 +7987,34 @@ class Component extends DCLogic {
       "#pipelines-root .pl-tabbody{display:none}",
       "#pipelines-root .pl-tabbody.on{display:block}",
       "#pipelines-root .pl-description{max-width:720px;margin:0 0 18px;color:#7c83aa;font-size:13px;line-height:1.55;white-space:pre-line}",
+      // ---- names-only credential visibility ----
+      "#pipelines-root .pl-keys-env{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 14px;margin-bottom:16px;background:#0f1120;border:1px solid rgba(160,168,220,0.13);border-radius:9px}",
+      "#pipelines-root .pl-keys-env-label{font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:0.12em;color:#8b90b8}",
+      "#pipelines-root .pl-keys-env-path{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#c7c9e5;overflow-wrap:anywhere}",
+      "#pipelines-root .pl-keys-env-none{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#5a6088}",
+      "#pipelines-root .pl-keys-status{display:inline-flex;align-items:center;padding:3px 8px;border:1px solid rgba(160,168,220,0.2);border-radius:6px;font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:0.06em;color:#8b90b8;background:rgba(160,168,220,0.07)}",
+      "#pipelines-root .pl-keys-status.ok{color:#9ece6a;border-color:rgba(158,206,106,0.28);background:rgba(158,206,106,0.09)}",
+      "#pipelines-root .pl-keys-status.missing,#pipelines-root .pl-keys-status.invalid{color:#f7768e;border-color:rgba(247,118,142,0.28);background:rgba(247,118,142,0.09)}",
+      "#pipelines-root .pl-keys-status.bad_mode,#pipelines-root .pl-keys-status.bad_owner,#pipelines-root .pl-keys-status.bad_location{color:#e0af68;border-color:rgba(224,175,104,0.28);background:rgba(224,175,104,0.09)}",
+      "#pipelines-root .pl-keys-empty{padding:18px;margin-bottom:16px;background:#090b16;border:1px solid rgba(160,168,220,0.13);border-radius:9px;color:#8b90b8;font-size:12.5px;line-height:1.55}",
+      "#pipelines-root .pl-keys-empty code{font-family:'JetBrains Mono',monospace;color:#c7c9e5;font-size:11.5px}",
+      "#pipelines-root .pl-keys-table-wrap{width:100%;overflow-x:auto;overflow-y:hidden;padding-bottom:6px}",
+      "#pipelines-root .pl-keys-table{width:100%;min-width:720px;border-collapse:collapse;background:#090b16;border:1px solid rgba(160,168,220,0.13);font-size:12.5px}",
+      "#pipelines-root .pl-keys-table th{text-align:left;padding:9px 12px;font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:0.12em;color:#8b90b8;font-weight:600;border-bottom:1px solid rgba(160,168,220,0.13);white-space:nowrap}",
+      "#pipelines-root .pl-keys-table td{padding:10px 12px;color:#a8aecf;border-bottom:1px solid rgba(160,168,220,0.07);vertical-align:top}",
+      "#pipelines-root .pl-keys-table tbody+tbody tr:first-child td{border-top:1px solid rgba(160,168,220,0.18)}",
+      "#pipelines-root .pl-keys-stage{font-family:'JetBrains Mono',monospace;font-size:11.5px;font-weight:600;color:#eef0ff;white-space:nowrap}",
+      "#pipelines-root .pl-keys-kind{font-family:'JetBrains Mono',monospace;font-size:10px;color:#7c83aa;white-space:nowrap}",
+      "#pipelines-root .pl-keys-name{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#c7c9e5;white-space:nowrap}",
+      "#pipelines-root .pl-keys-badge{display:inline-flex;align-items:center;padding:3px 7px;border:1px solid rgba(160,168,220,0.2);border-radius:5px;font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:0.04em;color:#8b90b8;background:rgba(160,168,220,0.07);white-space:nowrap}",
+      "#pipelines-root .pl-keys-badge.own{color:#7dcfff;border-color:rgba(125,207,255,0.28);background:rgba(125,207,255,0.09)}",
+      "#pipelines-root .pl-keys-badge.default{color:#bb9af7;border-color:rgba(187,154,247,0.28);background:rgba(187,154,247,0.09)}",
+      "#pipelines-root .pl-keys-badge.shared{color:#9ece6a;border-color:rgba(158,206,106,0.28);background:rgba(158,206,106,0.09)}",
+      "#pipelines-root .pl-keys-badge.injected{color:#9ece6a;border-color:rgba(158,206,106,0.24);background:rgba(158,206,106,0.07)}",
+      "#pipelines-root .pl-keys-badge.proxied{color:#e0af68;border-color:rgba(224,175,104,0.24);background:rgba(224,175,104,0.07)}",
+      "#pipelines-root .pl-keys-no-cred{font-family:'JetBrains Mono',monospace;font-size:11px;color:#5a6088;font-style:italic}",
+      "#pipelines-root .pl-keys-warning td{padding:9px 12px;background:rgba(224,175,104,0.06);color:#e0af68;font-size:11.5px}",
+      "#pipelines-root .pl-keys-warning code{display:inline-block;margin-left:5px;padding:2px 6px;border:1px solid rgba(224,175,104,0.22);border-radius:5px;font-family:'JetBrains Mono',monospace;font-size:10px;color:#e0af68;background:rgba(224,175,104,0.06)}",
       "#pipelines-root .pl-history-lbl{font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:0.12em;color:#5a6088;margin-bottom:8px}",
       // ---- banner (blocked / failed) : design accent-bar alert ----
       "#pipelines-root .pl-banner{display:flex;flex-direction:column;gap:12px;border-radius:12px;padding:16px 18px;margin-bottom:18px;border:1px solid;border-left-width:3px}",
@@ -8106,12 +8134,14 @@ class Component extends DCLogic {
       '      <span id="pl-h-state"></span>',
       '      <div class="pl-tabs">',
       '        <button data-pl-tab="dag" class="on">DAG</button>',
+      '        <button data-pl-tab="keys">Keys</button>',
       '        <button data-pl-tab="history">History</button>',
       '        <button data-pl-tab="matrix">Matrix</button>',
       '      </div>',
       '    </div>',
       '    <div class="pl-main-body">',
       '      <div class="pl-tabbody on" id="pl-tab-dag" data-pl-tab="dag"></div>',
+      '      <div class="pl-tabbody" id="pl-tab-keys" data-pl-tab="keys"></div>',
       '      <div class="pl-tabbody" id="pl-tab-history" data-pl-tab="history"></div>',
       '      <div class="pl-tabbody" id="pl-tab-matrix" data-pl-tab="matrix"></div>',
       '    </div>',
@@ -8344,7 +8374,7 @@ class Component extends DCLogic {
     const det = this._pipelinesRoot.querySelector('#pl-detail');
     if (list) list.style.display = 'none';
     if (det) det.style.display = 'flex';
-    ['#pl-runs', '#pl-rail-foot', '#pl-tab-dag', '#pl-tab-history', '#pl-tab-matrix'].forEach(sel => { const el = this._pipelinesRoot.querySelector(sel); if (el) el.innerHTML = ''; });
+    ['#pl-runs', '#pl-rail-foot', '#pl-tab-dag', '#pl-tab-keys', '#pl-tab-history', '#pl-tab-matrix'].forEach(sel => { const el = this._pipelinesRoot.querySelector(sel); if (el) el.innerHTML = ''; });
     this._plLayout();
     this._plApplyTab();
     this.renderPipelineDetailShell(summary);
@@ -8902,16 +8932,16 @@ class Component extends DCLogic {
       })
       .catch(err => {
         // the detail data is supplementary (the header + selected run render from
-        // the list + run endpoints); a first-load failure clears the History/Matrix
-        // tabs, a poll failure keeps what's on screen.
+        // the list + run endpoints); a first-load failure clears the Keys,
+        // History, and Matrix tabs, while a poll failure keeps what's on screen.
         if (isPoll || this._plDetailFetchName !== fname || this._plDetailName !== name) return;
-        ['#pl-tab-history', '#pl-tab-matrix'].forEach(sel => { const el = this._pipelinesRoot && this._pipelinesRoot.querySelector(sel); if (el) el.innerHTML = ''; });
+        ['#pl-tab-keys', '#pl-tab-history', '#pl-tab-matrix'].forEach(sel => { const el = this._pipelinesRoot && this._pipelinesRoot.querySelector(sel); if (el) el.innerHTML = ''; });
       });
   }
 
-  // Render the detail-data driven panes: the RUNS rail (full history), the History
-  // tab table, and the Matrix tab (with a "needs 2+ runs" note under the gate), then
-  // re-apply the run selection, the visible tab, and the live countdown labels.
+  // Render the detail-data driven panes: the RUNS rail (full history), Keys,
+  // History, and Matrix tabs, then re-apply the run selection, visible tab, and
+  // live countdown labels.
   renderPipelineDetailData() {
     if (!this._pipelinesRoot) return;
     const detail = this._plDetail;
@@ -8926,6 +8956,7 @@ class Component extends DCLogic {
     // one-column duplicate of the DAG, so show a note instead of hiding silently.
     if (mx) mx.innerHTML = runs.length >= 2 ? this._plMatrixHtml(detail)
       : '<div class="pl-mxnote">The stage &times; run matrix needs at least 2 runs to compare — this pipeline has ' + runs.length + '.</div>';
+    this._plRenderKeysTab(detail);
     if (runs.length && !this._plSelectedRun) {
       // the list's recent strip was empty/stale but history has runs: pick newest.
       this.selectPipelineRun(runs[0].id);
@@ -8941,6 +8972,63 @@ class Component extends DCLogic {
     }
     this._plApplyTab();
     this.refreshPipelineCountdowns();
+  }
+
+  _plRenderKeysTab(detail) {
+    const pane = this._pipelinesRoot && this._pipelinesRoot.querySelector('#pl-tab-keys');
+    if (!pane) return;
+    const esc = (s) => this._galaxyEsc(s);
+    const projection = detail && detail.keys && typeof detail.keys === 'object' ? detail.keys : {};
+    const envFile = projection.envFile && typeof projection.envFile === 'object' ? projection.envFile : {};
+    const rawStatus = typeof envFile.status === 'string' && envFile.status ? envFile.status : 'none';
+    const statuses = ['none', 'ok', 'missing', 'bad_mode', 'bad_owner', 'bad_location', 'invalid'];
+    const statusClass = statuses.indexOf(rawStatus) !== -1 ? rawStatus : 'invalid';
+    const statusLabels = { none: 'none', ok: 'ok', missing: 'missing', bad_mode: 'bad mode', bad_owner: 'bad owner', bad_location: 'bad location', invalid: 'invalid' };
+    const statusLabel = statusLabels[rawStatus] || rawStatus;
+    const path = typeof envFile.path === 'string' ? envFile.path : '';
+    const pathHTML = path ? '<code class="pl-keys-env-path">' + esc(path) + '</code>' : '<span class="pl-keys-env-none">not declared</span>';
+    const envHTML = '<div class="pl-keys-env"><span class="pl-keys-env-label">env_file</span>' + pathHTML +
+      '<span class="pl-keys-status ' + statusClass + '">' + esc(statusLabel) + '</span></div>';
+
+    const stages = Array.isArray(projection.stages) ? projection.stages : [];
+    let keyCount = 0;
+    const groups = stages.map(stage => {
+      const entries = Array.isArray(stage && stage.keys) ? stage.keys : [];
+      const selectors = Array.isArray(stage && stage.unresolvedSelectors) ? stage.unresolvedSelectors : [];
+      keyCount += entries.length;
+      const stageID = stage && stage.id != null ? String(stage.id) : '';
+      const kind = stage && stage.kind != null ? String(stage.kind) : '';
+      const kindLabel = this._plStageKindBadge(kind) || kind || '—';
+      let rows = '';
+      if (entries.length) {
+        entries.forEach((entry, index) => {
+          const source = entry && entry.source != null ? String(entry.source) : '';
+          const mode = entry && entry.mode != null ? String(entry.mode) : '';
+          const sourceClass = ['own', 'shared', 'default'].indexOf(source) !== -1 ? source : '';
+          const modeClass = ['injected', 'proxied'].indexOf(mode) !== -1 ? mode : '';
+          rows += '<tr>' + (index === 0 ? '<td class="pl-keys-stage" rowspan="' + entries.length + '">' + esc(stageID) + '</td>' +
+            '<td class="pl-keys-kind" rowspan="' + entries.length + '">' + esc(kindLabel) + '</td>' : '') +
+            '<td class="pl-keys-name">' + esc(entry && entry.name != null ? entry.name : '') + '</td>' +
+            '<td><span class="pl-keys-badge ' + sourceClass + '">' + esc(source || '—') + '</span></td>' +
+            '<td><span class="pl-keys-badge ' + modeClass + '">' + esc(mode || '—') + '</span></td></tr>';
+        });
+      } else {
+        rows = '<tr><td class="pl-keys-stage">' + esc(stageID) + '</td><td class="pl-keys-kind">' + esc(kindLabel) +
+          '</td><td class="pl-keys-no-cred" colspan="3">no credentials</td></tr>';
+      }
+      if (selectors.length) {
+        rows += '<tr class="pl-keys-warning"><td colspan="5">Unresolved selectors for <strong>' + esc(stageID) + '</strong>:' +
+          selectors.map(selector => '<code>' + esc(selector) + '</code>').join('') + '</td></tr>';
+      }
+      return '<tbody>' + rows + '</tbody>';
+    }).join('');
+
+    const emptyHTML = rawStatus === 'none' && keyCount === 0
+      ? '<div class="pl-keys-empty">No credentials are declared; under #968 deny-by-default, stages receive nothing unless their <code>env_keys</code> explicitly allow access.</div>'
+      : '';
+    const tableHTML = stages.length ? '<div class="pl-keys-table-wrap"><table class="pl-keys-table"><thead><tr>' +
+      '<th>Stage</th><th>Kind</th><th>Key</th><th>Source</th><th>Delivery</th></tr></thead>' + groups + '</table></div>' : '';
+    pane.innerHTML = envHTML + emptyHTML + tableHTML;
   }
 
   // Stage x run matrix: rows = stage ids (declared order, then any history-only

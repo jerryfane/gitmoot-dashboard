@@ -891,6 +891,39 @@ type PipelineDetail struct {
 	Description string                    `json:"description,omitempty"`
 	Declared    []PipelineStage           `json:"declared"` // current spec DAG, state "pending"; never nil
 	Runs        []PipelineRunHistoryEntry `json:"runs"`     // newest-first, capped at 100; never nil
+	Keys        PipelineKeys              `json:"keys"`     // names-only credential projection; never contains secret values
+}
+
+// PipelineKeys is the names-only credential view for a pipeline. Stages stay in
+// spec order and are never nil.
+type PipelineKeys struct {
+	EnvFile PipelineEnvFileStatus `json:"envFile"`
+	Stages  []PipelineStageKeys   `json:"stages"`
+}
+
+// PipelineEnvFileStatus reports validation metadata without exposing file
+// contents. Status is none | ok | missing | bad_mode | bad_owner |
+// bad_location | invalid.
+type PipelineEnvFileStatus struct {
+	Path   string `json:"path"`
+	Status string `json:"status"`
+}
+
+// PipelineStageKeys is one stage's ordered, names-only credential projection.
+// Keys and UnresolvedSelectors are never nil.
+type PipelineStageKeys struct {
+	ID                  string             `json:"id"`
+	Kind                string             `json:"kind"`
+	Keys                []PipelineKeyEntry `json:"keys"`
+	UnresolvedSelectors []string           `json:"unresolvedSelectors"`
+}
+
+// PipelineKeyEntry identifies one credential by name, source, and delivery
+// mode. Source is own | shared | default; Mode is injected | proxied.
+type PipelineKeyEntry struct {
+	Name   string `json:"name"`
+	Source string `json:"source"`
+	Mode   string `json:"mode"`
 }
 
 // Chat — the Gitmoot-native agent chat layer (gitmoot #534): durable,

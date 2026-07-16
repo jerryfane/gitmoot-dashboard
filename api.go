@@ -703,8 +703,9 @@ func (s *server) handlePipelines(w http.ResponseWriter, r *http.Request) {
 
 // handlePipelineDetail serves GET /api/pipelines/{name} -> PipelineDetail, one
 // pipeline's declared stage DAG and its run history (newest-first, capped at
-// 100). Unknown names map to 404 (mirrors handleAgent). Declared, Runs and each
-// run's Stages are coerced non-nil so the client always sees JSON arrays.
+// 100). Unknown names map to 404 (mirrors handleAgent). Declared, Runs, key
+// stages, stage keys/selectors, and each run's Stages are coerced non-nil so the
+// client always sees JSON arrays. Server-provided order is preserved.
 func (s *server) handlePipelineDetail(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	if name == "" {
@@ -721,6 +722,20 @@ func (s *server) handlePipelineDetail(w http.ResponseWriter, r *http.Request) {
 	}
 	if detail.Runs == nil {
 		detail.Runs = []PipelineRunHistoryEntry{}
+	}
+	if detail.Keys.EnvFile.Status == "" {
+		detail.Keys.EnvFile.Status = "none"
+	}
+	if detail.Keys.Stages == nil {
+		detail.Keys.Stages = []PipelineStageKeys{}
+	}
+	for i := range detail.Keys.Stages {
+		if detail.Keys.Stages[i].Keys == nil {
+			detail.Keys.Stages[i].Keys = []PipelineKeyEntry{}
+		}
+		if detail.Keys.Stages[i].UnresolvedSelectors == nil {
+			detail.Keys.Stages[i].UnresolvedSelectors = []string{}
+		}
 	}
 	for i := range detail.Runs {
 		if detail.Runs[i].Stages == nil {
