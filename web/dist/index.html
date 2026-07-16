@@ -332,7 +332,7 @@ class Component extends DCLogic {
       if (r.view === 'jobs' && r.agent) this._jobsFacetAgent = r.agent;
       if (r.view === 'agents' && r.agent) this._pendingAgentDetail = r.agent;
       if (r.view === 'learning') this._learningTab = 'skills';
-      if (r.view === 'brain') this._learningTab = 'knowledge';
+      if (r.view === 'brain') { this._learningTab = 'knowledge'; this._brainRestoreRoute(r.brain); }
       if (r.view === 'pipelines') this._pendingPipelineDetail = r.name || null;
       if (r.view === 'chat') this._pendingChatThread = r.name || null;
       if (r.view === 'workflows') this._pendingWorkflowLabel = r.name || null;
@@ -342,7 +342,7 @@ class Component extends DCLogic {
       if (r.unknown) {
         try { history.replaceState(null, '', '/'); } catch (e) {}
       } else if (r.view !== 'graph') {
-        const canon = this._routeUrl(r.view, { agent: r.agent, tab: r.tab, name: r.name });
+        const canon = this._routeUrl(r.view, { agent: r.agent, tab: r.tab, name: r.name, brain: r.brain });
         if ((location.pathname + location.search) !== canon) {
           try { history.replaceState(null, '', canon); } catch (e) {}
         }
@@ -366,7 +366,7 @@ class Component extends DCLogic {
     }
     if (p === '/tasks') return { view: 'tasks' };
     if (p === '/galaxy') return { view: 'galaxy' };
-    if (p === '/brain') return { view: 'brain' };
+    if (p === '/brain') return { view: 'brain', brain: this._brainParseRoute(search) };
     if (p === '/charts') return { view: 'charts' };
     if (p === '/health') return { view: 'health' };
     if (p === '/config') return { view: 'config' };
@@ -374,7 +374,7 @@ class Component extends DCLogic {
     // /learning normalizes to /learning/skills (constructor/_onPopState canonicalize).
     if (p === '/learning') return { view: 'learning', tab: 'skills' };
     if (p === '/learning/skills') return { view: 'learning', tab: 'skills' };
-    if (p === '/learning/knowledge') return { view: 'brain' }; // constructor canonicalizes with replaceState
+    if (p === '/learning/knowledge') return { view: 'brain', brain: this._brainParseRoute(search) }; // constructor canonicalizes with replaceState
     if (p === '/jobs') { const a = this._routeQueryAgent(search); return a ? { view: 'jobs', agent: a } : { view: 'jobs' }; }
     if (p === '/pipelines') return { view: 'pipelines' };
     if (p.indexOf('/pipelines/') === 0) {
@@ -422,13 +422,59 @@ class Component extends DCLogic {
     }
     return '';
   }
+  _brainParseRoute(search) {
+    const out = { view: 'graph', fact: '', kinds: [], repo: '', actor: '', q: '' };
+    try {
+      const p = new URLSearchParams(search || '');
+      if (p.get('view') === 'changelog') out.view = 'changelog';
+      out.fact = p.get('fact') || '';
+      out.repo = p.get('repo') || '';
+      out.actor = p.get('actor') || '';
+      out.q = p.get('q') || '';
+      const seen = {};
+      out.kinds = (p.get('kinds') || '').split(',').map(v => v.trim()).filter(v => v && !seen[v] && (seen[v] = true));
+      if (out.fact || out.kinds.length || out.repo || out.actor || out.q) out.view = 'changelog';
+    } catch (e) {}
+    return out;
+  }
+  _brainRestoreRoute(route) {
+    route = route || { view: 'graph', fact: '', kinds: [], repo: '', actor: '', q: '' };
+    const previousFact = this._brainBiographyKey || '';
+    this._brainView = route.view === 'changelog' ? 'changelog' : 'graph';
+    this._brainBiographyKey = route.fact || '';
+    if (previousFact !== this._brainBiographyKey) { this._brainBiographyMemoryId = null; this._brainBiographyFact = null; }
+    this._brainFilters = {
+      kinds: Array.isArray(route.kinds) ? route.kinds.slice() : [],
+      repo: route.repo || '', actor: route.actor || '', q: route.q || ''
+    };
+  }
+  _brainRouteState() {
+    const f = this._brainFilters || {};
+    return {
+      view: this._brainView === 'changelog' ? 'changelog' : 'graph',
+      fact: this._brainBiographyKey || '', kinds: Array.isArray(f.kinds) ? f.kinds.slice() : [],
+      repo: f.repo || '', actor: f.actor || '', q: f.q || ''
+    };
+  }
+  _brainRouteUrl(route) {
+    route = route || this._brainRouteState();
+    if (route.view !== 'changelog') return '/brain';
+    const p = new URLSearchParams();
+    p.set('view', 'changelog');
+    if (route.fact) p.set('fact', route.fact);
+    if (route.kinds && route.kinds.length) p.set('kinds', route.kinds.join(','));
+    if (route.repo) p.set('repo', route.repo);
+    if (route.actor) p.set('actor', route.actor);
+    if (route.q) p.set('q', route.q);
+    return '/brain?' + p.toString();
+  }
   _routeUrl(view, opts) {
     opts = opts || {};
     switch (view) {
       case 'overview': return '/';
       case 'tasks': return '/tasks';
       case 'galaxy': return '/galaxy';
-      case 'brain': return '/brain';
+      case 'brain': return this._brainRouteUrl(opts.brain || this._brainRouteState());
       case 'jobs':   return opts.agent ? '/jobs?agent=' + encodeURIComponent(opts.agent) : '/jobs';
       case 'pipelines': return opts.name ? '/pipelines/' + encodeURIComponent(opts.name) : '/pipelines';
       case 'workflows': return opts.name ? '/workflows/' + encodeURIComponent(opts.name) : '/workflows';
@@ -495,7 +541,7 @@ class Component extends DCLogic {
     let r;
     try { r = this._parseRoute(location.pathname, location.search); } catch (e) { r = { view: 'overview' }; }
     if (r.view === 'brain' && location.pathname.replace(/\/+$/, '') === '/learning/knowledge') {
-      try { history.replaceState(null, '', '/brain'); } catch (e) {}
+      try { history.replaceState(null, '', this._brainRouteUrl(r.brain)); } catch (e) {}
     }
     this._routing = true;
     try {
@@ -531,6 +577,8 @@ class Component extends DCLogic {
         }
       } else if (r.view === 'brain') {
         this._learningTab = 'knowledge';
+        this._brainRestoreRoute(r.brain);
+        if (this.state.view === 'brain' && this._learningRoot) this._applyBrainView(true);
       } else if (r.view === 'learning') {
         const tab = 'skills';
         if (this._learningRoot) {
@@ -658,6 +706,7 @@ class Component extends DCLogic {
           }
           // Learning/Knowledge: the second force-graph re-fits to the post-dock width.
           if (this.state.view === 'brain' && this._knowGraph && this._knowGraphEl) {
+            if (this._brainView === 'changelog') { this._brainRender(); return; }
             // Option A: swap canvas <-> repo accordion for the new breakpoint first, then
             // (desktop only — the mobile canvas is display:none, so it measures 0) re-fit.
             this._knowApplyMobile();
@@ -703,6 +752,8 @@ class Component extends DCLogic {
     clearInterval(this._runsPoll);
     clearInterval(this._navSeedTimer);
     clearTimeout(this._loadTO);
+    clearTimeout(this._brainLiveTimer);
+    clearTimeout(this._brainSearchTimer);
     this.stopGalaxyPoll();
     this.stopJobsPoll();
     this.stopAgentsPoll();
@@ -712,6 +763,7 @@ class Component extends DCLogic {
     this.stopAttentionPoll();
     this.stopSkillsPoll();
     this.stopKnowledgePoll();
+    this._brainStopPoll();
     this.stopPipelinesPoll();
     this.stopPipelineRunPoll();
     this.stopPipelineDetailPoll();
@@ -734,6 +786,7 @@ class Component extends DCLogic {
     try { document.removeEventListener('keydown', this._healthKeydown); } catch (e) {}
     try { document.removeEventListener('keydown', this._attentionKeydown); } catch (e) {}
     try { document.removeEventListener('keydown', this._learningKeydown); } catch (e) {}
+    try { document.removeEventListener('click', this._brainDocClick); } catch (e) {}
     try { document.removeEventListener('keydown', this._pipelinesKeydown); } catch (e) {}
     try { document.removeEventListener('keydown', this._chatKeydown); } catch (e) {}
     try { document.removeEventListener('keydown', this._workflowKeydown); } catch (e) {}
@@ -844,7 +897,10 @@ class Component extends DCLogic {
     else if (view === 'config') this.fetchConfig(true);
     else if (view === 'attention') this.fetchAttention(true);
     else if (view === 'learning') this.fetchSkills(true);
-    else if (view === 'brain') this.fetchKnowledge(true);
+    else if (view === 'brain') {
+      if (this._brainView === 'changelog') this._brainFetchNewest(true);
+      else this.fetchKnowledge(true);
+    }
     else if (view === 'pipelines') {
       this.fetchPipelines(true);
       if (this._plDetailName) this.fetchPipelineDetailData(this._plDetailName, true);
@@ -1025,6 +1081,8 @@ class Component extends DCLogic {
     } else {
       this.stopSkillsPoll();
       this.stopKnowledgePoll();
+      this._brainStopPoll();
+      clearTimeout(this._brainSearchTimer); this._brainSearchTimer = null;
       try { if (this._knowGraph && this._knowGraph.pauseAnimation) this._knowGraph.pauseAnimation(); } catch (e) {}
       if (this._learningRoot) this._learningRoot.style.display = 'none';
     }
@@ -5115,11 +5173,18 @@ class Component extends DCLogic {
   startKnowledgePoll() {
     if (this._knowPoll) return;
     this._knowPoll = setInterval(() => {
-      if (this.state.view !== 'brain' || !this._knowGraph) return;
+      if (this.state.view !== 'brain' || this._brainView === 'changelog' || !this._knowGraph) return;
       this.fetchKnowledge(true);
     }, 12000);
   }
   stopKnowledgePoll() { try { clearInterval(this._knowPoll); } catch (e) {} this._knowPoll = null; }
+  _brainStartPoll() {
+    if (this._brainPoll) return;
+    this._brainPoll = setInterval(() => {
+      if (this.state.view === 'brain' && this._brainView === 'changelog') this._brainFetchNewest(false);
+    }, 12000);
+  }
+  _brainStopPoll() { try { clearInterval(this._brainPoll); } catch (e) {} this._brainPoll = null; }
 
   // Switch the active sub-tab. A tab switch is a pushState (URL changes
   // /learning/skills <-> /learning/knowledge) so back/forward crosses it.
@@ -5148,15 +5213,629 @@ class Component extends DCLogic {
     this.setState({}); // refresh the top-bar breadcrumb
     if (tab === 'skills') {
       this.stopKnowledgePoll();
+      this._brainStopPoll();
       try { if (this._knowGraph && this._knowGraph.pauseAnimation) this._knowGraph.pauseAnimation(); } catch (e) {}
       this.startSkillsPoll();
       this.fetchSkills(false);
     } else {
       this.stopSkillsPoll();
-      try { if (this._knowGraph && this._knowGraph.resumeAnimation) this._knowGraph.resumeAnimation(); } catch (e) {}
       this.initKnowledgeGraph();
-      this.startKnowledgePoll();
+      this._applyBrainView(false);
     }
+  }
+
+  _applyBrainView(fromRoute) {
+    if (!this._learningRoot || this.state.view !== 'brain') return;
+    const changelog = this._brainView === 'changelog';
+    const graph = this._learningRoot.querySelector('#lr-know-graph');
+    const loading = this._learningRoot.querySelector('#lr-know-loading');
+    const legend = this._learningRoot.querySelector('#lr-know-legend');
+    const empty = this._learningRoot.querySelector('#lr-empty');
+    const mobile = this._learningRoot.querySelector('#lr-know-mobile');
+    const detail = this._learningRoot.querySelector('.lr-detail');
+    const log = this._learningRoot.querySelector('#lr-changelog');
+    const chrome = this._learningRoot.querySelector('#lr-know-chrome');
+    this._learningRoot.classList.toggle('brain-changelog', changelog);
+    if (chrome) chrome.classList.toggle('changelog', changelog);
+    if (log) log.style.display = changelog ? 'flex' : 'none';
+    if (changelog) [graph, loading, legend, empty, mobile, detail].forEach(el => { if (el) el.style.display = 'none'; });
+    else {
+      if (graph) graph.style.display = '';
+      if (loading) loading.style.display = this._knowRaw ? 'none' : 'flex';
+      if (legend) legend.style.display = '';
+      if (empty) empty.style.display = this._knowEmpty ? 'block' : 'none';
+      if (detail) detail.style.display = 'flex';
+    }
+    this._brainSetGraphControlsVisible(!changelog);
+    const buttons = chrome ? chrome.querySelectorAll('[data-brain-view]') : [];
+    buttons.forEach(b => { const on = b.getAttribute('data-brain-view') === (changelog ? 'changelog' : 'graph'); b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); });
+    if (changelog) {
+      this.stopKnowledgePoll();
+      try { if (this._knowGraph && this._knowGraph.pauseAnimation) this._knowGraph.pauseAnimation(); } catch (e) {}
+      this._brainStartPoll();
+      if (!this._brainLoaded) this._brainFetchPage('', false);
+      else {
+        if (this._brainBiographyKey && !this._brainBiographyFact) this._brainResolveBiography();
+        this._brainRender();
+      }
+      this._brainSyncStats();
+    } else {
+      this._brainStopPoll();
+      this._brainSheetOpen = false;
+      this._brainCloseMenus();
+      try { if (this._knowGraph && this._knowGraph.resumeAnimation) this._knowGraph.resumeAnimation(); } catch (e) {}
+      this.startKnowledgePoll();
+      this._knowChromeMode = '';
+      this._knowSyncChrome(this._knowBuilt || { agentCount: 0, factCount: 0, factLinkCount: 0 });
+      try { this._knowApplyMobile(); } catch (e) {}
+    }
+  }
+
+  _brainSetGraphControlsVisible(show) {
+    const chrome = this._learningRoot && this._learningRoot.querySelector('#lr-know-chrome');
+    if (!chrome) return;
+    const count = chrome.querySelector('#lr-know-count');
+    ['#lr-know-linkcount', '#lr-know-controls'].forEach(sel => {
+      let el = chrome.querySelector(sel) || this[sel === '#lr-know-linkcount' ? '_brainLinkChip' : '_brainGraphControls'];
+      if (!el) return;
+      if (show) {
+        if (!el.parentNode) chrome.appendChild(el);
+      } else if (el.parentNode) {
+        if (sel === '#lr-know-linkcount') this._brainLinkChip = el; else this._brainGraphControls = el;
+        el.remove();
+      }
+    });
+  }
+
+  _brainSetView(view, push) {
+    view = view === 'changelog' ? 'changelog' : 'graph';
+    if (this._brainView === view) return;
+    this._brainView = view;
+    if (view === 'graph') {
+      this._brainBiographyKey = '';
+      clearTimeout(this._brainSearchTimer); this._brainSearchTimer = null;
+    }
+    this._applyBrainView(false);
+    this._navRoute('brain', { brain: this._brainRouteState() }, push === false);
+  }
+
+  _brainKindMap() {
+    return {
+      created: { label: 'created', color: '#7dcfff' }, updated: { label: 'updated', color: '#7aa2f7' },
+      retired: { label: 'retired', color: '#e0697f' }, unretired: { label: 'unretired', color: '#73daca' },
+      superseded: { label: 'superseded', color: '#8b8fc0' }, confirmed: { label: 'confirmed', color: '#9ece6a' },
+      promoted: { label: 'promoted', color: '#9ece6a' }, ingested: { label: 'ingested', color: '#8a93b3' },
+      cluster_recompute: { label: 'cluster_recompute', color: '#bb9af7' }, cluster_rename: { label: 'cluster_rename', color: '#bb9af7' }
+    };
+  }
+
+  _brainNormalizeEvent(raw) {
+    const e = raw && typeof raw === 'object' ? Object.assign({}, raw) : {};
+    let detail = e.detail;
+    if (typeof detail === 'string') { try { detail = JSON.parse(detail); } catch (err) { detail = {}; } }
+    e.detail = detail && typeof detail === 'object' ? detail : {};
+    e.id = e.id == null ? '' : e.id;
+    e.memoryId = e.memoryId != null ? e.memoryId : (e.memory_id != null ? e.memory_id : null);
+    e.ownerKind = e.ownerKind || e.owner_kind || '';
+    e.ownerRef = e.ownerRef || e.owner_ref || '';
+    e.backfilled = !!(e.backfilled || e.detail.backfilled);
+    return e;
+  }
+
+  _brainStoreOlderCursor(next) {
+    this._brainOlderCursor = next || 0;
+    this._brainExhausted = !next;
+    this._brainCursorQuarantined = false;
+  }
+
+  _brainFetchNewest(live) { return this._brainFetchPage('', !!live); }
+  _brainFetchPage(cursor, live) {
+    const older = cursor !== '' && cursor != null;
+    if (this._brainLoading) return this._brainLoading;
+    this._brainLoadingCursor = older ? String(cursor) : '';
+    const url = '/api/brain/events?limit=60' + (older ? '&cursor=' + encodeURIComponent(cursor) : '');
+    const request = fetch(url, { cache: 'no-store' }).then(async r => {
+      if (r.status === 400 && older) {
+        this._brainEvents = []; this._brainEventIds = {}; this._brainOlderCursor = 0;
+        this._brainNewestEventId = 0; this._brainExhausted = false; this._brainLoaded = false;
+        return { stale: true };
+      }
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(data => {
+      if (data && data.stale) { this._brainLoading = null; return this._brainFetchPage('', false); }
+      const incoming = (data && Array.isArray(data.events) ? data.events : []).map(e => this._brainNormalizeEvent(e));
+      const known = this._brainEventIds || {};
+      const fresh = incoming.filter(e => !known[String(e.id)]);
+      if (!this._brainLoaded) {
+        this._brainEvents = incoming;
+        this._brainEventIds = {};
+        incoming.forEach(e => { this._brainEventIds[String(e.id)] = true; });
+        this._brainNewestEventId = incoming.length ? incoming[0].id : 0;
+        this._brainStoreOlderCursor(data && data.nextCursor);
+        if (!this._brainOpenInitialized && !this._brainBiographyKey && incoming.length) {
+          this._brainOpenId = String(incoming[0].id); this._brainOpenInitialized = true;
+          if (incoming[0].kind === 'updated' && incoming[0].memoryId != null) setTimeout(() => this._brainEnsureFact(incoming[0].memoryId), 0);
+        }
+      } else if (older) {
+        fresh.forEach(e => { known[String(e.id)] = true; });
+        this._brainEvents = (this._brainEvents || []).concat(fresh);
+        this._brainStoreOlderCursor(data && data.nextCursor);
+      } else {
+        fresh.forEach(e => { known[String(e.id)] = true; });
+        this._brainEvents = fresh.concat(this._brainEvents || []);
+        if (incoming.length) this._brainNewestEventId = incoming[0].id;
+        if (live && fresh.length) {
+          if (!this._brainLiveIds) this._brainLiveIds = {};
+          fresh.forEach(e => { this._brainLiveIds[String(e.id)] = true; });
+          clearTimeout(this._brainLiveTimer);
+          this._brainLiveTimer = setTimeout(() => { this._brainLiveIds = {}; this._brainRender(); }, 3600);
+        }
+      }
+      this._brainEvents = (this._brainEvents || []).slice().sort((a, b) => {
+        const dt = new Date(b.at || 0).getTime() - new Date(a.at || 0).getTime();
+        if (dt) return dt;
+        return Number(b.id || 0) - Number(a.id || 0);
+      });
+      this._brainTotal = Number(data && data.total != null ? data.total : this._brainEvents.length) || 0;
+      this._brainLoaded = true; this._brainError = '';
+      this._brainRender();
+      if (this._brainBiographyKey) setTimeout(() => this._brainResolveBiography(), 0);
+      return data;
+    }).catch(err => {
+      if (!this._brainLoaded) { this._brainLoaded = true; this._brainError = err && err.message ? err.message : 'request failed'; this._brainRender(); }
+      return null;
+    }).finally(() => {
+      if (this._brainLoading === request) { this._brainLoading = null; this._brainLoadingCursor = ''; }
+    });
+    this._brainLoading = request;
+    return request;
+  }
+
+  _brainLoadOlder() {
+    if (this._brainLoading) {
+      const pending = this._brainLoading, loadingOlder = !!this._brainLoadingCursor;
+      return pending.then(() => loadingOlder ? null : this._brainLoadOlder());
+    }
+    if (this._brainExhausted || !this._brainOlderCursor) return Promise.resolve(null);
+    return this._brainFetchPage(this._brainOlderCursor, false);
+  }
+
+  _brainLoadBiographyHistory(batch) {
+    batch = batch || 0;
+    if (!this._brainBiographyKey || this._brainExhausted || !this._brainOlderCursor || batch >= 100) return Promise.resolve();
+    const cursor = String(this._brainOlderCursor);
+    return this._brainLoadOlder().then(() => {
+      if (!this._brainBiographyKey || (String(this._brainOlderCursor) === cursor && !this._brainExhausted)) return null;
+      return this._brainLoadBiographyHistory(batch + 1);
+    });
+  }
+
+  _brainEnsureFact(id) {
+    if (id == null || id === '') return Promise.resolve(null);
+    const key = String(id);
+    if (!this._brainFacts) this._brainFacts = {};
+    if (Object.prototype.hasOwnProperty.call(this._brainFacts, key)) return Promise.resolve(this._brainFacts[key]);
+    if (!this._brainFactRequests) this._brainFactRequests = {};
+    if (this._brainFactRequests[key]) return this._brainFactRequests[key];
+    const req = fetch('/api/brain/fact?id=' + encodeURIComponent(id), { cache: 'no-store' })
+      .then(r => { if (r.status === 404) return null; if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(fact => { this._brainFacts[key] = fact && typeof fact === 'object' ? fact : null; this._brainRender(); return this._brainFacts[key]; })
+      .catch(() => { this._brainFacts[key] = null; this._brainRender(); return null; })
+      .finally(() => { delete this._brainFactRequests[key]; });
+    this._brainFactRequests[key] = req;
+    return req;
+  }
+
+  _brainResolveBiography() {
+    const key = this._brainBiographyKey;
+    if (!key) return;
+    const events = this._brainEvents || [];
+    const match = events.find(e => e.key === key && e.memoryId != null);
+    if (match) {
+      this._brainBiographyMemoryId = match.memoryId;
+      this._brainEnsureFact(match.memoryId).then(fact => {
+        if (this._brainBiographyKey === key) { this._brainBiographyFact = fact; this._brainRender(); }
+      });
+    }
+    if (!this._brainExhausted && !this._brainBiographyLoading) {
+      this._brainBiographyLoading = this._brainLoadBiographyHistory(0).finally(() => {
+        this._brainBiographyLoading = null;
+        if (this._brainBiographyKey === key) this._brainResolveBiography();
+      });
+    }
+  }
+
+  _brainOpenBiography(key, memoryId, replace) {
+    if (!key) return;
+    this._brainBiographyKey = key;
+    this._brainBiographyMemoryId = memoryId != null && memoryId !== '' ? memoryId : null;
+    this._brainBiographyFact = this._brainBiographyMemoryId != null && this._brainFacts ? this._brainFacts[String(this._brainBiographyMemoryId)] : null;
+    this._brainOpenId = ''; this._brainSheetOpen = false; this._brainCloseMenus();
+    this._navRoute('brain', { brain: this._brainRouteState() }, !!replace);
+    this._brainRender();
+    if (this._brainBiographyMemoryId != null) this._brainEnsureFact(this._brainBiographyMemoryId).then(f => { if (this._brainBiographyKey === key) { this._brainBiographyFact = f; this._brainRender(); } });
+    this._brainResolveBiography();
+  }
+
+  _brainExitBiography() {
+    this._brainBiographyKey = ''; this._brainBiographyMemoryId = null; this._brainBiographyFact = null; this._brainOpenId = '';
+    this._navRoute('brain', { brain: this._brainRouteState() });
+    this._brainRender();
+  }
+
+  _brainSyncRoute() { this._navRoute('brain', { brain: this._brainRouteState() }, true); }
+  _brainCloseMenus() { this._brainMenu = ''; }
+
+  _brainClearFilters() {
+    this._brainFilters = { kinds: [], repo: '', actor: '', q: '' };
+    this._brainCloseMenus(); this._brainSyncRoute(); this._brainRender();
+  }
+
+  _brainSyncStats() {
+    if (!this._learningRoot || this._brainView !== 'changelog') return;
+    const el = this._learningRoot.querySelector('#lr-know-count'); if (!el) return;
+    const total = this._brainTotal != null ? this._brainTotal : (this._brainEvents || []).length;
+    const active = this._knowBuilt && this._knowBuilt.factCount != null ? this._knowBuilt.factCount : 0;
+    el.innerHTML = '<b>' + total + '</b> event' + (total === 1 ? '' : 's') + ' · <b>' + active + '</b> active fact' + (active === 1 ? '' : 's');
+  }
+
+  _brainAbsTime(at) {
+    const d = new Date(at || 0), p = n => String(n).padStart(2, '0');
+    if (Number.isNaN(d.getTime())) return 'unknown time';
+    return d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate()) + ' ' + p(d.getUTCHours()) + ':' + p(d.getUTCMinutes()) + ':' + p(d.getUTCSeconds()) + ' UTC';
+  }
+  _brainRelTime(at) {
+    const ms = Math.max(0, Date.now() - new Date(at || 0).getTime()), s = Math.floor(ms / 1000);
+    if (s < 60) return 'now'; if (s < 3600) return Math.floor(s / 60) + 'm';
+    if (s < 86400) return Math.floor(s / 3600) + 'h'; return Math.floor(s / 86400) + 'd';
+  }
+  _brainDayKey(at) {
+    const d = new Date(at || 0), p = n => String(n).padStart(2, '0');
+    return d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate());
+  }
+  _brainDayLabel(key) {
+    const now = new Date(), p = n => String(n).padStart(2, '0');
+    const today = now.getUTCFullYear() + '-' + p(now.getUTCMonth() + 1) + '-' + p(now.getUTCDate());
+    const y = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 1));
+    const yesterday = y.getUTCFullYear() + '-' + p(y.getUTCMonth() + 1) + '-' + p(y.getUTCDate());
+    return key === today ? 'Today' : (key === yesterday ? 'Yesterday' : key);
+  }
+  _brainShort(value, max) {
+    const s = String(value || ''), n = max || 34; return s.length > n ? s.slice(0, n - 1) + '…' : s;
+  }
+
+  _brainSentence(e) {
+    const d = e.detail || {}, actor = this._brainShort(e.actor, 34);
+    if (e.isBurst) return String(e.kind || 'changed').replace(/_/g, ' ') + ' ' + e.count + ' facts in one journal burst';
+    switch (e.kind) {
+      case 'created': return e.backfilled ? 'created · backfilled from history' : 'created by ' + (actor || 'unknown actor');
+      case 'updated': return 'content updated by ' + (actor || 'unknown actor');
+      case 'retired': return 'retired' + (d.reason ? ' · ' + this._brainShort(d.reason, 90) : ' by ' + actor);
+      case 'unretired': return 'unretired by ' + (actor || 'unknown actor');
+      case 'superseded': {
+        const sid = d.superseded_by, successorKey = sid == null ? '' : String(sid);
+        const resolved = !!(successorKey && this._brainFacts && Object.prototype.hasOwnProperty.call(this._brainFacts, successorKey));
+        const successor = resolved ? this._brainFacts[successorKey] : null;
+        return 'superseded by ' + (successor && successor.key ? successor.key : (sid != null ? 'memory ' + sid + (resolved ? ' (no longer available)' : '') : 'a successor fact'));
+      }
+      case 'confirmed': return 'confirmed by ' + (actor || 'unknown actor');
+      case 'promoted': return 'promoted from ' + ((d.from_owner_kind || 'owner') + (d.from_owner_ref ? ':' + d.from_owner_ref : ''));
+      case 'ingested': return d.source ? 'ingested from ' + d.source : 'ingested by ' + (actor || 'unknown actor');
+      case 'cluster_rename': return 'cluster renamed' + (d.previous_label ? ' from ' + d.previous_label : '') + (d.label ? ' → ' + d.label : '');
+      case 'cluster_recompute': return 'cluster recomputed · ' + (Array.isArray(d.clusters) ? d.clusters.length : 0) + ' clusters changed';
+      default: return String(e.kind || 'event').replace(/_/g, ' ');
+    }
+  }
+
+  _brainLineDiff(before, after) {
+    const a = String(before == null ? '' : before).split('\n'), b = String(after == null ? '' : after).split('\n');
+    let prefix = 0;
+    while (prefix < a.length && prefix < b.length && a[prefix] === b[prefix]) prefix++;
+    let ai = a.length - 1, bi = b.length - 1;
+    while (ai >= prefix && bi >= prefix && a[ai] === b[bi]) { ai--; bi--; }
+    const line = (text, kind) => ({ text: text, kind: kind, gut: kind === 'del' ? '-' : (kind === 'add' ? '+' : ' ') });
+    const left = a.map((v, i) => line(v, i >= prefix && i <= ai ? 'del' : 'same'));
+    const right = b.map((v, i) => line(v, i >= prefix && i <= bi ? 'add' : 'same'));
+    const unified = [];
+    for (let i = 0; i < prefix; i++) unified.push(line(a[i], 'same'));
+    for (let i = prefix; i <= ai; i++) unified.push(line(a[i], 'del'));
+    for (let i = prefix; i <= bi; i++) unified.push(line(b[i], 'add'));
+    for (let i = ai + 1; i < a.length; i++) unified.push(line(a[i], 'same'));
+    return { left: left, right: right, unified: unified };
+  }
+
+  _brainBurst(items) {
+    const out = [];
+    for (let i = 0; i < items.length;) {
+      const first = items[i], run = [first]; let j = i + 1;
+      const firstAt = new Date(first.at || 0).getTime();
+      while (j < items.length) {
+        const next = items[j], nextAt = new Date(next.at || 0).getTime();
+        if (next.kind !== first.kind || next.actor !== first.actor || Math.abs(firstAt - nextAt) > 60000) break;
+        run.push(next); j++;
+      }
+      if (run.length > 10) {
+        out.push({
+          id: 'burst:' + String(run[0].id) + ':' + String(run[run.length - 1].id), at: run[0].at,
+          kind: first.kind, actor: first.actor, repo: first.repo || '', scope: first.scope || '',
+          detail: {}, isBurst: true, count: run.length, items: run,
+          backfilled: run.every(e => e.backfilled)
+        });
+      } else out.push.apply(out, run);
+      i = j;
+    }
+    return out;
+  }
+
+  _brainFilteredItems() {
+    const f = this._brainFilters || { kinds: [], repo: '', actor: '', q: '' };
+    let raw = (this._brainEvents || []).slice();
+    if (this._brainBiographyKey) return raw.filter(e => e.key === this._brainBiographyKey).sort((a, b) => new Date(a.at || 0) - new Date(b.at || 0));
+    const q = String(f.q || '').trim().toLowerCase();
+    const filtered = !!((f.kinds && f.kinds.length) || f.repo || f.actor || q);
+    if (f.kinds && f.kinds.length) raw = raw.filter(e => f.kinds.indexOf(e.kind) >= 0);
+    if (f.repo) raw = f.repo === '__general' ? raw.filter(e => !e.repo) : raw.filter(e => e.repo === f.repo);
+    if (f.actor) raw = raw.filter(e => e.actor === f.actor);
+    if (q) raw = raw.filter(e => String(e.key || '').toLowerCase().indexOf(q) >= 0);
+    return filtered ? raw : this._brainBurst(raw);
+  }
+
+  _brainGroupDays(items) {
+    const groups = [], byDay = {};
+    items.forEach(e => {
+      const key = this._brainDayKey(e.at);
+      if (!byDay[key]) { byDay[key] = { key: key, label: this._brainDayLabel(key), rows: [] }; groups.push(byDay[key]); }
+      byDay[key].rows.push(e);
+      byDay[key].count = (byDay[key].count || 0) + (e.isBurst ? e.count : 1);
+    });
+    return groups;
+  }
+
+  _brainLinesHtml(lines) {
+    const esc = v => this._galaxyEsc(v);
+    return (lines || []).map(line => '<div class="bc-line ' + esc(line.kind || '') + '"><span class="bc-gut">' + esc(line.gut || ' ') + '</span><span>' + esc(line.text) + '</span></div>').join('');
+  }
+
+  _brainMetaHtml(e) {
+    const esc = v => this._galaxyEsc(v), cells = [
+      ['memory_id', e.memoryId != null ? e.memoryId : '—'], ['scope', e.scope || '—'],
+      ['actor', e.actor || '—'], ['at', this._brainAbsTime(e.at)]
+    ];
+    return '<div class="bc-meta">' + cells.map(c => '<div class="bc-mcell"><b>' + esc(c[0]) + '</b><span>' + esc(c[1]) + '</span></div>').join('') + '</div>';
+  }
+
+  _brainExpansionHtml(e) {
+    const esc = v => this._galaxyEsc(v), d = e.detail || {};
+    if (e.isBurst) {
+      return '<div class="bc-box"><div><span style="color:#e0697f;font-family:\'JetBrains Mono\',monospace">' + esc(e.actor || 'actor') + '</span> ' + esc(e.kind) + ' ' + e.count + ' facts within one minute.</div><div class="bc-burstkeys">' + (e.items || []).map(x => '<span>' + esc(x.key || ('memory ' + (x.memoryId != null ? x.memoryId : x.id))) + '</span>').join('') + '</div></div>';
+    }
+    let body = '';
+    if (e.kind === 'updated') {
+      let before = d.before;
+      if (before == null) before = d.before_preview != null ? d.before_preview + (d.truncated ? '\n… preview truncated' : '') : (d.before_hash ? 'previous content hash: ' + d.before_hash : 'previous content was not captured');
+      const key = e.memoryId == null ? '' : String(e.memoryId), has = !!(key && this._brainFacts && Object.prototype.hasOwnProperty.call(this._brainFacts, key));
+      const current = has ? this._brainFacts[key] : null;
+      const after = current && current.content != null ? current.content : (has ? 'current fact is unavailable' : 'loading current fact…');
+      const diff = this._brainLineDiff(before, after);
+      body += '<div class="bc-diff">' +
+        '<div class="bc-dpane before"><div class="bc-dhead"><span>before</span><span>' + esc(this._brainAbsTime(e.at)) + '</span></div><div class="bc-dbody">' + this._brainLinesHtml(diff.left) + '</div></div>' +
+        '<div class="bc-dpane after"><div class="bc-dhead"><span>after · current</span><span style="color:#9ece6a">live</span></div><div class="bc-dbody">' + this._brainLinesHtml(diff.right) + '</div></div>' +
+        '<div class="bc-dpane bc-unified"><div class="bc-dhead"><span>before → after</span><span style="color:#9ece6a">current</span></div><div class="bc-dbody">' + this._brainLinesHtml(diff.unified) + '</div></div></div>';
+    } else if (e.kind === 'retired') {
+      body += '<div class="bc-box"><span class="bc-boxlabel">retirement reason</span><div style="margin-top:6px">' + esc(d.reason || 'No reason recorded.') + '</div>' + (e.memoryId != null ? '<div style="margin-top:12px"><button class="bc-action" data-bc-graph="' + esc(e.memoryId) + '">view in graph →</button></div>' : '') + '</div>';
+    } else if (e.kind === 'superseded') {
+      const sid = d.superseded_by, successorKey = sid == null ? '' : String(sid);
+      const resolved = !!(successorKey && this._brainFacts && Object.prototype.hasOwnProperty.call(this._brainFacts, successorKey));
+      const successor = resolved ? this._brainFacts[successorKey] : null;
+      body += '<div class="bc-box"><div>This fact was superseded — its content was replaced by a newer fact.</div><div style="margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span class="bc-boxlabel">successor</span>' +
+        (successor && successor.key ? '<button class="bc-action" style="color:#7dcfff;font-family:\'JetBrains Mono\',monospace" data-bc-successor="' + encodeURIComponent(successor.key) + '" data-bc-memory="' + esc(successor.id) + '">' + esc(successor.key) + '</button><button class="bc-action" data-bc-graph="' + esc(successor.id) + '">view successor in graph →</button>' : '<span style="font-family:\'JetBrains Mono\',monospace;color:#5a627e">' + (sid != null ? 'memory ' + esc(sid) + (resolved ? ' (no longer available)' : ' · resolving…') : 'not recorded') + '</span>') + '</div></div>';
+    } else if (e.kind === 'cluster_rename') {
+      body += '<div class="bc-box"><span class="bc-boxlabel">cluster rename</span><div style="margin-top:7px;font-family:\'JetBrains Mono\',monospace"><span style="color:#8b93ac">' + esc(d.previous_label || 'unlabeled') + '</span> <span style="color:#5a627e">→</span> <span style="color:#bb9af7">' + esc(d.label || 'unlabeled') + '</span></div><div style="margin-top:5px;color:#5a627e">' + esc(d.cluster_id || '') + '</div></div>';
+    } else if (e.kind === 'cluster_recompute') {
+      const rows = Array.isArray(d.clusters) ? d.clusters : [];
+      body += '<div class="bc-box"><span class="bc-boxlabel">recomputed clusters</span><div class="bc-burstkeys">' + rows.map(c => { const delta = Number(c.MemberCountDelta || 0); return '<span style="color:#bb9af7">' + esc(c.Label || c.ClusterID || 'cluster') + ' <b style="color:' + (delta < 0 ? '#e0697f' : '#9ece6a') + '">' + (delta > 0 ? '+' : '') + delta + '</b></span>'; }).join('') + (rows.length ? '' : '<span>no member deltas recorded</span>') + '</div></div>';
+    } else if (e.kind === 'promoted') {
+      body += '<div class="bc-box"><span class="bc-boxlabel">previous owner</span><div style="margin-top:6px;font-family:\'JetBrains Mono\',monospace">' + esc((d.from_owner_kind || '—') + (d.from_owner_ref ? ':' + d.from_owner_ref : '')) + '</div></div>';
+    } else if (e.kind === 'ingested') {
+      body += '<div class="bc-box"><span class="bc-boxlabel">source</span><div style="margin-top:6px;font-family:\'JetBrains Mono\',monospace">' + esc(d.source || ('ingested by ' + (e.actor || 'unknown actor'))) + '</div></div>';
+    }
+    return '<div class="bc-mobile-sentence" style="display:none">' + esc(this._brainSentence(e)) + '</div>' + body + this._brainMetaHtml(e) + (e.memoryId != null ? '<div style="margin-top:10px"><button class="bc-action" data-bc-key="' + encodeURIComponent(e.key || '') + '" data-bc-memory="' + esc(e.memoryId) + '">view full fact history →</button></div>' : '');
+  }
+
+  _brainEventHtml(e) {
+    const esc = v => this._galaxyEsc(v), km = this._brainKindMap(), info = km[e.kind] || { label: String(e.kind || 'event'), color: '#8b93ac' };
+    const cluster = String(e.kind || '').indexOf('cluster_') === 0;
+    const color = e.kind === 'created' ? (e.repo ? '#7dcfff' : '#e0af68') : info.color;
+    let label = e.isBurst ? (e.actor || 'journal burst') : (e.key || '');
+    if (cluster) label = (e.detail && (e.detail.label || e.detail.cluster_id)) || e.key || info.label;
+    const open = String(this._brainOpenId || '') === String(e.id), canBio = !e.isBurst && !cluster && !!e.key;
+    const live = this._brainLiveIds && this._brainLiveIds[String(e.id)];
+    const keyHtml = canBio
+      ? '<button class="bc-key" style="--bc:' + color + '" data-bc-key="' + encodeURIComponent(e.key) + '" data-bc-memory="' + esc(e.memoryId) + '">' + esc(label) + '</button>'
+      : '<span class="bc-key" style="--bc:' + color + ';cursor:default">' + esc(label || info.label) + '</span>';
+    return '<div class="bc-event' + (open ? ' open' : '') + (e.backfilled ? ' backfilled' : '') + (live ? ' live-new' : '') + '" data-bc-anchor="' + esc(e.id) + '">' +
+      '<div class="bc-row" data-bc-event="' + esc(e.id) + '" aria-expanded="' + (open ? 'true' : 'false') + '" style="--bc:' + color + '">' +
+      '<span class="bc-dot" style="box-shadow:0 0 0 3px color-mix(in srgb,' + color + ' 14%,transparent)"></span>' + keyHtml +
+      '<span class="bc-sentence">' + esc(this._brainSentence(e)) + '</span>' +
+      (e.isBurst ? '<span class="bc-count">' + e.count + ' facts</span>' : '') +
+      (e.backfilled ? '<span class="bc-tag">backfilled</span>' : '') +
+      '<span class="bc-kindtag" style="display:none">' + esc(info.label) + '</span>' +
+      '<span class="bc-time" title="' + esc(this._brainAbsTime(e.at)) + '">' + esc(this._brainRelTime(e.at)) + '</span><span class="bc-caret">›</span></div>' +
+      (open ? '<div class="bc-expand">' + this._brainExpansionHtml(e) + '</div>' : '') + '</div>';
+  }
+
+  _brainKindChipsHtml() {
+    const f = this._brainFilters || {}, active = Array.isArray(f.kinds) ? f.kinds : [], map = this._brainKindMap(), esc = v => this._galaxyEsc(v);
+    return '<div class="bc-kindrow"><span class="bc-flabel">kinds</span>' + Object.keys(map).map(kind => {
+      const on = active.indexOf(kind) >= 0, info = map[kind];
+      return '<button class="bc-kind' + (on ? ' on' : '') + '" style="--bc:' + info.color + '" data-bc-kind="' + esc(kind) + '" aria-pressed="' + (on ? 'true' : 'false') + '"><span class="bc-dot"></span>' + esc(info.label) + '</button>';
+    }).join('') + (active.length ? '<button class="bc-clear" data-bc-clear-kinds>clear</button>' : '') + '</div>';
+  }
+
+  _brainSelectHtml(type, options) {
+    const f = this._brainFilters || {}, value = f[type] || '', esc = v => this._galaxyEsc(v), open = this._brainMenu === type;
+    const label = !value ? (type === 'repo' ? 'all repos' : 'all actors') : (value === '__general' ? 'general facts' : value);
+    return '<div class="bc-select ' + (type === 'actor' ? 'actor' : '') + '"><button class="bc-selectbtn" data-bc-menu="' + type + '" style="color:' + (value ? '#c6cee6' : '#5a627e') + '"><span>' + esc(label) + '</span><span>⌄</span></button>' +
+      (open ? '<div class="bc-menu"><button class="bc-option' + (!value ? ' on' : '') + '" data-bc-option="' + type + '" data-bc-value="">' + (type === 'repo' ? 'all repos' : 'all actors') + '</button>' + options.map(v => '<button class="bc-option' + (value === v ? ' on' : '') + '" data-bc-option="' + type + '" data-bc-value="' + encodeURIComponent(v) + '">' + esc(v === '__general' ? 'general facts' : v) + '</button>').join('') + '</div>' : '') + '</div>';
+  }
+
+  _brainFilterControlsHtml(sheet) {
+    const f = this._brainFilters || {}, esc = v => this._galaxyEsc(v), events = this._brainEvents || [];
+    const repos = Array.from(new Set(events.map(e => e.repo || '__general'))).sort((a, b) => a === '__general' ? 1 : (b === '__general' ? -1 : a.localeCompare(b)));
+    const actors = Array.from(new Set(events.map(e => e.actor).filter(Boolean))).sort();
+    const searchTarget = sheet ? 'sheet' : 'desktop';
+    const search = '<div class="bc-search"><span>⌕</span><input id="bc-search-' + searchTarget + '" data-bc-search="' + searchTarget + '" value="' + esc(f.q || '') + '" placeholder="Search fact key…" aria-label="Search fact key"></div>';
+    const second = '<div class="bc-filterrow">' + search + this._brainSelectHtml('repo', repos) + this._brainSelectHtml('actor', actors) + '</div>';
+    if (sheet) return '<div class="bc-sheethead"><span>Filters</span><button class="bc-sheetclose" data-bc-sheet-close aria-label="Close filters">×</button></div>' + this._brainKindChipsHtml() + search + this._brainSelectHtml('repo', repos) + this._brainSelectHtml('actor', actors) + '<button class="bc-back" data-bc-clear style="justify-content:center">Clear filters</button>';
+    return '<div class="bc-filterbar">' + this._brainKindChipsHtml() + second + '</div>';
+  }
+
+  _brainBiographyHtml(items) {
+    const esc = v => this._galaxyEsc(v), fact = this._brainBiographyFact, key = this._brainBiographyKey || '';
+    let status = fact && fact.status ? fact.status : 'active';
+    if (!fact && items.length) {
+      const last = items[items.length - 1];
+      if (last.kind === 'retired') status = 'retired'; else if (last.kind === 'superseded') status = 'superseded';
+    }
+    const color = status === 'retired' ? '#e0697f' : (status === 'superseded' ? '#8b8fc0' : '#9ece6a');
+    let content = fact && fact.content != null ? fact.content : '';
+    if (!content) content = this._brainBiographyLoading || (this._brainBiographyMemoryId != null && this._brainFactRequests && this._brainFactRequests[String(this._brainBiographyMemoryId)]) ? 'loading current fact…' : 'Current fact content is unavailable.';
+    const repo = fact && fact.repo ? 'repo fact · ' + fact.repo : 'general fact';
+    const scope = fact && fact.scope ? ' · ' + fact.scope : '';
+    return '<div class="bc-bio"><div class="bc-biohead"><button class="bc-back" data-bc-bio-exit>← all events</button><span class="bc-biokey">' + esc(key) + '</span><span class="bc-status" style="--bc:' + color + '"><i></i>' + esc(status) + '</span><span class="bc-biometa">' + esc(repo + scope) + '</span></div><div class="bc-biocontent">' + esc(content) + '</div><div class="bc-biofoot">' + esc(repo + scope) + ' · ' + items.length + ' event' + (items.length === 1 ? '' : 's') + ' · oldest first</div></div>';
+  }
+
+  _brainRender() {
+    if (!this._learningRoot || this._brainView !== 'changelog') return;
+    const host = this._learningRoot.querySelector('#lr-changelog'); if (!host) return;
+    const oldFeed = host.querySelector('.bc-feed');
+    let anchor = null, anchorOffset = 0, wasTop = true;
+    if (oldFeed) {
+      wasTop = oldFeed.scrollTop < 24;
+      const fr = oldFeed.getBoundingClientRect();
+      const candidates = oldFeed.querySelectorAll('[data-bc-anchor]');
+      for (let i = 0; i < candidates.length; i++) {
+        const r = candidates[i].getBoundingClientRect();
+        if (r.bottom > fr.top + 2) { anchor = candidates[i].getAttribute('data-bc-anchor'); anchorOffset = r.top - fr.top; break; }
+      }
+    }
+    const items = this._brainFilteredItems(), groups = this._brainGroupDays(items), bio = !!this._brainBiographyKey;
+    this._brainDisplayById = {};
+    items.forEach(e => { this._brainDisplayById[String(e.id)] = e; });
+    const expanded = this._brainDisplayById[String(this._brainOpenId || '')];
+    if (expanded && expanded.kind === 'updated' && expanded.memoryId != null && !(this._brainFacts && Object.prototype.hasOwnProperty.call(this._brainFacts, String(expanded.memoryId)))) {
+      setTimeout(() => this._brainEnsureFact(expanded.memoryId), 0);
+    }
+    if (expanded && expanded.kind === 'superseded' && expanded.detail && expanded.detail.superseded_by != null && !(this._brainFacts && Object.prototype.hasOwnProperty.call(this._brainFacts, String(expanded.detail.superseded_by)))) {
+      setTimeout(() => this._brainEnsureFact(expanded.detail.superseded_by), 0);
+    }
+    const f = this._brainFilters || {}, filterCount = (f.kinds ? f.kinds.length : 0) + (f.repo ? 1 : 0) + (f.actor ? 1 : 0) + (f.q ? 1 : 0);
+    let feedHtml = '';
+    if (!this._brainLoaded) {
+      feedHtml = '<div class="bc-empty"><span class="icon">≡</span><b>Opening the journal</b><p>Brain changes will appear here.</p></div>';
+    } else if (this._brainError) {
+      feedHtml = '<div class="bc-empty"><span class="icon">!</span><b>Could not load the journal</b><p>' + this._galaxyEsc(this._brainError) + '</p></div>';
+    } else if ((this._brainTotal || 0) === 0) {
+      feedHtml = '<div class="bc-empty"><span class="icon">□</span><b>No events yet</b><p>The journal starts recording with the next brain change.</p></div>';
+    } else if (!items.length) {
+      feedHtml = '<div class="bc-empty"><span class="icon">⌕</span><b>' + (bio ? 'No events recorded for this fact' : 'No events match these filters') + '</b><p>' + (bio ? 'The selected fact is not present in the loaded journal.' : 'Try clearing a filter or widening your search.') + '</p>' + (!bio ? '<button class="bc-back" data-bc-clear>Clear filters</button>' : '') + '</div>';
+    } else {
+      feedHtml = groups.map(g => '<section><div class="bc-day"><b>' + this._galaxyEsc(g.label) + '</b><i></i><span>' + g.count + ' event' + (g.count === 1 ? '' : 's') + '</span></div>' + g.rows.map(e => this._brainEventHtml(e)).join('') + '</section>').join('');
+      if (this._brainExhausted && !this._brainCursorQuarantined) feedHtml += '<div class="bc-begin"><i></i><span>beginning of the journal</span><i></i></div>';
+    }
+    const mobile = !bio ? '<div class="bc-mobile-actions"><button class="bc-filterbtn" data-bc-sheet-open>⌁ Filters' + (filterCount ? '<b>' + filterCount + '</b>' : '') + '</button></div>' : '';
+    host.innerHTML = (!bio ? this._brainFilterControlsHtml(false) : '') + mobile + '<div class="bc-panel">' + (bio ? this._brainBiographyHtml(items) : '') + '<div class="bc-feed">' + feedHtml + '</div></div>' + (this._brainSheetOpen && !bio ? '<div class="bc-sheetback" data-bc-sheet-close></div><div class="bc-sheet">' + this._brainFilterControlsHtml(true) + '</div>' : '');
+    const feed = host.querySelector('.bc-feed');
+    if (feed) {
+      feed.addEventListener('scroll', () => {
+        if (!this._brainBiographyKey && feed.scrollTop + feed.clientHeight >= feed.scrollHeight - 180) this._brainLoadOlder();
+      }, { passive: true });
+      if (this._brainResetScroll || wasTop) feed.scrollTop = 0;
+      else if (anchor) {
+        const next = Array.from(feed.querySelectorAll('[data-bc-anchor]')).find(el => el.getAttribute('data-bc-anchor') === anchor);
+        if (next) { const fr = feed.getBoundingClientRect(); feed.scrollTop += next.getBoundingClientRect().top - fr.top - anchorOffset; }
+      }
+      if (!this._brainBiographyKey && !this._brainExhausted && feed.scrollHeight <= feed.clientHeight + 180) setTimeout(() => this._brainLoadOlder(), 0);
+    }
+    this._brainResetScroll = false;
+    this._brainSyncStats();
+  }
+
+  _brainToggleEvent(id) {
+    const item = this._brainDisplayById && this._brainDisplayById[String(id)];
+    this._brainOpenId = String(this._brainOpenId || '') === String(id) ? '' : String(id);
+    if (item && this._brainOpenId) {
+      if (item.kind === 'updated' && item.memoryId != null) this._brainEnsureFact(item.memoryId);
+      if (item.kind === 'superseded' && item.detail && item.detail.superseded_by != null) this._brainEnsureFact(item.detail.superseded_by);
+    }
+    this._brainRender();
+  }
+
+  _brainViewInGraph(id) {
+    this._brainSetView('graph', true);
+    setTimeout(() => { try { this.selectKnowledgeFactById(id); } catch (e) {} }, 80);
+  }
+
+  _brainHandleClick(e) {
+    const target = e.target;
+    const closedOutside = !!(this._brainMenu && !(target.closest && target.closest('.bc-select')));
+    if (closedOutside) this._brainCloseMenus();
+    const closeSheet = target.closest && target.closest('[data-bc-sheet-close]');
+    if (closeSheet) { this._brainSheetOpen = false; this._brainCloseMenus(); this._brainRender(); return; }
+    const openSheet = target.closest && target.closest('[data-bc-sheet-open]');
+    if (openSheet) { this._brainSheetOpen = true; this._brainCloseMenus(); this._brainRender(); return; }
+    const exit = target.closest && target.closest('[data-bc-bio-exit]');
+    if (exit) { this._brainExitBiography(); return; }
+    const graph = target.closest && target.closest('[data-bc-graph]');
+    if (graph) { this._brainViewInGraph(graph.getAttribute('data-bc-graph')); return; }
+    const successor = target.closest && target.closest('[data-bc-successor]');
+    if (successor) { this._brainResetScroll = true; this._brainOpenBiography(decodeURIComponent(successor.getAttribute('data-bc-successor') || ''), successor.getAttribute('data-bc-memory')); return; }
+    const key = target.closest && target.closest('[data-bc-key]');
+    if (key) { this._brainResetScroll = true; this._brainOpenBiography(decodeURIComponent(key.getAttribute('data-bc-key') || ''), key.getAttribute('data-bc-memory')); return; }
+    const option = target.closest && target.closest('[data-bc-option]');
+    if (option) {
+      const type = option.getAttribute('data-bc-option'), encoded = option.getAttribute('data-bc-value') || '';
+      if (!this._brainFilters) this._brainFilters = { kinds: [], repo: '', actor: '', q: '' };
+      this._brainFilters[type] = encoded ? decodeURIComponent(encoded) : '';
+      this._brainCloseMenus(); this._brainResetScroll = true; this._brainSyncRoute(); this._brainRender(); return;
+    }
+    const menu = target.closest && target.closest('[data-bc-menu]');
+    if (menu) { const type = menu.getAttribute('data-bc-menu'); this._brainMenu = this._brainMenu === type ? '' : type; this._brainRender(); return; }
+    const kind = target.closest && target.closest('[data-bc-kind]');
+    if (kind) {
+      const value = kind.getAttribute('data-bc-kind'), kinds = (this._brainFilters.kinds || []).slice(), at = kinds.indexOf(value);
+      if (at >= 0) kinds.splice(at, 1); else kinds.push(value);
+      this._brainFilters.kinds = kinds; this._brainResetScroll = true; this._brainSyncRoute(); this._brainRender(); return;
+    }
+    const clearKinds = target.closest && target.closest('[data-bc-clear-kinds]');
+    if (clearKinds) { this._brainFilters.kinds = []; this._brainResetScroll = true; this._brainSyncRoute(); this._brainRender(); return; }
+    const clear = target.closest && target.closest('[data-bc-clear]');
+    if (clear) { this._brainResetScroll = true; this._brainClearFilters(); return; }
+    const row = target.closest && target.closest('[data-bc-event]');
+    if (row) { this._brainToggleEvent(row.getAttribute('data-bc-event')); return; }
+    if (this._brainMenu) { this._brainCloseMenus(); this._brainRender(); return; }
+    if (closedOutside) this._brainRender();
+  }
+
+  _brainHandleInput(e) {
+    if (!e.target || !e.target.hasAttribute('data-bc-search')) return;
+    if (!this._brainFilters) this._brainFilters = { kinds: [], repo: '', actor: '', q: '' };
+    const searchTarget = e.target.getAttribute('data-bc-search') || 'desktop';
+    const selectionStart = e.target.selectionStart, selectionEnd = e.target.selectionEnd;
+    this._brainFilters.q = e.target.value || '';
+    clearTimeout(this._brainSearchTimer);
+    this._brainSearchTimer = setTimeout(() => {
+      this._brainResetScroll = true; this._brainSyncRoute(); this._brainRender();
+      const input = this._learningRoot && this._learningRoot.querySelector('[data-bc-search="' + searchTarget + '"]');
+      if (input) {
+        input.focus();
+        try {
+          const end = input.value.length;
+          input.setSelectionRange(Math.min(selectionStart == null ? end : selectionStart, end), Math.min(selectionEnd == null ? end : selectionEnd, end));
+        } catch (err) {}
+      }
+    }, 120);
   }
 
   ensureLearningDom() {
@@ -5227,6 +5906,11 @@ class Component extends DCLogic {
       "#learning-root #lr-know-count,#learning-root #lr-know-linkcount{padding:9px 13px;font-family:'JetBrains Mono',monospace;font-size:11px;color:#c8cce6}",
       "#learning-root #lr-know-count b{color:#bb9af7;font-weight:500}",
       "#learning-root #lr-know-linkcount b{color:#6ec6ff;font-weight:500}",
+      "#learning-root .bc-switch{display:flex;padding:3px!important;gap:2px;border-radius:9px!important;background:#0e1320!important;border-color:#1b2233!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}",
+      "#learning-root .bc-switch button{display:flex;align-items:center;gap:7px;border:0;background:transparent;color:#5a627e;padding:6px 13px;border-radius:6px;font:600 13px Inter,system-ui,sans-serif;cursor:pointer}",
+      "#learning-root .bc-switch button:hover{color:#c6cee6}",
+      "#learning-root .bc-switch button.on{color:#7dcfff;background:#152234}",
+      "#learning-root .bc-switch .ico{font-family:'JetBrains Mono',monospace;font-size:14px}",
       "#learning-root #lr-know-controls{display:flex;align-items:center;padding:4px;gap:4px}",
       "#learning-root .lr-ktoggle{border:0;background:transparent;color:#6b7196;padding:5px 9px;border-radius:7px;font-family:'JetBrains Mono',monospace;font-size:10.5px;cursor:pointer;white-space:nowrap}",
       "#learning-root .lr-ktoggle:hover{color:#c8cce6;background:rgba(160,168,220,.07)}",
@@ -5309,7 +5993,94 @@ class Component extends DCLogic {
       "#learning-root .km-subrow{margin-left:17px;padding-left:13px;background:rgba(187,154,247,0.035);border-left:2px solid rgba(187,154,247,0.24)}",
       "#learning-root .km-subrow .lr-dmemdot{width:6px;height:6px;background:#a99ac8!important}",
       "#learning-root .km-expand{flex:none;border:1px solid rgba(169,154,200,.45);background:rgba(169,154,200,.1);color:#d2c5ec;border-radius:5px;padding:2px 6px;font-family:'JetBrains Mono',monospace;font-size:9.5px;cursor:pointer}",
+      "#learning-root #lr-changelog{position:absolute;inset:0;display:none;flex-direction:column;gap:12px;padding:58px 16px 16px;overflow:hidden;background:#080a14}",
+      "#learning-root #lr-know-chrome.changelog .lr-kchip{background:#0e1320;border-color:#1b2233;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}",
+      "#learning-root #lr-know-chrome.changelog #lr-know-count{border-radius:8px;padding:7px 13px;color:#8b93ac;font-size:12.5px}",
+      "#learning-root .bc-filterbar{flex:none;display:flex;flex-direction:column;gap:10px}",
+      "#learning-root .bc-kindrow{display:flex;align-items:center;gap:7px;flex-wrap:wrap}",
+      "#learning-root .bc-flabel{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:#464f6b;margin-right:2px;font-weight:600}",
+      "#learning-root .bc-kind{display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:7px;font-family:'JetBrains Mono',monospace;font-size:12px;cursor:pointer;color:#5a627e;background:transparent;border:1px solid #1b2233}",
+      "#learning-root .bc-kind:hover{color:#a2abc4;border-color:#28324c}",
+      "#learning-root .bc-kind.on{color:var(--bc);background:color-mix(in srgb,var(--bc) 10%,transparent);border-color:color-mix(in srgb,var(--bc) 34%,transparent)}",
+      "#learning-root .bc-dot{width:7px;height:7px;border-radius:50%;background:var(--bc);flex:none}",
+      "#learning-root .bc-clear{border:0;background:none;color:#5a627e;padding:4px 9px;font-size:11.5px;cursor:pointer}",
+      "#learning-root .bc-clear:hover{color:#c6cee6}",
+      "#learning-root .bc-filterrow{display:flex;align-items:center;gap:10px}",
+      "#learning-root .bc-search{flex:1;max-width:420px;display:flex;align-items:center;gap:8px;padding:8px 12px;background:#0e1320;border:1px solid #1b2233;border-radius:8px}",
+      "#learning-root .bc-search span{font-size:14px;color:#5a627e}",
+      "#learning-root .bc-search input{flex:1;min-width:0;background:transparent;border:0;outline:0;color:#c6cee6;font-family:'JetBrains Mono',monospace;font-size:13px}",
+      "#learning-root .bc-select{position:relative;min-width:158px}",
+      "#learning-root .bc-select.actor{min-width:220px}",
+      "#learning-root .bc-selectbtn{display:flex;align-items:center;gap:10px;width:100%;padding:8px 12px;background:#0e1320;border:1px solid #1b2233;border-radius:8px;color:#5a627e;font-size:13px;cursor:pointer;text-align:left}",
+      "#learning-root .bc-selectbtn span:first-child{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
+      "#learning-root .bc-menu{position:absolute;top:calc(100% + 5px);left:0;right:0;z-index:40;background:#0e1320;border:1px solid #28324c;border-radius:8px;padding:5px;box-shadow:0 14px 34px rgba(0,0,0,.55);max-height:300px;overflow-y:auto}",
+      "#learning-root .bc-select.actor .bc-menu{min-width:260px}",
+      "#learning-root .bc-option{display:block;width:100%;border:0;background:none;padding:7px 10px;border-radius:6px;color:#8b93ac;text-align:left;font-family:'JetBrains Mono',monospace;font-size:12.5px;cursor:pointer}",
+      "#learning-root .bc-option:hover,#learning-root .bc-option.on{background:#141a2b;color:#c6cee6}",
+      "#learning-root .bc-mobile-actions{display:none}",
+      "#learning-root .bc-panel{flex:1;min-height:0;display:flex;flex-direction:column;background:#0b0f1a;border:1px solid #1b2233;border-radius:11px;overflow:hidden}",
+      "#learning-root .bc-bio{flex:none;padding:14px 18px;border-bottom:1px solid #141a28}",
+      "#learning-root .bc-biohead{display:flex;align-items:center;gap:12px;min-width:0}",
+      "#learning-root .bc-back{display:flex;align-items:center;gap:6px;padding:5px 10px;border:1px solid #1b2233;border-radius:7px;background:none;color:#8b93ac;font-size:12.5px;cursor:pointer}",
+      "#learning-root .bc-back:hover{border-color:#28324c;color:#c6cee6}",
+      "#learning-root .bc-biokey{font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:600;color:#7dcfff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
+      "#learning-root .bc-status{display:flex;align-items:center;gap:6px;padding:3px 9px;border-radius:20px;background:color-mix(in srgb,var(--bc) 12%,transparent);font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--bc);white-space:nowrap}",
+      "#learning-root .bc-status i{width:6px;height:6px;border-radius:50%;background:var(--bc)}",
+      "#learning-root .bc-biometa{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#5a627e;white-space:nowrap}",
+      "#learning-root .bc-biocontent{margin-top:10px;background:#080b13;border:1px solid #161d2c;border-radius:8px;padding:10px 14px;font-family:'JetBrains Mono',monospace;font-size:12.5px;line-height:1.55;color:#a2abc4;white-space:pre-wrap;max-height:150px;overflow:auto}",
+      "#learning-root .bc-biofoot{margin-top:8px;font-size:11.5px;color:#464f6b}",
+      "#learning-root .bc-feed{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable}",
+      "#learning-root .bc-day{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:10px;padding:9px 18px;background:#0b0f1a;border-bottom:1px solid #141a28}",
+      "#learning-root .bc-day b{font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#8b93ac}",
+      "#learning-root .bc-day i{height:1px;flex:1;background:#141a28}",
+      "#learning-root .bc-day span{font-family:'JetBrains Mono',monospace;font-size:11px;color:#464f6b}",
+      "#learning-root .bc-event{border-bottom:1px solid #101623}",
+      "#learning-root .bc-event.backfilled{opacity:.6}",
+      "#learning-root .bc-event.live-new{animation:bc-new 3.4s ease-out both}",
+      "@keyframes bc-new{0%{background:rgba(125,207,255,.2)}100%{background:transparent}}",
+      "#learning-root .bc-row{display:flex;align-items:center;gap:12px;padding:0 18px;height:40px;cursor:pointer;background:transparent}",
+      "#learning-root .bc-row:hover{background:#0f1524}",
+      "#learning-root .bc-event.open .bc-row{background:#0d1322}",
+      "#learning-root .bc-key{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:500;color:var(--bc);border:0;background:none;padding:0;cursor:pointer;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:none;text-align:left}",
+      "#learning-root .bc-key:hover{text-decoration:underline}",
+      "#learning-root .bc-sentence{flex:1;min-width:0;font-size:12.5px;color:#8b93ac;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
+      "#learning-root .bc-tag{flex:none;padding:2px 7px;border-radius:5px;background:#11141f;border:1px solid #1b2233;font-family:'JetBrains Mono',monospace;font-size:10px;color:#5a627e;letter-spacing:.04em}",
+      "#learning-root .bc-count{flex:none;padding:2px 8px;border-radius:20px;background:rgba(224,105,129,.12);border:1px solid rgba(224,105,129,.3);font-family:'JetBrains Mono',monospace;font-size:11px;color:#e0697f}",
+      "#learning-root .bc-time{font-family:'JetBrains Mono',monospace;font-size:12px;color:#5a627e;width:48px;text-align:right;flex:none}",
+      "#learning-root .bc-caret{color:#3a4258;font-size:12px;transition:transform .15s;flex:none}",
+      "#learning-root .bc-event.open .bc-caret{transform:rotate(90deg)}",
+      "#learning-root .bc-expand{padding:2px 18px 16px 40px;animation:bc-expand .18s ease-out}",
+      "@keyframes bc-expand{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}",
+      "#learning-root .bc-box{background:#080b13;border:1px solid #161d2c;border-radius:8px;padding:12px 14px;color:#a2abc4;font-size:13px;line-height:1.55}",
+      "#learning-root .bc-boxlabel{color:#5a627e;font-family:'JetBrains Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.1em}",
+      "#learning-root .bc-action{border:0;background:none;padding:0;color:#7aa2f7;font-size:12.5px;cursor:pointer}",
+      "#learning-root .bc-action:hover{color:#9db8ff}",
+      "#learning-root .bc-diff{display:grid;grid-template-columns:1fr 1fr;gap:12px}",
+      "#learning-root .bc-dpane{background:#080b13;border:1px solid #161d2c;border-radius:8px;overflow:hidden;min-width:0}",
+      "#learning-root .bc-unified{display:none}",
+      "#learning-root .bc-dhead{padding:6px 12px;font-family:'JetBrains Mono',monospace;font-size:11px;color:#5a627e;border-bottom:1px solid #141a28;display:flex;justify-content:space-between}",
+      "#learning-root .bc-dbody{padding:8px 0}",
+      "#learning-root .bc-line{display:flex;gap:8px;padding:1px 12px;font-family:'JetBrains Mono',monospace;font-size:12.5px;line-height:1.55;color:#a2abc4;white-space:pre-wrap;word-break:break-word}",
+      "#learning-root .bc-line.del{background:rgba(224,105,129,.08);color:#c08a95}",
+      "#learning-root .bc-line.add{background:rgba(158,206,106,.07);color:#a8c98b}",
+      "#learning-root .bc-gut{width:9px;flex:none;color:#464f6b}",
+      "#learning-root .bc-meta{margin-top:12px;display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#141a28;border:1px solid #161d2c;border-radius:8px;overflow:hidden}",
+      "#learning-root .bc-mcell{background:#080b13;padding:9px 12px;min-width:0}",
+      "#learning-root .bc-mcell b{display:block;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#464f6b}",
+      "#learning-root .bc-mcell span{display:block;margin-top:3px;font-family:'JetBrains Mono',monospace;font-size:12.5px;color:#a2abc4;word-break:break-all}",
+      "#learning-root .bc-burstkeys{margin-top:10px;max-height:150px;overflow-y:auto;display:flex;flex-wrap:wrap;gap:6px}",
+      "#learning-root .bc-burstkeys span{padding:3px 8px;border-radius:6px;background:#0e1320;border:1px solid #1b2233;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#c08a95}",
+      "#learning-root .bc-begin{display:flex;align-items:center;gap:12px;padding:16px 18px}",
+      "#learning-root .bc-begin i{height:1px;flex:1;background:#141a28}",
+      "#learning-root .bc-begin span{font-family:'JetBrains Mono',monospace;font-size:11px;color:#3a4258;letter-spacing:.05em}",
+      "#learning-root .bc-empty{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:40px;text-align:center}",
+      "#learning-root .bc-empty .icon{font-size:32px;color:#2c3350}",
+      "#learning-root .bc-empty b{font-size:15px;color:#c6cee6;font-weight:500}",
+      "#learning-root .bc-empty p{font-size:13px;color:#5a627e;max-width:400px;line-height:1.5;margin:0}",
+      "#learning-root .bc-sheetback,#learning-root .bc-sheet{display:none}",
+      "@media (prefers-reduced-motion:reduce){#learning-root .bc-event.live-new,#learning-root .bc-expand{animation:none!important}#learning-root .bc-caret{transition:none!important}}",
       "@media (max-width:768px){#learning-root .lr-head{padding-left:16px;padding-right:16px}#learning-root .lr-skbody{padding-left:14px;padding-right:14px}#learning-root .lr-thead{display:none}#learning-root .lr-trow{flex-wrap:wrap;gap:6px 10px}#learning-root .lr-c-name{flex:1 1 100%;white-space:normal}#learning-root .lr-c-ver,#learning-root .lr-c-changed{width:auto;flex:none}#learning-root .lr-c-score{width:auto;flex:1}#learning-root .lr-nrow{gap:8px}#learning-root .lr-cmd{width:100%;max-width:none}#learning-root .lr-cmd code{white-space:normal;word-break:break-all}#learning-root .lr-detail{width:100%;left:0;border-left:none}#learning-root #lr-know-linkcount,#learning-root #lr-know-controls{display:none!important}}",
+      "@media (max-width:768px){#learning-root #lr-know-chrome{top:12px;left:16px;right:16px;gap:10px}#learning-root #lr-know-chrome .bc-switch{order:0;flex:1 0 100%}#learning-root .bc-switch button{flex:1;justify-content:center;padding:7px 10px;font-size:12.5px}#learning-root #lr-know-chrome.changelog #lr-know-count{order:1;padding:0;border:0;background:none!important;font-size:11.5px}#learning-root #lr-changelog{padding:100px 16px 16px;gap:10px}#learning-root .bc-filterbar{display:none}#learning-root .bc-mobile-actions{display:flex;position:absolute;right:16px;top:58px;z-index:14}#learning-root .bc-filterbtn{display:flex;align-items:center;gap:6px;padding:5px 9px;border:1px solid #1b2233;border-radius:7px;background:#0e1320;color:#8b93ac;font-size:11.5px}#learning-root .bc-filterbtn b{min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:#7dcfff;color:#06121e;font-size:10.5px;display:flex;align-items:center;justify-content:center}#learning-root .bc-row{height:48px;padding:0 14px;gap:10px}#learning-root .bc-key{font-size:12.5px;flex:1;max-width:none;min-width:0}#learning-root .bc-sentence{display:none}#learning-root .bc-time{font-size:11px;width:34px}#learning-root .bc-caret{display:none}#learning-root .bc-kindtag{display:block!important;flex:none;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--bc)}#learning-root .bc-day{padding:8px 14px}#learning-root .bc-expand{padding:2px 14px 14px 32px}#learning-root .bc-mobile-sentence{display:block!important;font-size:12px;color:#8b93ac;line-height:1.5;margin-bottom:10px}#learning-root .bc-diff{display:block}#learning-root .bc-dpane.before,#learning-root .bc-dpane.after{display:none}#learning-root .bc-unified{display:block}#learning-root .bc-line{font-size:11.5px;line-height:1.5;padding-left:11px;padding-right:11px}#learning-root .bc-meta{grid-template-columns:1fr 1fr}#learning-root .bc-bio{padding:12px 14px}#learning-root .bc-biohead{gap:10px}#learning-root .bc-back{padding:5px 9px;font-size:12px}#learning-root .bc-biokey{font-size:13px;flex:1}#learning-root .bc-biometa{display:none}#learning-root .bc-status{font-size:10.5px;padding:3px 8px}#learning-root .bc-biocontent{font-size:11.5px;padding:9px 12px;margin-top:9px}#learning-root .bc-biofoot{font-size:11px}#learning-root .bc-sheetback{display:block;position:absolute;inset:0;z-index:49;background:rgba(2,3,8,.58)}#learning-root .bc-sheet{display:flex;position:absolute;left:0;right:0;bottom:0;z-index:50;max-height:78%;background:#0e1320;border:1px solid #28324c;border-radius:14px 14px 0 0;padding:12px 16px 20px;flex-direction:column;gap:13px;box-shadow:0 -18px 50px rgba(0,0,0,.55);overflow-y:auto}#learning-root .bc-sheethead{display:flex;align-items:center;justify-content:space-between;color:#c6cee6;font-weight:600}#learning-root .bc-sheetclose{border:0;background:none;color:#8b93ac;font-size:20px}#learning-root .bc-sheet .bc-kindrow{gap:6px}#learning-root .bc-sheet .bc-kind{padding:5px 9px}#learning-root .bc-sheet .bc-search{max-width:none}#learning-root .bc-sheet .bc-select{width:100%;min-width:0}#learning-root .bc-sheet .bc-menu{position:static;margin-top:5px;max-height:170px}}",
       "@media (pointer:coarse){#learning-root .lr-dclose{width:44px;height:44px;font-size:17px}}"
     ].join('\n');
     document.head.appendChild(st);
@@ -5329,6 +6100,10 @@ class Component extends DCLogic {
       '    <div id="lr-know-graph"></div>',
       '    <div id="lr-know-loading">summoning the brain…</div>',
       '    <div id="lr-know-chrome">',
+      '      <div id="lr-brain-switch" class="lr-kchip bc-switch" role="group" aria-label="Brain view">',
+      '        <button type="button" class="on" data-brain-view="graph" aria-pressed="true"><span class="ico">◇</span>Graph</button>',
+      '        <button type="button" data-brain-view="changelog" aria-pressed="false"><span class="ico">≡</span>Changelog</button>',
+      '      </div>',
       '      <div id="lr-know-count" class="lr-kchip">showing <b id="lr-kAgents">0</b> agents / <b id="lr-kFacts">0</b> facts</div>',
       '      <div id="lr-know-linkcount" class="lr-kchip" style="display:none"><b>0</b> fact links</div>',
       '      <div id="lr-know-controls" class="lr-kchip" style="display:none">',
@@ -5347,6 +6122,7 @@ class Component extends DCLogic {
       '      <div class="row"><span class="sw" style="color:#bb9af7;background:#bb9af7"></span>agent</div>',
       '    </div>',
       '    <div id="lr-empty" style="display:none"></div>',
+      '    <div id="lr-changelog" aria-live="polite"></div>',
       '  </div>',
       '</div>'
     ].join('\n');
@@ -5359,6 +6135,8 @@ class Component extends DCLogic {
     this._knowCrossRepoOn = !!this._knowCrossRepoOn;
     this._knowHistoryOn = !!this._knowHistoryOn;
     root.querySelector('#lr-know-chrome').addEventListener('click', (e) => {
+      const view = e.target.closest && e.target.closest('[data-brain-view]');
+      if (view) { this._brainSetView(view.getAttribute('data-brain-view'), true); return; }
       const b = e.target.closest && e.target.closest('[data-know-toggle]');
       if (!b) return;
       const which = b.getAttribute('data-know-toggle');
@@ -5377,6 +6155,15 @@ class Component extends DCLogic {
       this._knowSyncChrome(this._knowBuilt || { agentCount: 0, factCount: 0, factLinkCount: 0 });
       try { if (this._knowGraph && this._knowGraph.refresh) this._knowGraph.refresh(); } catch (e2) {}
     });
+    const changelog = root.querySelector('#lr-changelog');
+    changelog.addEventListener('click', (e) => this._brainHandleClick(e));
+    changelog.addEventListener('input', (e) => this._brainHandleInput(e));
+    this._brainDocClick = (e) => {
+      if (this.state.view !== 'brain' || this._brainView !== 'changelog' || !this._brainMenu) return;
+      if (e.target && e.target.closest && e.target.closest('.bc-select')) return;
+      this._brainCloseMenus(); this._brainRender();
+    };
+    document.addEventListener('click', this._brainDocClick);
     // Skills delegation: copy chip > section disclosure toggle > row-nav-to-agent.
     const sbody = root.querySelector('#lr-skills-body');
     sbody.addEventListener('click', (e) => {
@@ -5391,12 +6178,18 @@ class Component extends DCLogic {
     // frontier; resize re-fits the graph.
     this._learningKeydown = (e) => {
       if (e.key !== 'Escape' || this.state.view !== 'brain') return;
+      if (this._brainView === 'changelog') {
+        if (this._brainSheetOpen || this._brainMenu) { this._brainSheetOpen = false; this._brainCloseMenus(); this._brainRender(); return; }
+        if (this._brainBiographyKey) { this._brainExitBiography(); return; }
+        if (this._brainOpenId) { this._brainOpenId = ''; this._brainRender(); }
+        return;
+      }
       if (this._knowSelected) this.closeKnowledgeDetail();
       this._knowCollapseHierarchy();
     };
     document.addEventListener('keydown', this._learningKeydown);
     this._knowResize = () => {
-      if (this.state.view !== 'brain' || !this._knowGraph) return;
+      if (this.state.view !== 'brain' || this._brainView === 'changelog' || !this._knowGraph) return;
       const r = this._knowGraphEl.getBoundingClientRect();
       this._knowGraph.width(r.width).height(r.height);
       // The three bands are graph-space positions derived from the container width, so
@@ -7095,6 +7888,7 @@ class Component extends DCLogic {
   // intact); called every render so the counts track the feed.
   _knowSyncChrome(built) {
     const root = this._learningRoot; if (!root) return;
+    if (this._brainView === 'changelog') { this._brainSyncStats(); return; }
     const linkCountEl = root.querySelector('#lr-know-linkcount');
     const controlsEl = root.querySelector('#lr-know-controls');
     if (!this._knowClustered) {
@@ -7164,6 +7958,7 @@ class Component extends DCLogic {
   // render + on breakpoint flips (via _onMobileChange), so switching back restores it.
   _knowApplyMobile() {
     const root = this._learningRoot; if (!root) return;
+    if (this._brainView === 'changelog') return;
     const graphEl = root.querySelector('#lr-know-graph');
     const legendEl = root.querySelector('#lr-know-legend');
     const emptyEl = root.querySelector('#lr-empty');
