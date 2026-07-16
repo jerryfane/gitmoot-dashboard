@@ -1727,7 +1727,54 @@ func (f *FakeDataSource) Config(ctx context.Context) (ConfigSnapshot, error) {
 			{Name: "reviewer", Runtime: "codex", Model: "gpt-5.6-codex", Memory: false, ChatAutorespond: false, Capabilities: []string{"review"}, AutonomyPolicy: "read-only", MaxBackground: 1},
 		},
 		UnknownKeys: []string{"experimental.scheduler_bias", "plugins.private_token"},
+		Keychain:    fakeKeychain(),
 	}, nil
+}
+
+// fakeKeychain is the healthy, names-only registry fixture shown by the Config
+// page. Ordering is explicit and stable; no credential values or value-derived
+// data exist in this projection.
+func fakeKeychain() KeychainView {
+	return KeychainView{
+		File: KeychainFileStatus{Path: "/home/operator/.config/gitmoot/keychain.env", Status: "ok"},
+		Keys: []KeychainKeyView{
+			{
+				Name:      "GH_TOKEN",
+				Mode:      "injected",
+				Grants:    []KeychainGrantView{{ConsumerKind: "pipeline", ConsumerID: "gitmoot-marketing"}, {ConsumerKind: "pipeline", ConsumerID: "trend-scout"}},
+				CreatedAt: "2026-07-08T09:12:00Z",
+			},
+			{
+				Name:          "OPENAI_API_KEY",
+				Mode:          "proxied",
+				ProxyUpstream: "https://api.openai.com/v1",
+				ProxyAuth:     "bearer",
+				Grants:        []KeychainGrantView{{ConsumerKind: "pipeline", ConsumerID: "trend-scout"}},
+				CreatedAt:     "2026-07-09T14:35:00Z",
+			},
+			{
+				Name:      "TELEGRAM_BOT_TOKEN",
+				Mode:      "injected",
+				Grants:    []KeychainGrantView{{ConsumerKind: "pipeline", ConsumerID: "gitmoot-marketing"}, {ConsumerKind: "pipeline", ConsumerID: "trend-scout"}},
+				CreatedAt: "2026-07-10T07:48:00Z",
+			},
+			{
+				Name:      "TELEGRAM_CHAT_ID",
+				Mode:      "injected",
+				Grants:    []KeychainGrantView{{ConsumerKind: "pipeline", ConsumerID: "gitmoot-marketing"}},
+				CreatedAt: "2026-07-10T07:49:00Z",
+			},
+		},
+	}
+}
+
+// fakeMissingKeychain is the second Config fixture: the configured keychain
+// path is known, but the file is absent and no registry rows are projected.
+func fakeMissingKeychain() KeychainView {
+	return KeychainView{
+		File: KeychainFileStatus{Path: "/home/operator/.config/gitmoot/keychain.env", Status: "missing"},
+		Keys: []KeychainKeyView{},
+	}
 }
 
 // fakeSkills builds the fixed SkillOpt evolution fixture behind the Learning

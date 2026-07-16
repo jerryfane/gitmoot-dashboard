@@ -4804,6 +4804,32 @@ class Component extends DCLogic {
       "#config-root .cfg-val.int,#config-root .cfg-val.float{color:#6ec6ff}",
       "#config-root .cfg-val.duration{color:#e0af68}",
       "#config-root .cfg-val.list{color:#73daca}",
+      "#config-root .cfg-keychain-head{display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding:10px 12px;margin-bottom:9px;border:1px solid rgba(160,168,220,.11);border-radius:8px;background:#0f1120}",
+      "#config-root .cfg-keychain-file{font:600 9px 'JetBrains Mono',monospace;letter-spacing:.1em;text-transform:uppercase;color:#69719a}",
+      "#config-root .cfg-keychain-path{min-width:0;overflow-wrap:anywhere;font:10.5px 'JetBrains Mono',monospace;color:#c7c9e5}",
+      "#config-root .cfg-keychain-path.none{color:#555d87}",
+      "#config-root .cfg-keychain-status{display:inline-flex;align-items:center;padding:2px 7px;border:1px solid rgba(160,168,220,.2);border-radius:5px;font:700 8.5px 'JetBrains Mono',monospace;letter-spacing:.05em;text-transform:uppercase;color:#8b90b8;background:rgba(160,168,220,.07)}",
+      "#config-root .cfg-keychain-status.ok{color:#9ece6a;border-color:rgba(158,206,106,.28);background:rgba(158,206,106,.09)}",
+      "#config-root .cfg-keychain-status.missing,#config-root .cfg-keychain-status.invalid{color:#f7768e;border-color:rgba(247,118,142,.28);background:rgba(247,118,142,.09)}",
+      "#config-root .cfg-keychain-status.bad_mode,#config-root .cfg-keychain-status.bad_owner,#config-root .cfg-keychain-status.bad_location{color:#e0af68;border-color:rgba(224,175,104,.28);background:rgba(224,175,104,.09)}",
+      "#config-root .cfg-keychain-empty{padding:16px 14px;border:1px solid rgba(160,168,220,.11);border-radius:8px;background:#090b16;color:#69719a;font-size:11px;line-height:1.55}",
+      "#config-root .cfg-keychain-empty code{font:10.5px 'JetBrains Mono',monospace;color:#cabff2}",
+      "#config-root .cfg-keychain-table-wrap{width:100%;overflow-x:auto;overflow-y:hidden;border:1px solid rgba(160,168,220,.11);border-radius:8px;background:#090b16}",
+      "#config-root .cfg-keychain-table{width:100%;min-width:820px;border-collapse:collapse}",
+      "#config-root .cfg-keychain-table th{padding:8px 10px;border-bottom:1px solid rgba(160,168,220,.12);background:#0f1120;text-align:left;color:#5b638d;font:600 8.5px 'JetBrains Mono',monospace;letter-spacing:.09em;text-transform:uppercase;white-space:nowrap}",
+      "#config-root .cfg-keychain-table td{padding:10px;border-bottom:1px solid rgba(160,168,220,.065);vertical-align:top;color:#8991ba;font:10.5px 'JetBrains Mono',monospace}",
+      "#config-root .cfg-keychain-table tr:last-child td{border-bottom:none}",
+      "#config-root .cfg-keychain-name{color:#d9dced;font-weight:600;white-space:nowrap}",
+      "#config-root .cfg-keychain-mode{display:inline-flex;padding:2px 7px;border:1px solid rgba(160,168,220,.2);border-radius:5px;color:#8b90b8;background:rgba(160,168,220,.07);font:600 9px 'JetBrains Mono',monospace;text-transform:uppercase}",
+      "#config-root .cfg-keychain-mode.injected{color:#9ece6a;border-color:rgba(158,206,106,.24);background:rgba(158,206,106,.07)}",
+      "#config-root .cfg-keychain-mode.proxied{color:#e0af68;border-color:rgba(224,175,104,.24);background:rgba(224,175,104,.07)}",
+      "#config-root .cfg-keychain-proxy{display:grid;gap:3px;max-width:300px}",
+      "#config-root .cfg-keychain-upstream{overflow-wrap:anywhere;color:#a8aecf}",
+      "#config-root .cfg-keychain-auth{color:#5f678f;font-size:9px}",
+      "#config-root .cfg-keychain-grants{display:flex;gap:5px;flex-wrap:wrap;min-width:180px}",
+      "#config-root .cfg-keychain-grant{display:inline-flex;padding:2px 6px;border:1px solid rgba(110,198,255,.2);border-radius:5px;background:rgba(110,198,255,.06);color:#8fbfe0;font:9px 'JetBrains Mono',monospace;white-space:nowrap}",
+      "#config-root .cfg-keychain-created{color:#69719a;white-space:nowrap}",
+      "#config-root .cfg-keychain-dash{color:#4f567c}",
       "#config-root .cfg-agent-wrap{border:1px solid rgba(160,168,220,.11);border-radius:8px;overflow:auto;max-height:310px;background:#0a0c17}",
       "#config-root .cfg-agent-table{width:100%;min-width:900px;border-collapse:collapse}",
       "#config-root .cfg-agent-table th{position:sticky;top:0;z-index:2;padding:8px 10px;background:#0f1120;border-bottom:1px solid rgba(160,168,220,.12);text-align:left;color:#5b638d;font:600 8.5px 'JetBrains Mono',monospace;letter-spacing:.09em;text-transform:uppercase}",
@@ -4937,6 +4963,59 @@ class Component extends DCLogic {
     if (!items.some(i => i.id === this._configActiveAnchor)) this._configSetActiveAnchor(items[0] ? items[0].id : '');
   }
 
+  _configRenderKeychain(raw, query) {
+    const esc = (s) => this._galaxyEsc(s == null ? '' : String(s));
+    const projection = raw && typeof raw === 'object' ? raw : {};
+    const file = projection.file && typeof projection.file === 'object' ? projection.file : {};
+    const statusValues = ['none', 'ok', 'missing', 'bad_mode', 'bad_owner', 'bad_location', 'invalid'];
+    const rawStatus = typeof file.status === 'string' && file.status ? file.status : 'none';
+    const statusClass = statusValues.indexOf(rawStatus) >= 0 ? rawStatus : 'invalid';
+    const statusLabels = { none: 'none', ok: 'ok', missing: 'missing', bad_mode: 'bad mode', bad_owner: 'bad owner', bad_location: 'bad location', invalid: 'invalid' };
+    const statusLabel = statusLabels[rawStatus] || rawStatus;
+    const path = typeof file.path === 'string' ? file.path : '';
+    const q = String(query || '').trim().toLowerCase();
+    const allKeys = Array.isArray(projection.keys) ? projection.keys : [];
+    const headerMatch = !q || ['keychain', path, rawStatus, statusLabel].join(' ').toLowerCase().indexOf(q) >= 0;
+    const filteredKeys = headerMatch ? allKeys : allKeys.filter(key => {
+      const grants = Array.isArray(key && key.grants) ? key.grants : [];
+      return [key && key.name, key && key.mode, key && key.proxyUpstream, key && key.proxyAuth, key && key.createdAt]
+        .concat(grants.map(grant => String(grant && grant.consumerKind || '') + ':' + String(grant && grant.consumerID || '')))
+        .join(' ').toLowerCase().indexOf(q) >= 0;
+    });
+    if (q && !headerMatch && !filteredKeys.length) return null;
+
+    const id = this._configSlug('keychain');
+    const pathHTML = path ? '<code class="cfg-keychain-path">' + esc(path) + '</code>' : '<span class="cfg-keychain-path none">not reported</span>';
+    const header = '<div class="cfg-keychain-head"><span class="cfg-keychain-file">keychain file</span>' + pathHTML +
+      '<span class="cfg-keychain-status ' + statusClass + '">' + esc(statusLabel) + '</span></div>';
+    let body = '';
+    if (filteredKeys.length) {
+      const rows = filteredKeys.map(key => {
+        const mode = key && key.mode != null ? String(key.mode) : '';
+        const modeClass = mode === 'injected' || mode === 'proxied' ? mode : '';
+        const upstream = key && key.proxyUpstream != null ? String(key.proxyUpstream) : '';
+        const auth = key && key.proxyAuth != null ? String(key.proxyAuth) : '';
+        const proxy = upstream || auth
+          ? '<div class="cfg-keychain-proxy">' + (upstream ? '<span class="cfg-keychain-upstream">' + esc(upstream) + '</span>' : '') + (auth ? '<span class="cfg-keychain-auth">' + esc(auth) + '</span>' : '') + '</div>'
+          : '<span class="cfg-keychain-dash">—</span>';
+        const grants = Array.isArray(key && key.grants) ? key.grants : [];
+        const grantHTML = grants.length ? grants.map(grant => '<span class="cfg-keychain-grant">' + esc(grant && grant.consumerKind || '') + ':' + esc(grant && grant.consumerID || '') + '</span>').join('') : '<span class="cfg-keychain-dash">—</span>';
+        return '<tr><td class="cfg-keychain-name">' + esc(key && key.name || '') + '</td><td><span class="cfg-keychain-mode ' + modeClass + '">' + esc(mode || '—') + '</span></td><td>' + proxy + '</td><td><div class="cfg-keychain-grants">' + grantHTML + '</div></td><td class="cfg-keychain-created">' + esc(key && key.createdAt || '—') + '</td></tr>';
+      }).join('');
+      body = '<div class="cfg-keychain-table-wrap"><table class="cfg-keychain-table"><thead><tr><th>Name</th><th>Mode</th><th>Upstream / Auth</th><th>Grants</th><th>Created</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+    } else if (q && allKeys.length) {
+      body = '<div class="cfg-keychain-empty">No keychain entries match “' + esc(query) + '”.</div>';
+    } else {
+      body = '<div class="cfg-keychain-empty">No registry keys are available. Register a names-only entry with <code>gitmoot key add</code>.</div>';
+    }
+    return {
+      id: id,
+      label: 'Keychain',
+      count: filteredKeys.length,
+      html: '<section id="' + id + '" class="cfg-section" data-cfg-section><div class="cfg-section-head">Keychain <span class="cfg-section-meta">names and grants only · values never serialized</span></div>' + header + body + '</section>'
+    };
+  }
+
   renderConfig(data) {
     const root = this._configRoot; if (!root) return;
     const box = root.querySelector('#cfg-content'); if (!box) return;
@@ -4976,6 +5055,11 @@ class Component extends DCLogic {
       anchors.push({ id: id, label: 'Feature flags', count: overridden });
       const cards = flags.map(r => { const k = r.knob, snippet = r.section + '.' + k.key + ' = ' + r.toml; return '<article class="cfg-flag-card' + (!k.is_default ? ' over' : '') + '"><div class="cfg-flag-top"><div class="cfg-key">' + keyHtml(r.section, k.key) + '</div><span class="cfg-flag ' + (k.value ? 'on' : 'off') + '">' + (k.value ? 'ON' : 'OFF') + '</span></div><div class="cfg-flag-doc" title="' + esc(k.doc || '') + '">' + esc(k.doc || '') + '</div><div class="cfg-flag-foot"><span class="cfg-badge ' + (k.is_default ? 'def">default' : 'over">overridden') + '</span><span class="cfg-default">default ' + esc(this._configDisplayValue(k.default, 'flag').toLowerCase()) + '</span>' + copy(snippet) + '</div></article>'; }).join('');
       out.push('<section id="' + id + '" class="cfg-section" data-cfg-section><div class="cfg-section-head flags">Off-by-default feature flags <span class="cfg-section-meta">' + flags.length + ' flags · <span class="hot">' + overridden + ' overridden</span></span></div><div class="cfg-flag-grid">' + cards + '</div></section>');
+    }
+    const keychain = this._configRenderKeychain(data.keychain, q);
+    if (keychain) {
+      anchors.push({ id: keychain.id, label: keychain.label, count: keychain.count });
+      out.push(keychain.html);
     }
     Object.keys(grouped).forEach(name => {
       const rs = grouped[name], id = this._configSlug(name), overridden = rs.filter(r => !r.knob.is_default).length;

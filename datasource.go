@@ -561,10 +561,46 @@ type ConfigAgent struct {
 	MaxBackground   int      `json:"max_background"`
 }
 
+// KeychainView is the metadata-only registry projection shown on the Config
+// page. Keys is deterministic and never nil; credential values and
+// value-derived data are deliberately absent from this contract.
+type KeychainView struct {
+	File KeychainFileStatus `json:"file"`
+	Keys []KeychainKeyView  `json:"keys"`
+}
+
+// KeychainFileStatus reports validation metadata without exposing keychain
+// contents. Status is none | ok | missing | bad_mode | bad_owner |
+// bad_location | invalid.
+type KeychainFileStatus struct {
+	Path   string `json:"path"`
+	Status string `json:"status"`
+}
+
+// KeychainKeyView is one names-only registry entry. Mode is injected or
+// proxied. ProxyUpstream and ProxyAuth are populated only for configured
+// proxied keys. Grants is deterministic and never nil; CreatedAt is the
+// store-provided timestamp string.
+type KeychainKeyView struct {
+	Name          string              `json:"name"`
+	Mode          string              `json:"mode"`
+	ProxyUpstream string              `json:"proxyUpstream"`
+	ProxyAuth     string              `json:"proxyAuth"`
+	Grants        []KeychainGrantView `json:"grants"`
+	CreatedAt     string              `json:"createdAt"`
+}
+
+// KeychainGrantView names one consumer authorized to use a registry key.
+type KeychainGrantView struct {
+	ConsumerKind string `json:"consumerKind"`
+	ConsumerID   string `json:"consumerID"`
+}
+
 // ConfigSnapshot is the read-only, sanitized effective configuration consumed
 // by the Config page. ContractVersion starts at 1 and makes future additions
 // additive. UnknownKeys contains names only: unknown values are excluded by the
-// type itself. ModifiedAt is epoch milliseconds (0 when the file is absent).
+// type itself. Keychain likewise contains metadata only. ModifiedAt is epoch
+// milliseconds (0 when the file is absent).
 type ConfigSnapshot struct {
 	ContractVersion int             `json:"contract_version"`
 	Path            string          `json:"path"`
@@ -573,6 +609,7 @@ type ConfigSnapshot struct {
 	Sections        []ConfigSection `json:"sections"`
 	Agents          []ConfigAgent   `json:"agents"`
 	UnknownKeys     []string        `json:"unknown_keys"`
+	Keychain        KeychainView    `json:"keychain"`
 }
 
 // HealthDaemon reports the orchestration daemon's liveness.
@@ -1120,7 +1157,8 @@ type DataSource interface {
 	Health(ctx context.Context) (Health, error)
 	// Config returns the versioned, sanitized effective configuration behind the
 	// Config page. Values are strictly allowlisted; unknown config entries surface
-	// by name only. Sections, knobs, agents and unknown keys are deterministic.
+	// by name only, and the keychain projection contains metadata only. Sections,
+	// knobs, agents, unknown keys and keychain rows are deterministic.
 	Config(ctx context.Context) (ConfigSnapshot, error)
 	// Skills returns the SkillOpt evolution overview behind the Learning page's
 	// Skills view: per-template version history, active canaries and pending
