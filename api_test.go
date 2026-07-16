@@ -18,6 +18,15 @@ import (
 type noWorkflowDataSource struct{ DataSource }
 type noChangeCursorDataSource struct{ DataSource }
 
+type configSnapshotDataSource struct {
+	DataSource
+	snapshot ConfigSnapshot
+}
+
+func (d configSnapshotDataSource) Config(context.Context) (ConfigSnapshot, error) {
+	return d.snapshot, nil
+}
+
 type testChangeCursorDataSource struct {
 	DataSource
 	mu     sync.Mutex
@@ -1497,7 +1506,7 @@ func TestHandleConfig(t *testing.T) {
 	if !cfg.Exists || cfg.Path == "" || cfg.ModifiedAt == 0 {
 		t.Fatalf("config file metadata incomplete: %+v", cfg)
 	}
-	if cfg.Sections == nil || cfg.Agents == nil || cfg.UnknownKeys == nil {
+	if cfg.Sections == nil || cfg.Agents == nil || cfg.UnknownKeys == nil || cfg.Keychain.Keys == nil {
 		t.Fatalf("config slices must be non-nil: %+v", cfg)
 	}
 
@@ -1593,6 +1602,159 @@ func TestHandleConfig(t *testing.T) {
 	for i, item := range unknown {
 		if _, ok := item.(string); !ok {
 			t.Fatalf("unknown_keys[%d] = %T, want name string only", i, item)
+		}
+	}
+}
+
+func TestHandleConfigKeychain(t *testing.T) {
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+
+	raw := getRaw(t, srv.URL+"/api/config")
+	var wire map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &wire); err != nil {
+		t.Fatalf("decode config wire payload: %v", err)
+	}
+	keychainRaw, ok := wire["keychain"]
+	if !ok {
+		t.Fatalf("config wire payload omitted keychain: %s", raw)
+	}
+	if bytes.Contains(bytes.ToLower(keychainRaw), []byte(`"value"`)) {
+		t.Fatalf("keychain projection must not expose credential values: %s", keychainRaw)
+	}
+
+	var keychainWire map[string]json.RawMessage
+	if err := json.Unmarshal(keychainRaw, &keychainWire); err != nil {
+		t.Fatalf("decode keychain wire payload: %v", err)
+	}
+	if _, ok := keychainWire["file"]; !ok {
+		t.Fatalf("keychain wire payload omitted file: %s", keychainRaw)
+	}
+	keysRaw, ok := keychainWire["keys"]
+	if !ok {
+		t.Fatalf("keychain wire payload omitted keys: %s", keychainRaw)
+	}
+	var keyWires []map[string]json.RawMessage
+	if err := json.Unmarshal(keysRaw, &keyWires); err != nil || keyWires == nil {
+		t.Fatalf("keychain.keys wire value = %s, want an array, err=%v", keysRaw, err)
+	}
+	for i, keyWire := range keyWires {
+		for _, field := range []string{"name", "mode", "proxyUpstream", "proxyAuth", "grants", "createdAt"} {
+			if _, ok := keyWire[field]; !ok {
+				t.Fatalf("keychain.keys[%d] omitted %s: %s", i, field, keysRaw)
+			}
+		}
+		var grantWires []map[string]json.RawMessage
+		if err := json.Unmarshal(keyWire["grants"], &grantWires); err != nil || grantWires == nil {
+			t.Fatalf("keychain.keys[%d].grants = %s, want an array, err=%v", i, keyWire["grants"], err)
+		}
+		for gi, grantWire := range grantWires {
+			if _, ok := grantWire["consumerKind"]; !ok {
+				t.Fatalf("keychain.keys[%d].grants[%d] omitted consumerKind", i, gi)
+			}
+			if _, ok := grantWire["consumerID"]; !ok {
+				t.Fatalf("keychain.keys[%d].grants[%d] omitted consumerID", i, gi)
+			}
+		}
+	}
+
+	var cfg ConfigSnapshot
+	if err := json.Unmarshal(raw, &cfg); err != nil {
+		t.Fatalf("decode config: %v", err)
+	}
+	allowedStatuses := map[string]bool{"none": true, "ok": true, "missing": true, "bad_mode": true, "bad_owner": true, "bad_location": true, "invalid": true}
+	if !allowedStatuses[cfg.Keychain.File.Status] || cfg.Keychain.File.Status != "ok" || cfg.Keychain.File.Path == "" {
+		t.Fatalf("keychain file metadata = %+v", cfg.Keychain.File)
+	}
+	wantNames := []string{"GH_TOKEN", "OPENAI_API_KEY", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"}
+	if len(cfg.Keychain.Keys) != len(wantNames) {
+		t.Fatalf("keychain keys = %d, want %d: %+v", len(cfg.Keychain.Keys), len(wantNames), cfg.Keychain.Keys)
+	}
+	injected, proxied := 0, 0
+	for i, key := range cfg.Keychain.Keys {
+		if key.Name != wantNames[i] {
+			t.Fatalf("keychain key[%d] = %q, want %q", i, key.Name, wantNames[i])
+		}
+		if key.Grants == nil || len(key.Grants) < 1 || len(key.Grants) > 2 {
+			t.Fatalf("keychain key %s grants = %+v, want 1-2 rows", key.Name, key.Grants)
+		}
+		if _, err := time.Parse(time.RFC3339, key.CreatedAt); err != nil {
+			t.Fatalf("keychain key %s createdAt = %q, want RFC3339: %v", key.Name, key.CreatedAt, err)
+		}
+		switch key.Mode {
+		case "injected":
+			injected++
+			if key.ProxyUpstream != "" || key.ProxyAuth != "" {
+				t.Fatalf("injected key %s has proxy metadata: %+v", key.Name, key)
+			}
+		case "proxied":
+			proxied++
+			if key.ProxyUpstream == "" || key.ProxyAuth == "" {
+				t.Fatalf("proxied key %s is not configured: %+v", key.Name, key)
+			}
+		default:
+			t.Fatalf("keychain key %s mode = %q outside injected|proxied", key.Name, key.Mode)
+		}
+		for _, grant := range key.Grants {
+			if grant.ConsumerKind != "pipeline" || grant.ConsumerID == "" {
+				t.Fatalf("keychain key %s invalid grant: %+v", key.Name, grant)
+			}
+		}
+	}
+	if injected != 3 || proxied != 1 {
+		t.Fatalf("keychain fixture modes: injected=%d proxied=%d, want 3/1", injected, proxied)
+	}
+}
+
+func TestHandleConfigKeychainMissingAndAbsent(t *testing.T) {
+	base := NewFakeDataSource()
+	snapshot, err := base.Config(context.Background())
+	if err != nil {
+		t.Fatalf("fake config: %v", err)
+	}
+
+	for _, tc := range []struct {
+		name      string
+		keychain  KeychainView
+		wantState string
+	}{
+		{name: "missing fixture", keychain: fakeMissingKeychain(), wantState: "missing"},
+		{name: "old additive payload", keychain: KeychainView{}, wantState: "none"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			snapshot.Keychain = tc.keychain
+			ds := configSnapshotDataSource{DataSource: base, snapshot: snapshot}
+			srv := httptest.NewServer(Serve(ds))
+			defer srv.Close()
+
+			var got ConfigSnapshot
+			if err := json.Unmarshal(getRaw(t, srv.URL+"/api/config"), &got); err != nil {
+				t.Fatalf("decode config: %v", err)
+			}
+			if got.Keychain.File.Status != tc.wantState || got.Keychain.Keys == nil || len(got.Keychain.Keys) != 0 {
+				t.Fatalf("normalized keychain = %+v, want status=%s and empty non-null keys", got.Keychain, tc.wantState)
+			}
+		})
+	}
+}
+
+func TestConfigKeychainRenderContract(t *testing.T) {
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/config")
+	if err != nil {
+		t.Fatalf("GET Config page: %v", err)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read Config page: %v", err)
+	}
+	html := string(body)
+	for _, marker := range []string{"_configRenderKeychain", "cfg-keychain-table", "gitmoot key add", "proxyUpstream", "consumerKind"} {
+		if !strings.Contains(html, marker) {
+			t.Fatalf("Config Keychain renderer missing %q", marker)
 		}
 	}
 }

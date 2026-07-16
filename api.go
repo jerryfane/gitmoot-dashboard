@@ -630,6 +630,17 @@ func (s *server) handleConfig(w http.ResponseWriter, r *http.Request) {
 	if c.UnknownKeys == nil {
 		c.UnknownKeys = []string{}
 	}
+	if c.Keychain.File.Status == "" {
+		c.Keychain.File.Status = "none"
+	}
+	if c.Keychain.Keys == nil {
+		c.Keychain.Keys = []KeychainKeyView{}
+	}
+	for i := range c.Keychain.Keys {
+		if c.Keychain.Keys[i].Grants == nil {
+			c.Keychain.Keys[i].Grants = []KeychainGrantView{}
+		}
+	}
 	writeJSON(w, http.StatusOK, c)
 }
 
