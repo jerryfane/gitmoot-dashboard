@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <link rel="icon" type="image/svg+xml" href="/logo.svg">
 <script src="/support.js"></script>
 </head>
@@ -16,7 +16,7 @@
 <script src="https://unpkg.com/force-graph@1.43.5/dist/force-graph.min.js"></script>
 <style>
  :root{--gm-bg:#07080f;--gm-surface-raised:#0f1120;--gm-border-raised:rgba(160,168,220,.13);--gm-text-strong:#eef0ff;--gm-text-muted:#8b90b8;--gm-text-faint:#5a6088}
- html,body{margin:0;background:#07080f}
+ html,body{height:100%;margin:0;background:#07080f;overflow:hidden;overscroll-behavior:none}
  *{box-sizing:border-box}
  @keyframes runpulse{0%,100%{box-shadow:0 0 0 0 var(--gc)}50%{box-shadow:0 0 28px 1px var(--gc)}}
  @keyframes dotpulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.7);opacity:.45}}
@@ -34,10 +34,17 @@
  .gm-aplink:hover{background:rgba(158,206,106,0.12);border-color:rgba(158,206,106,0.35);color:#eef0ff}
  .gm-aplink svg{flex:none}
  .gm-aplink .ext{opacity:.55}
- @media (max-width:768px){.gm-aplink{display:none!important}}
+ .ov-scroll,.wfi-scroll,.wfd-scroll,.tk-col-body,.tk-detail-body,.pl-list-scroll,.pl-main-body,.pl-runs,.jb-tablewrap,.jd-body,.ag-list,.ag-pane,.gd-body,.ch-scroll,.at-scroll,.hl-body,.cfg-scroll,.xd-body,#lr-skills,#lr-know-mobile,.lr-dbody,.bc-feed,.ch-list,.cd-body,.ci-scroll,.gm-graph-detail-body,.gm-more-sheet,.gm-runs-list{overscroll-behavior-y:contain}
+ .ov-fleet-list{overscroll-behavior-x:contain}
+ .gm-ptr-indicator{position:fixed;left:0;top:0;z-index:120;height:0;display:flex;justify-content:center;overflow:visible;pointer-events:none;opacity:0;transform:translateY(-18px);transition:opacity .14s ease,transform .14s ease}
+ .gm-ptr-indicator span{display:inline-flex;align-items:center;gap:7px;height:24px;padding:0 10px;border:1px solid rgba(160,168,220,.14);border-radius:12px;background:rgba(13,15,28,.94);box-shadow:0 5px 18px rgba(0,0,0,.28);color:#7b82aa;font:9px 'JetBrains Mono',monospace;letter-spacing:.05em;text-transform:uppercase;white-space:nowrap}
+ .gm-ptr-indicator.gm-ptr-show{opacity:1}
+ .gm-ptr-indicator.gm-ptr-refreshing span:before{content:'';width:8px;height:8px;border:1px solid rgba(110,198,255,.28);border-top-color:#6ec6ff;border-radius:50%;animation:gm-ptr-spin .7s linear infinite}
+ @keyframes gm-ptr-spin{to{transform:rotate(360deg)}}
+ @media (max-width:768px){.gm-aplink{display:none!important}.gm-ptr-scroll{overscroll-behavior-y:none}.tk-tabs,.pl-runs,.wfd-stats{overscroll-behavior-x:contain}}
 </style>
 </helmet>
-<div style="display:flex;flex-direction:column;height:100vh;width:100vw;overflow:hidden;background:#07080f;color:#a8aecf;font-family:Inter,system-ui,sans-serif;font-size:14px">
+<div style="display:flex;flex-direction:column;height:100vh;height:100dvh;width:100%;overflow:hidden;overscroll-behavior:none;background:#07080f;color:#a8aecf;font-family:Inter,system-ui,sans-serif;font-size:14px">
 
   <header style="height:54px;flex:none;display:flex;align-items:center;gap:14px;padding:0 18px;border-bottom:1px solid rgba(160,168,220,0.08);background:rgba(10,11,22,0.62);backdrop-filter:blur(10px);position:relative;z-index:50">
     <button onClick="{{ showMore }}" aria-label="Open navigation" style="{{ mobileMenuStyle }}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
@@ -197,7 +204,7 @@
             </div>
           </div>
 
-          <div style="flex:1;overflow-y:auto;padding:16px 20px 24px">
+          <div class="gm-graph-detail-body" style="flex:1;overflow-y:auto;padding:16px 20px 24px">
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:20px">
               <div style="background:rgba(10,11,22,0.6);border:1px solid rgba(160,168,220,0.08);border-radius:9px;padding:10px 11px">
                 <div style="font-size:10px;color:#5a6088;letter-spacing:0.04em;text-transform:uppercase">Started</div>
@@ -274,7 +281,7 @@
 
   <sc-if value="{{ moreSheetVisible }}" hint-placeholder-val="{{ false }}">
     <div onClick="{{ closeMoreSheet }}" style="position:fixed;inset:0;z-index:65;background:rgba(4,5,10,0.55);backdrop-filter:blur(2px)"></div>
-    <div style="position:fixed;left:0;right:0;bottom:calc(60px + env(safe-area-inset-bottom));max-height:calc(100vh - 86px);overflow-y:auto;z-index:66;background:#0e1020;border-top:1px solid rgba(160,168,220,0.14);border-radius:16px 16px 0 0;padding:8px 12px calc(16px + env(safe-area-inset-bottom));box-shadow:0 -18px 40px rgba(0,0,0,0.55)">
+    <div class="gm-more-sheet" style="position:fixed;left:0;right:0;bottom:calc(60px + env(safe-area-inset-bottom));max-height:calc(100vh - 86px);max-height:calc(100dvh - 86px);overflow-y:auto;z-index:66;background:#0e1020;border-top:1px solid rgba(160,168,220,0.14);border-radius:16px 16px 0 0;padding:8px 12px calc(16px + env(safe-area-inset-bottom));box-shadow:0 -18px 40px rgba(0,0,0,0.55)">
       <div style="width:36px;height:4px;border-radius:2px;background:rgba(160,168,220,0.2);margin:4px auto 10px"></div>
       <div style="font-family:'JetBrains Mono';font-size:9.5px;letter-spacing:0.15em;color:#5a6088;padding:2px 8px 5px">WORK</div>
       <div onClick="{{ showOverviewFromMore }}" style="padding:10px;color:#c8cce6;cursor:pointer">Overview</div><div onClick="{{ showTasksFromMore }}" style="padding:10px;color:#c8cce6;cursor:pointer">Tasks</div><div onClick="{{ showWorkflowsFromMore }}" style="padding:10px;color:#c8cce6;cursor:pointer">Workflows</div><div onClick="{{ showJobsFromMore }}" style="padding:10px;color:#c8cce6;cursor:pointer">Jobs</div><div onClick="{{ showPipelinesFromMore }}" style="padding:10px;color:#c8cce6;cursor:pointer">Pipelines</div>
@@ -689,6 +696,7 @@ class Component extends DCLogic {
         // charts) all read the new value rather than the pre-flip one.
         const after = () => {
           this._redockOverlays();
+          this._queuePullToRefreshSync();
           if (this.state.view === 'jobs') this.renderJobsTable();
           if (this.state.view === 'agents') { this._agApplyMobileClass(); this.renderAgentsPane(true); }
           if (this.state.view === 'pipelines' && this._plDetailName) { this._plLayout(); this._plUpdateScrollCue(); }
@@ -722,12 +730,13 @@ class Component extends DCLogic {
         if (this.state.isMobile !== m) this.setState({ isMobile: m }, after);
         else after();
       };
-      this._onCoarseChange = (e) => { this._coarsePointer = !!e.matches; };
+      this._onCoarseChange = (e) => { this._coarsePointer = !!e.matches; this._queuePullToRefreshSync(); };
       if (this._mqMobile.addEventListener) this._mqMobile.addEventListener('change', this._onMobileChange);
       else if (this._mqMobile.addListener) this._mqMobile.addListener(this._onMobileChange);
       if (this._mqCoarse.addEventListener) this._mqCoarse.addEventListener('change', this._onCoarseChange);
       else if (this._mqCoarse.addListener) this._mqCoarse.addListener(this._onCoarseChange);
     } catch (e) {}
+    this._startPullToRefresh();
     window.addEventListener('resize', this.onResize);
     window.addEventListener('popstate', this._onPopState); // back/forward -> view state
     // safety: never leave the Runs column stuck on skeletons if /api/runs hangs
@@ -772,6 +781,7 @@ class Component extends DCLogic {
     this.stopWorkflowPoll();
     this.stopOverviewPoll();
     this.stopTasksPoll();
+    this._stopPullToRefresh();
     this.stopLiveStream();
     try { if (this._es) this._es.close(); } catch (e) {}
     window.removeEventListener('resize', this.onResize);
@@ -821,6 +831,14 @@ class Component extends DCLogic {
     this._liveStreamStopped = false;
     this._liveStreamOpened = false;
     this._liveStreamBackoff = 1000;
+    this._liveVisibilityHandler = () => {
+      if (document.visibilityState === 'visible') this._scheduleLiveResume(1000);
+    };
+    this._livePageShowHandler = (e) => { if (e.persisted) this._scheduleLiveResume(1000); };
+    this._liveOnlineHandler = () => this._scheduleLiveResume(0);
+    document.addEventListener('visibilitychange', this._liveVisibilityHandler);
+    window.addEventListener('pageshow', this._livePageShowHandler);
+    window.addEventListener('online', this._liveOnlineHandler);
     this._connectLiveStream();
   }
   stopLiveStream() {
@@ -828,14 +846,37 @@ class Component extends DCLogic {
     this._liveStreamStarted = false;
     try { clearTimeout(this._liveStreamReconnectTimer); } catch (e) {}
     try { clearTimeout(this._liveStreamRefreshTimer); } catch (e) {}
+    try { clearTimeout(this._liveResumeTimer); } catch (e) {}
     this._liveStreamReconnectTimer = null;
     this._liveStreamRefreshTimer = null;
+    this._liveResumeTimer = null;
     try { if (this._liveES) this._liveES.close(); } catch (e) {}
     this._liveES = null;
+    try { document.removeEventListener('visibilitychange', this._liveVisibilityHandler); } catch (e) {}
+    try { window.removeEventListener('pageshow', this._livePageShowHandler); } catch (e) {}
+    try { window.removeEventListener('online', this._liveOnlineHandler); } catch (e) {}
+    this._liveVisibilityHandler = null;
+    this._livePageShowHandler = null;
+    this._liveOnlineHandler = null;
     this._setLiveStreamState('closed');
   }
+  _scheduleLiveResume(delay) {
+    if (!this._liveStreamStarted || this._liveStreamStopped) return;
+    try { clearTimeout(this._liveResumeTimer); } catch (e) {}
+    this._liveResumeTimer = setTimeout(() => {
+      this._liveResumeTimer = null;
+      if (!this._liveStreamStarted || this._liveStreamStopped || document.visibilityState === 'hidden') return;
+      this._liveStreamBackoff = 1000;
+      this._scheduleLiveRefresh();
+      this._connectLiveStream();
+      // The run-canvas uses a separate /events stream; replace its potentially
+      // frozen connection and reload its snapshot alongside the shared stream.
+      this.loadState();
+      this.subscribeEvents();
+    }, Math.max(0, Number(delay) || 0));
+  }
   _connectLiveStream() {
-    if (this._liveStreamStopped) return;
+    if (!this._liveStreamStarted || this._liveStreamStopped) return;
     try { clearTimeout(this._liveStreamReconnectTimer); } catch (e) {}
     this._liveStreamReconnectTimer = null;
     if (typeof EventSource === 'undefined') {
@@ -868,7 +909,7 @@ class Component extends DCLogic {
     };
   }
   _scheduleLiveReconnect() {
-    if (this._liveStreamStopped || this._liveStreamReconnectTimer) return;
+    if (!this._liveStreamStarted || this._liveStreamStopped || this._liveStreamReconnectTimer) return;
     this._setLiveStreamState('fallback');
     const delay = Math.min(30000, Math.max(1000, this._liveStreamBackoff || 1000));
     this._liveStreamBackoff = Math.min(30000, delay * 2);
@@ -912,6 +953,144 @@ class Component extends DCLogic {
       this.loadState();
       this.loadRuns();
     }
+  }
+
+  // ---- shared mobile pull-to-refresh controller ----------------------------
+  // The active view owns the gesture; nested drawers, sheets, rails, tabs and
+  // inputs intentionally never receive PTR listeners.
+  _startPullToRefresh() {
+    if (this._ptrObserver || typeof MutationObserver === 'undefined') return;
+    this._ptrBindings = new Map();
+    this._ptrObserver = new MutationObserver(() => this._queuePullToRefreshSync());
+    this._ptrObserver.observe(document.body, { childList:true, subtree:true });
+    this._queuePullToRefreshSync();
+  }
+  _stopPullToRefresh() {
+    try { if (this._ptrObserver) this._ptrObserver.disconnect(); } catch (e) {}
+    try { clearTimeout(this._ptrSyncTimer); } catch (e) {}
+    this._ptrObserver = null;
+    this._ptrSyncTimer = null;
+    if (this._ptrBindings) Array.from(this._ptrBindings.keys()).forEach(el => this._unbindPullToRefresh(el));
+    this._ptrBindings = null;
+  }
+  _queuePullToRefreshSync() {
+    if (this._ptrSyncTimer) return;
+    this._ptrSyncTimer = setTimeout(() => { this._ptrSyncTimer = null; this._syncPullToRefresh(); }, 0);
+  }
+  _pullToRefreshSelectors() {
+    const selectors = {
+      overview: ['#overview-root .ov-scroll'],
+      tasks: ['#tasks-root .tk-col.mobile-active .tk-col-body'],
+      workflows: ['#workflow-root .wfi-scroll', '#workflow-root .wfd-scroll'],
+      jobs: ['#jobs-root .jb-tablewrap'],
+      agents: ['#agents-root .ag-list', '#agents-root .ag-pane'],
+      charts: ['#charts-root .ch-scroll'],
+      attention: ['#attention-root .at-scroll'],
+      health: ['#health-root .hl-body'],
+      config: ['#config-root .cfg-scroll'],
+      learning: ['#learning-root #lr-skills'],
+      brain: ['#learning-root #lr-know-mobile', '#learning-root .bc-feed'],
+      pipelines: ['#pipelines-root .pl-list-scroll', '#pipelines-root .pl-main-body'],
+      chat: ['#chat-root .ch-list', '#chat-root .cd-body'],
+      graph: ['.gm-runs-list']
+    };
+    return selectors[this.state.view] || [];
+  }
+  _syncPullToRefresh() {
+    if (!this._ptrBindings) return;
+    let touch = false;
+    try { touch = !!(this._coarsePointer || navigator.maxTouchPoints > 0 || ('ontouchstart' in window)); } catch (e) {}
+    const wanted = new Set();
+    if (this.state.isMobile && touch) {
+      this._pullToRefreshSelectors().forEach(sel => document.querySelectorAll(sel).forEach(el => wanted.add(el)));
+    }
+    Array.from(this._ptrBindings.keys()).forEach(el => { if (!wanted.has(el) || !el.isConnected) this._unbindPullToRefresh(el); });
+    wanted.forEach(el => { if (!this._ptrBindings.has(el)) this._bindPullToRefresh(el); });
+  }
+  _bindPullToRefresh(scroller) {
+    const indicator = document.createElement('div');
+    indicator.className = 'gm-ptr-indicator';
+    indicator.setAttribute('aria-hidden', 'true');
+    indicator.innerHTML = '<span>pull to refresh</span>';
+    document.body.appendChild(indicator);
+    scroller.classList.add('gm-ptr-scroll');
+    const state = { mode:'idle', startX:0, startY:0, pull:0, refreshing:false, resetTimer:null };
+    const label = indicator.firstElementChild;
+    const reset = () => {
+      state.mode = 'idle'; state.pull = 0;
+      scroller.classList.remove('gm-ptr-pulling', 'gm-ptr-refreshing');
+      indicator.classList.remove('gm-ptr-show', 'gm-ptr-refreshing');
+      indicator.style.transform = 'translateY(-18px)';
+      if (label) label.textContent = 'pull to refresh';
+    };
+    const start = (e) => {
+      if (state.refreshing) return;
+      if (e.touches.length !== 1) { reset(); return; }
+      if (scroller.scrollTop > 0) return;
+      const interactive = e.target && e.target.closest && e.target.closest('input,textarea,select,button,[contenteditable="true"]');
+      if (interactive) return;
+      let nested = e.target;
+      while (nested && nested !== scroller) {
+        try {
+          const overflowY = getComputedStyle(nested).overflowY;
+          if ((overflowY === 'auto' || overflowY === 'scroll') && nested.scrollHeight > nested.clientHeight + 1) return;
+        } catch (err) {}
+        nested = nested.parentElement;
+      }
+      const t = e.touches[0];
+      const rect = scroller.getBoundingClientRect();
+      indicator.style.left = rect.left + 'px'; indicator.style.top = rect.top + 'px'; indicator.style.width = rect.width + 'px';
+      state.mode = 'armed'; state.startX = t.clientX; state.startY = t.clientY; state.pull = 0;
+    };
+    const move = (e) => {
+      if (state.mode === 'idle' || state.refreshing) return;
+      if (e.touches.length !== 1 || scroller.scrollTop > 2) { reset(); return; }
+      const t = e.touches[0], dx = t.clientX - state.startX, dy = t.clientY - state.startY, ax = Math.abs(dx);
+      if (dy <= 0) { if (Math.abs(dy) > 10) reset(); return; }
+      if (ax > 8 && dy <= ax * 1.5) { reset(); return; }
+      if (state.mode === 'armed') {
+        if (dy <= 10 || dy <= ax * 1.5) return;
+        state.mode = 'pulling';
+        scroller.classList.add('gm-ptr-pulling');
+        indicator.classList.add('gm-ptr-show');
+      }
+      if (state.mode !== 'pulling') return;
+      if (e.cancelable) e.preventDefault();
+      state.pull = dy;
+      const offset = Math.min(90, dy * 0.45), ready = dy >= 70;
+      indicator.style.transform = 'translateY(' + Math.max(-18, offset - 18) + 'px)';
+      if (label) label.textContent = ready ? 'release to refresh' : 'pull to refresh';
+    };
+    const end = () => {
+      if (state.mode !== 'pulling' || state.refreshing) { reset(); return; }
+      if (state.pull < 70) { reset(); return; }
+      state.mode = 'idle'; state.refreshing = true;
+      scroller.classList.remove('gm-ptr-pulling');
+      scroller.classList.add('gm-ptr-refreshing');
+      indicator.classList.add('gm-ptr-show', 'gm-ptr-refreshing');
+      indicator.style.transform = 'translateY(18px)';
+      if (label) label.textContent = 'refreshing';
+      this._scheduleLiveResume(0);
+      state.resetTimer = setTimeout(() => { state.refreshing = false; state.resetTimer = null; reset(); }, 900);
+    };
+    const cancel = () => reset();
+    scroller.addEventListener('touchstart', start, { passive:true });
+    scroller.addEventListener('touchmove', move, { passive:false });
+    scroller.addEventListener('touchend', end, { passive:true });
+    scroller.addEventListener('touchcancel', cancel, { passive:true });
+    this._ptrBindings.set(scroller, { indicator, state, start, move, end, cancel });
+  }
+  _unbindPullToRefresh(scroller) {
+    const binding = this._ptrBindings && this._ptrBindings.get(scroller);
+    if (!binding) return;
+    try { clearTimeout(binding.state.resetTimer); } catch (e) {}
+    scroller.removeEventListener('touchstart', binding.start);
+    scroller.removeEventListener('touchmove', binding.move);
+    scroller.removeEventListener('touchend', binding.end);
+    scroller.removeEventListener('touchcancel', binding.cancel);
+    scroller.classList.remove('gm-ptr-scroll', 'gm-ptr-pulling', 'gm-ptr-refreshing');
+    try { binding.indicator.remove(); } catch (e) {}
+    this._ptrBindings.delete(scroller);
   }
 
   // ============================================================
@@ -1131,6 +1310,7 @@ class Component extends DCLogic {
       this.stopChatThreadPoll();
       if (this._chatRoot) this._chatRoot.style.display = 'none';
     }
+    this._queuePullToRefreshSync();
   }
 
   // ============================================================
@@ -6029,7 +6209,7 @@ class Component extends DCLogic {
       "#learning-root .bc-biometa{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#5a627e;white-space:nowrap}",
       "#learning-root .bc-biocontent{margin-top:10px;background:#080b13;border:1px solid #161d2c;border-radius:8px;padding:10px 14px;font-family:'JetBrains Mono',monospace;font-size:12.5px;line-height:1.55;color:#a2abc4;white-space:pre-wrap;max-height:150px;overflow:auto}",
       "#learning-root .bc-biofoot{margin-top:8px;font-size:11.5px;color:#464f6b}",
-      "#learning-root .bc-feed{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable}",
+      "#learning-root .bc-feed{flex:1;min-height:0;overflow-y:auto;overscroll-behavior-y:contain;scrollbar-gutter:stable}",
       "#learning-root .bc-day{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:10px;padding:9px 18px;background:#0b0f1a;border-bottom:1px solid #141a28}",
       "#learning-root .bc-day b{font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#8b93ac}",
       "#learning-root .bc-day i{height:1px;flex:1;background:#141a28}",
@@ -9678,7 +9858,7 @@ class Component extends DCLogic {
       const det = this._pipelinesRoot.querySelector('#pl-detail');
       const list = this._pipelinesRoot.querySelector('#pl-list');
       if (det) det.style.display = 'none';
-      if (list) list.style.display = 'block';
+      if (list) list.style.display = '';
       try { this._pipelinesRoot.scrollTop = 0; } catch (e) {}
     }
   }
@@ -11365,7 +11545,7 @@ class Component extends DCLogic {
       body = secs;
     }
 
-    const list = R('div', { key: 'ls', style: { flex: 1, overflowY: 'auto', overflowX: 'hidden', paddingBottom: '12px' } }, body);
+    const list = R('div', { key: 'ls', className: 'gm-runs-list', style: { flex: 1, overflowY: 'auto', overflowX: 'hidden', paddingBottom: '12px' } }, body);
 
     // Desktop: an inline 320px column. Mobile: a full-screen fixed drawer over the
     // graph that clears the bottom tab bar; its header collapse button (toggleRuns)
