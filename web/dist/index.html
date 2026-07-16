@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" type="image/svg+xml" href="/logo.svg">
 <script src="/support.js"></script>
 </head>
@@ -16,7 +16,7 @@
 <script src="https://unpkg.com/force-graph@1.43.5/dist/force-graph.min.js"></script>
 <style>
  :root{--gm-bg:#07080f;--gm-surface-raised:#0f1120;--gm-border-raised:rgba(160,168,220,.13);--gm-text-strong:#eef0ff;--gm-text-muted:#8b90b8;--gm-text-faint:#5a6088}
- html,body{height:100%;margin:0;background:#07080f;overflow:hidden;overscroll-behavior:none}
+ html,body{height:100%;margin:0;background:#07080f;overflow:hidden}
  *{box-sizing:border-box}
  @keyframes runpulse{0%,100%{box-shadow:0 0 0 0 var(--gc)}50%{box-shadow:0 0 28px 1px var(--gc)}}
  @keyframes dotpulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.7);opacity:.45}}
@@ -41,10 +41,11 @@
  .gm-ptr-indicator.gm-ptr-show{opacity:1}
  .gm-ptr-indicator.gm-ptr-refreshing span:before{content:'';width:8px;height:8px;border:1px solid rgba(110,198,255,.28);border-top-color:#6ec6ff;border-radius:50%;animation:gm-ptr-spin .7s linear infinite}
  @keyframes gm-ptr-spin{to{transform:rotate(360deg)}}
+ @media (pointer:coarse){html,body,.gm-shell{overscroll-behavior:none}}
  @media (max-width:768px){.gm-aplink{display:none!important}.gm-ptr-scroll{overscroll-behavior-y:none}.tk-tabs,.pl-runs,.wfd-stats{overscroll-behavior-x:contain}}
 </style>
 </helmet>
-<div style="display:flex;flex-direction:column;height:100vh;height:100dvh;width:100%;overflow:hidden;overscroll-behavior:none;background:#07080f;color:#a8aecf;font-family:Inter,system-ui,sans-serif;font-size:14px">
+<div class="gm-shell" style="display:flex;flex-direction:column;height:100vh;height:100dvh;width:100%;overflow:hidden;background:#07080f;color:#a8aecf;font-family:Inter,system-ui,sans-serif;font-size:14px">
 
   <header style="height:54px;flex:none;display:flex;align-items:center;gap:14px;padding:0 18px;border-bottom:1px solid rgba(160,168,220,0.08);background:rgba(10,11,22,0.62);backdrop-filter:blur(10px);position:relative;z-index:50">
     <button onClick="{{ showMore }}" aria-label="Open navigation" style="{{ mobileMenuStyle }}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
@@ -831,11 +832,17 @@ class Component extends DCLogic {
     this._liveStreamStopped = false;
     this._liveStreamOpened = false;
     this._liveStreamBackoff = 1000;
+    this._liveHiddenAt = 0;
     this._liveVisibilityHandler = () => {
-      if (document.visibilityState === 'visible') this._scheduleLiveResume(1000);
+      if (document.visibilityState === 'hidden') { this._liveHiddenAt = Date.now(); return; }
+      if (document.visibilityState === 'visible') {
+        const hiddenFor = this._liveHiddenAt ? Date.now() - this._liveHiddenAt : 0;
+        this._liveHiddenAt = 0;
+        if (hiddenFor > 15000 || !this._liveES || this._liveES.readyState === 2) this._scheduleLiveResume(1000);
+      }
     };
     this._livePageShowHandler = (e) => { if (e.persisted) this._scheduleLiveResume(1000); };
-    this._liveOnlineHandler = () => this._scheduleLiveResume(0);
+    this._liveOnlineHandler = () => { if (!this._liveES || this._liveES.readyState === 2) this._scheduleLiveResume(0); };
     document.addEventListener('visibilitychange', this._liveVisibilityHandler);
     window.addEventListener('pageshow', this._livePageShowHandler);
     window.addEventListener('online', this._liveOnlineHandler);
@@ -850,6 +857,7 @@ class Component extends DCLogic {
     this._liveStreamReconnectTimer = null;
     this._liveStreamRefreshTimer = null;
     this._liveResumeTimer = null;
+    this._liveHiddenAt = 0;
     try { if (this._liveES) this._liveES.close(); } catch (e) {}
     this._liveES = null;
     try { document.removeEventListener('visibilitychange', this._liveVisibilityHandler); } catch (e) {}
@@ -959,10 +967,8 @@ class Component extends DCLogic {
   // The active view owns the gesture; nested drawers, sheets, rails, tabs and
   // inputs intentionally never receive PTR listeners.
   _startPullToRefresh() {
-    if (this._ptrObserver || typeof MutationObserver === 'undefined') return;
+    if (this._ptrBindings) return;
     this._ptrBindings = new Map();
-    this._ptrObserver = new MutationObserver(() => this._queuePullToRefreshSync());
-    this._ptrObserver.observe(document.body, { childList:true, subtree:true });
     this._queuePullToRefreshSync();
   }
   _stopPullToRefresh() {
@@ -1000,11 +1006,23 @@ class Component extends DCLogic {
     if (!this._ptrBindings) return;
     let touch = false;
     try { touch = !!(this._coarsePointer || navigator.maxTouchPoints > 0 || ('ontouchstart' in window)); } catch (e) {}
+    const active = this.state.isMobile && touch;
+    if (active && !this._ptrObserver && typeof MutationObserver !== 'undefined') {
+      this._ptrObserver = new MutationObserver(() => this._queuePullToRefreshSync());
+      this._ptrObserver.observe(document.body, { childList:true, subtree:true });
+    } else if (!active && this._ptrObserver) {
+      this._ptrObserver.disconnect();
+      this._ptrObserver = null;
+    }
     const wanted = new Set();
-    if (this.state.isMobile && touch) {
+    if (active) {
       this._pullToRefreshSelectors().forEach(sel => document.querySelectorAll(sel).forEach(el => wanted.add(el)));
     }
-    Array.from(this._ptrBindings.keys()).forEach(el => { if (!wanted.has(el) || !el.isConnected) this._unbindPullToRefresh(el); });
+    Array.from(this._ptrBindings.keys()).forEach(el => {
+      const binding = this._ptrBindings.get(el);
+      if (binding && (binding.state.mode !== 'idle' || binding.state.refreshing)) return;
+      if (!wanted.has(el) || !el.isConnected) this._unbindPullToRefresh(el);
+    });
     wanted.forEach(el => { if (!this._ptrBindings.has(el)) this._bindPullToRefresh(el); });
   }
   _bindPullToRefresh(scroller) {
@@ -1014,19 +1032,21 @@ class Component extends DCLogic {
     indicator.innerHTML = '<span>pull to refresh</span>';
     document.body.appendChild(indicator);
     scroller.classList.add('gm-ptr-scroll');
-    const state = { mode:'idle', startX:0, startY:0, pull:0, refreshing:false, resetTimer:null };
+    const state = { mode:'idle', startX:0, startY:0, pull:0, refreshing:false, resetTimer:null, moveBound:false };
     const label = indicator.firstElementChild;
     const reset = () => {
+      if (state.moveBound) { scroller.removeEventListener('touchmove', move); state.moveBound = false; }
       state.mode = 'idle'; state.pull = 0;
       scroller.classList.remove('gm-ptr-pulling', 'gm-ptr-refreshing');
       indicator.classList.remove('gm-ptr-show', 'gm-ptr-refreshing');
       indicator.style.transform = 'translateY(-18px)';
       if (label) label.textContent = 'pull to refresh';
+      this._queuePullToRefreshSync();
     };
     const start = (e) => {
       if (state.refreshing) return;
       if (e.touches.length !== 1) { reset(); return; }
-      if (scroller.scrollTop > 0) return;
+      if (scroller.scrollTop > 2) return;
       const interactive = e.target && e.target.closest && e.target.closest('input,textarea,select,button,[contenteditable="true"]');
       if (interactive) return;
       let nested = e.target;
@@ -1041,14 +1061,15 @@ class Component extends DCLogic {
       const rect = scroller.getBoundingClientRect();
       indicator.style.left = rect.left + 'px'; indicator.style.top = rect.top + 'px'; indicator.style.width = rect.width + 'px';
       state.mode = 'armed'; state.startX = t.clientX; state.startY = t.clientY; state.pull = 0;
+      if (!state.moveBound) { scroller.addEventListener('touchmove', move, { passive:false }); state.moveBound = true; }
     };
     const move = (e) => {
       if (state.mode === 'idle' || state.refreshing) return;
       if (e.touches.length !== 1 || scroller.scrollTop > 2) { reset(); return; }
       const t = e.touches[0], dx = t.clientX - state.startX, dy = t.clientY - state.startY, ax = Math.abs(dx);
-      if (dy <= 0) { if (Math.abs(dy) > 10) reset(); return; }
-      if (ax > 8 && dy <= ax * 1.5) { reset(); return; }
       if (state.mode === 'armed') {
+        if (dy <= 0) { if (Math.abs(dy) > 10) reset(); return; }
+        if (ax > 8 && dy <= ax * 1.5) { reset(); return; }
         if (dy <= 10 || dy <= ax * 1.5) return;
         state.mode = 'pulling';
         scroller.classList.add('gm-ptr-pulling');
@@ -1056,13 +1077,14 @@ class Component extends DCLogic {
       }
       if (state.mode !== 'pulling') return;
       if (e.cancelable) e.preventDefault();
-      state.pull = dy;
-      const offset = Math.min(90, dy * 0.45), ready = dy >= 70;
+      state.pull = Math.max(0, dy);
+      const offset = Math.min(90, state.pull * 0.45), ready = state.pull >= 70;
       indicator.style.transform = 'translateY(' + Math.max(-18, offset - 18) + 'px)';
       if (label) label.textContent = ready ? 'release to refresh' : 'pull to refresh';
     };
     const end = () => {
-      if (state.mode !== 'pulling' || state.refreshing) { reset(); return; }
+      if (state.refreshing) return;
+      if (state.mode !== 'pulling') { reset(); return; }
       if (state.pull < 70) { reset(); return; }
       state.mode = 'idle'; state.refreshing = true;
       scroller.classList.remove('gm-ptr-pulling');
@@ -1075,7 +1097,6 @@ class Component extends DCLogic {
     };
     const cancel = () => reset();
     scroller.addEventListener('touchstart', start, { passive:true });
-    scroller.addEventListener('touchmove', move, { passive:false });
     scroller.addEventListener('touchend', end, { passive:true });
     scroller.addEventListener('touchcancel', cancel, { passive:true });
     this._ptrBindings.set(scroller, { indicator, state, start, move, end, cancel });
