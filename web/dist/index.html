@@ -1082,6 +1082,7 @@ class Component extends DCLogic {
       this.stopSkillsPoll();
       this.stopKnowledgePoll();
       this._brainStopPoll();
+      clearTimeout(this._brainSearchTimer); this._brainSearchTimer = null;
       try { if (this._knowGraph && this._knowGraph.pauseAnimation) this._knowGraph.pauseAnimation(); } catch (e) {}
       if (this._learningRoot) this._learningRoot.style.display = 'none';
     }
@@ -5290,7 +5291,10 @@ class Component extends DCLogic {
     view = view === 'changelog' ? 'changelog' : 'graph';
     if (this._brainView === view) return;
     this._brainView = view;
-    if (view === 'graph') this._brainBiographyKey = '';
+    if (view === 'graph') {
+      this._brainBiographyKey = '';
+      clearTimeout(this._brainSearchTimer); this._brainSearchTimer = null;
+    }
     this._applyBrainView(false);
     this._navRoute('brain', { brain: this._brainRouteState() }, push === false);
   }
@@ -5318,24 +5322,22 @@ class Component extends DCLogic {
     return e;
   }
 
-  _brainStoreCursor(next, successfulOlder) {
-    if (successfulOlder) { this._brainStaleCursor = ''; this._brainStaleAt = 0; }
-    const blocked = next && this._brainStaleCursor && String(next) === String(this._brainStaleCursor) && Date.now() - (this._brainStaleAt || 0) < 30000;
-    this._brainCursorQuarantined = !!blocked;
-    this._brainNextCursor = blocked ? 0 : (next || 0);
-    this._brainExhausted = blocked || !next;
+  _brainStoreOlderCursor(next) {
+    this._brainOlderCursor = next || 0;
+    this._brainExhausted = !next;
+    this._brainCursorQuarantined = false;
   }
 
   _brainFetchNewest(live) { return this._brainFetchPage('', !!live); }
   _brainFetchPage(cursor, live) {
     const older = cursor !== '' && cursor != null;
     if (this._brainLoading) return this._brainLoading;
+    this._brainLoadingCursor = older ? String(cursor) : '';
     const url = '/api/brain/events?limit=60' + (older ? '&cursor=' + encodeURIComponent(cursor) : '');
     const request = fetch(url, { cache: 'no-store' }).then(async r => {
       if (r.status === 400 && older) {
-        this._brainStaleCursor = String(cursor); this._brainStaleAt = Date.now();
-        this._brainEvents = []; this._brainEventIds = {}; this._brainNextCursor = 0;
-        this._brainExhausted = false; this._brainPagingStarted = false; this._brainLoaded = false;
+        this._brainEvents = []; this._brainEventIds = {}; this._brainOlderCursor = 0;
+        this._brainNewestEventId = 0; this._brainExhausted = false; this._brainLoaded = false;
         return { stale: true };
       }
       if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -5349,7 +5351,8 @@ class Component extends DCLogic {
         this._brainEvents = incoming;
         this._brainEventIds = {};
         incoming.forEach(e => { this._brainEventIds[String(e.id)] = true; });
-        this._brainStoreCursor(data && data.nextCursor, false);
+        this._brainNewestEventId = incoming.length ? incoming[0].id : 0;
+        this._brainStoreOlderCursor(data && data.nextCursor);
         if (!this._brainOpenInitialized && !this._brainBiographyKey && incoming.length) {
           this._brainOpenId = String(incoming[0].id); this._brainOpenInitialized = true;
           if (incoming[0].kind === 'updated' && incoming[0].memoryId != null) setTimeout(() => this._brainEnsureFact(incoming[0].memoryId), 0);
@@ -5357,14 +5360,11 @@ class Component extends DCLogic {
       } else if (older) {
         fresh.forEach(e => { known[String(e.id)] = true; });
         this._brainEvents = (this._brainEvents || []).concat(fresh);
-        this._brainStoreCursor(data && data.nextCursor, true);
-        this._brainPagingStarted = true;
+        this._brainStoreOlderCursor(data && data.nextCursor);
       } else {
         fresh.forEach(e => { known[String(e.id)] = true; });
         this._brainEvents = fresh.concat(this._brainEvents || []);
-        if (!this._brainPagingStarted) {
-          this._brainStoreCursor(data && data.nextCursor, false);
-        }
+        if (incoming.length) this._brainNewestEventId = incoming[0].id;
         if (live && fresh.length) {
           if (!this._brainLiveIds) this._brainLiveIds = {};
           fresh.forEach(e => { this._brainLiveIds[String(e.id)] = true; });
@@ -5385,20 +5385,30 @@ class Component extends DCLogic {
     }).catch(err => {
       if (!this._brainLoaded) { this._brainLoaded = true; this._brainError = err && err.message ? err.message : 'request failed'; this._brainRender(); }
       return null;
-    }).finally(() => { if (this._brainLoading === request) this._brainLoading = null; });
+    }).finally(() => {
+      if (this._brainLoading === request) { this._brainLoading = null; this._brainLoadingCursor = ''; }
+    });
     this._brainLoading = request;
     return request;
   }
 
   _brainLoadOlder() {
-    if (this._brainLoading || this._brainExhausted || !this._brainNextCursor) return Promise.resolve(null);
-    return this._brainFetchPage(this._brainNextCursor, false);
+    if (this._brainLoading) {
+      const pending = this._brainLoading, loadingOlder = !!this._brainLoadingCursor;
+      return pending.then(() => loadingOlder ? null : this._brainLoadOlder());
+    }
+    if (this._brainExhausted || !this._brainOlderCursor) return Promise.resolve(null);
+    return this._brainFetchPage(this._brainOlderCursor, false);
   }
 
   _brainLoadBiographyHistory(batch) {
     batch = batch || 0;
-    if (!this._brainBiographyKey || this._brainExhausted || !this._brainNextCursor || batch >= 100) return Promise.resolve();
-    return this._brainLoadOlder().then(() => this._brainLoadBiographyHistory(batch + 1));
+    if (!this._brainBiographyKey || this._brainExhausted || !this._brainOlderCursor || batch >= 100) return Promise.resolve();
+    const cursor = String(this._brainOlderCursor);
+    return this._brainLoadOlder().then(() => {
+      if (!this._brainBiographyKey || (String(this._brainOlderCursor) === cursor && !this._brainExhausted)) return null;
+      return this._brainLoadBiographyHistory(batch + 1);
+    });
   }
 
   _brainEnsureFact(id) {
@@ -5497,15 +5507,17 @@ class Component extends DCLogic {
 
   _brainSentence(e) {
     const d = e.detail || {}, actor = this._brainShort(e.actor, 34);
-    if (e.isBurst) return 'retired ' + e.count + ' facts in one journal burst';
+    if (e.isBurst) return String(e.kind || 'changed').replace(/_/g, ' ') + ' ' + e.count + ' facts in one journal burst';
     switch (e.kind) {
       case 'created': return e.backfilled ? 'created · backfilled from history' : 'created by ' + (actor || 'unknown actor');
       case 'updated': return 'content updated by ' + (actor || 'unknown actor');
       case 'retired': return 'retired' + (d.reason ? ' · ' + this._brainShort(d.reason, 90) : ' by ' + actor);
       case 'unretired': return 'unretired by ' + (actor || 'unknown actor');
       case 'superseded': {
-        const successor = d.superseded_by != null && this._brainFacts ? this._brainFacts[String(d.superseded_by)] : null;
-        return 'superseded by ' + (successor && successor.key ? successor.key : (d.superseded_by != null ? 'memory ' + d.superseded_by : 'a successor fact'));
+        const sid = d.superseded_by, successorKey = sid == null ? '' : String(sid);
+        const resolved = !!(successorKey && this._brainFacts && Object.prototype.hasOwnProperty.call(this._brainFacts, successorKey));
+        const successor = resolved ? this._brainFacts[successorKey] : null;
+        return 'superseded by ' + (successor && successor.key ? successor.key : (sid != null ? 'memory ' + sid + (resolved ? ' (no longer available)' : '') : 'a successor fact'));
       }
       case 'confirmed': return 'confirmed by ' + (actor || 'unknown actor');
       case 'promoted': return 'promoted from ' + ((d.from_owner_kind || 'owner') + (d.from_owner_ref ? ':' + d.from_owner_ref : ''));
@@ -5560,13 +5572,13 @@ class Component extends DCLogic {
     const f = this._brainFilters || { kinds: [], repo: '', actor: '', q: '' };
     let raw = (this._brainEvents || []).slice();
     if (this._brainBiographyKey) return raw.filter(e => e.key === this._brainBiographyKey).sort((a, b) => new Date(a.at || 0) - new Date(b.at || 0));
+    const q = String(f.q || '').trim().toLowerCase();
+    const filtered = !!((f.kinds && f.kinds.length) || f.repo || f.actor || q);
     if (f.kinds && f.kinds.length) raw = raw.filter(e => f.kinds.indexOf(e.kind) >= 0);
     if (f.repo) raw = f.repo === '__general' ? raw.filter(e => !e.repo) : raw.filter(e => e.repo === f.repo);
     if (f.actor) raw = raw.filter(e => e.actor === f.actor);
-    let items = this._brainBurst(raw);
-    const q = String(f.q || '').trim().toLowerCase();
-    if (q) items = items.filter(e => !e.isBurst && String(e.key || '').toLowerCase().indexOf(q) >= 0);
-    return items;
+    if (q) raw = raw.filter(e => String(e.key || '').toLowerCase().indexOf(q) >= 0);
+    return filtered ? raw : this._brainBurst(raw);
   }
 
   _brainGroupDays(items) {
@@ -5613,9 +5625,11 @@ class Component extends DCLogic {
     } else if (e.kind === 'retired') {
       body += '<div class="bc-box"><span class="bc-boxlabel">retirement reason</span><div style="margin-top:6px">' + esc(d.reason || 'No reason recorded.') + '</div>' + (e.memoryId != null ? '<div style="margin-top:12px"><button class="bc-action" data-bc-graph="' + esc(e.memoryId) + '">view in graph →</button></div>' : '') + '</div>';
     } else if (e.kind === 'superseded') {
-      const sid = d.superseded_by, successor = sid != null && this._brainFacts ? this._brainFacts[String(sid)] : null;
+      const sid = d.superseded_by, successorKey = sid == null ? '' : String(sid);
+      const resolved = !!(successorKey && this._brainFacts && Object.prototype.hasOwnProperty.call(this._brainFacts, successorKey));
+      const successor = resolved ? this._brainFacts[successorKey] : null;
       body += '<div class="bc-box"><div>This fact was superseded — its content was replaced by a newer fact.</div><div style="margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span class="bc-boxlabel">successor</span>' +
-        (successor && successor.key ? '<button class="bc-action" style="color:#7dcfff;font-family:\'JetBrains Mono\',monospace" data-bc-successor="' + encodeURIComponent(successor.key) + '" data-bc-memory="' + esc(successor.id) + '">' + esc(successor.key) + '</button><button class="bc-action" data-bc-graph="' + esc(successor.id) + '">view successor in graph →</button>' : '<span style="font-family:\'JetBrains Mono\',monospace;color:#5a627e">' + (sid != null ? 'memory ' + esc(sid) + ' · resolving…' : 'not recorded') + '</span>') + '</div></div>';
+        (successor && successor.key ? '<button class="bc-action" style="color:#7dcfff;font-family:\'JetBrains Mono\',monospace" data-bc-successor="' + encodeURIComponent(successor.key) + '" data-bc-memory="' + esc(successor.id) + '">' + esc(successor.key) + '</button><button class="bc-action" data-bc-graph="' + esc(successor.id) + '">view successor in graph →</button>' : '<span style="font-family:\'JetBrains Mono\',monospace;color:#5a627e">' + (sid != null ? 'memory ' + esc(sid) + (resolved ? ' (no longer available)' : ' · resolving…') : 'not recorded') + '</span>') + '</div></div>';
     } else if (e.kind === 'cluster_rename') {
       body += '<div class="bc-box"><span class="bc-boxlabel">cluster rename</span><div style="margin-top:7px;font-family:\'JetBrains Mono\',monospace"><span style="color:#8b93ac">' + esc(d.previous_label || 'unlabeled') + '</span> <span style="color:#5a627e">→</span> <span style="color:#bb9af7">' + esc(d.label || 'unlabeled') + '</span></div><div style="margin-top:5px;color:#5a627e">' + esc(d.cluster_id || '') + '</div></div>';
     } else if (e.kind === 'cluster_recompute') {
@@ -5670,7 +5684,8 @@ class Component extends DCLogic {
     const f = this._brainFilters || {}, esc = v => this._galaxyEsc(v), events = this._brainEvents || [];
     const repos = Array.from(new Set(events.map(e => e.repo || '__general'))).sort((a, b) => a === '__general' ? 1 : (b === '__general' ? -1 : a.localeCompare(b)));
     const actors = Array.from(new Set(events.map(e => e.actor).filter(Boolean))).sort();
-    const search = '<div class="bc-search"><span>⌕</span><input data-bc-search value="' + esc(f.q || '') + '" placeholder="Search fact key…" aria-label="Search fact key"></div>';
+    const searchTarget = sheet ? 'sheet' : 'desktop';
+    const search = '<div class="bc-search"><span>⌕</span><input id="bc-search-' + searchTarget + '" data-bc-search="' + searchTarget + '" value="' + esc(f.q || '') + '" placeholder="Search fact key…" aria-label="Search fact key"></div>';
     const second = '<div class="bc-filterrow">' + search + this._brainSelectHtml('repo', repos) + this._brainSelectHtml('actor', actors) + '</div>';
     if (sheet) return '<div class="bc-sheethead"><span>Filters</span><button class="bc-sheetclose" data-bc-sheet-close aria-label="Close filters">×</button></div>' + this._brainKindChipsHtml() + search + this._brainSelectHtml('repo', repos) + this._brainSelectHtml('actor', actors) + '<button class="bc-back" data-bc-clear style="justify-content:center">Clear filters</button>';
     return '<div class="bc-filterbar">' + this._brainKindChipsHtml() + second + '</div>';
@@ -5708,6 +5723,13 @@ class Component extends DCLogic {
     const items = this._brainFilteredItems(), groups = this._brainGroupDays(items), bio = !!this._brainBiographyKey;
     this._brainDisplayById = {};
     items.forEach(e => { this._brainDisplayById[String(e.id)] = e; });
+    const expanded = this._brainDisplayById[String(this._brainOpenId || '')];
+    if (expanded && expanded.kind === 'updated' && expanded.memoryId != null && !(this._brainFacts && Object.prototype.hasOwnProperty.call(this._brainFacts, String(expanded.memoryId)))) {
+      setTimeout(() => this._brainEnsureFact(expanded.memoryId), 0);
+    }
+    if (expanded && expanded.kind === 'superseded' && expanded.detail && expanded.detail.superseded_by != null && !(this._brainFacts && Object.prototype.hasOwnProperty.call(this._brainFacts, String(expanded.detail.superseded_by)))) {
+      setTimeout(() => this._brainEnsureFact(expanded.detail.superseded_by), 0);
+    }
     const f = this._brainFilters || {}, filterCount = (f.kinds ? f.kinds.length : 0) + (f.repo ? 1 : 0) + (f.actor ? 1 : 0) + (f.q ? 1 : 0);
     let feedHtml = '';
     if (!this._brainLoaded) {
@@ -5757,7 +5779,8 @@ class Component extends DCLogic {
 
   _brainHandleClick(e) {
     const target = e.target;
-    if (this._brainMenu && !(target.closest && target.closest('.bc-select'))) this._brainCloseMenus();
+    const closedOutside = !!(this._brainMenu && !(target.closest && target.closest('.bc-select')));
+    if (closedOutside) this._brainCloseMenus();
     const closeSheet = target.closest && target.closest('[data-bc-sheet-close]');
     if (closeSheet) { this._brainSheetOpen = false; this._brainCloseMenus(); this._brainRender(); return; }
     const openSheet = target.closest && target.closest('[data-bc-sheet-open]');
@@ -5791,18 +5814,27 @@ class Component extends DCLogic {
     if (clear) { this._brainResetScroll = true; this._brainClearFilters(); return; }
     const row = target.closest && target.closest('[data-bc-event]');
     if (row) { this._brainToggleEvent(row.getAttribute('data-bc-event')); return; }
-    if (this._brainMenu) { this._brainCloseMenus(); this._brainRender(); }
+    if (this._brainMenu) { this._brainCloseMenus(); this._brainRender(); return; }
+    if (closedOutside) this._brainRender();
   }
 
   _brainHandleInput(e) {
     if (!e.target || !e.target.hasAttribute('data-bc-search')) return;
     if (!this._brainFilters) this._brainFilters = { kinds: [], repo: '', actor: '', q: '' };
+    const searchTarget = e.target.getAttribute('data-bc-search') || 'desktop';
+    const selectionStart = e.target.selectionStart, selectionEnd = e.target.selectionEnd;
     this._brainFilters.q = e.target.value || '';
     clearTimeout(this._brainSearchTimer);
     this._brainSearchTimer = setTimeout(() => {
       this._brainResetScroll = true; this._brainSyncRoute(); this._brainRender();
-      const input = this._learningRoot && this._learningRoot.querySelector('[data-bc-search]');
-      if (input) { input.focus(); try { input.setSelectionRange(input.value.length, input.value.length); } catch (err) {} }
+      const input = this._learningRoot && this._learningRoot.querySelector('[data-bc-search="' + searchTarget + '"]');
+      if (input) {
+        input.focus();
+        try {
+          const end = input.value.length;
+          input.setSelectionRange(Math.min(selectionStart == null ? end : selectionStart, end), Math.min(selectionEnd == null ? end : selectionEnd, end));
+        } catch (err) {}
+      }
     }, 120);
   }
 
@@ -5878,7 +5910,7 @@ class Component extends DCLogic {
       "#learning-root .bc-switch button{display:flex;align-items:center;gap:7px;border:0;background:transparent;color:#5a627e;padding:6px 13px;border-radius:6px;font:600 13px Inter,system-ui,sans-serif;cursor:pointer}",
       "#learning-root .bc-switch button:hover{color:#c6cee6}",
       "#learning-root .bc-switch button.on{color:#7dcfff;background:#152234}",
-      "#learning-root .bc-switch .ico{font:14px 'JetBrains Mono',monospace}",
+      "#learning-root .bc-switch .ico{font-family:'JetBrains Mono',monospace;font-size:14px}",
       "#learning-root #lr-know-controls{display:flex;align-items:center;padding:4px;gap:4px}",
       "#learning-root .lr-ktoggle{border:0;background:transparent;color:#6b7196;padding:5px 9px;border-radius:7px;font-family:'JetBrains Mono',monospace;font-size:10.5px;cursor:pointer;white-space:nowrap}",
       "#learning-root .lr-ktoggle:hover{color:#c8cce6;background:rgba(160,168,220,.07)}",
@@ -5967,7 +5999,7 @@ class Component extends DCLogic {
       "#learning-root .bc-filterbar{flex:none;display:flex;flex-direction:column;gap:10px}",
       "#learning-root .bc-kindrow{display:flex;align-items:center;gap:7px;flex-wrap:wrap}",
       "#learning-root .bc-flabel{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:#464f6b;margin-right:2px;font-weight:600}",
-      "#learning-root .bc-kind{display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:7px;font:12px 'JetBrains Mono',monospace;cursor:pointer;color:#5a627e;background:transparent;border:1px solid #1b2233}",
+      "#learning-root .bc-kind{display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:7px;font-family:'JetBrains Mono',monospace;font-size:12px;cursor:pointer;color:#5a627e;background:transparent;border:1px solid #1b2233}",
       "#learning-root .bc-kind:hover{color:#a2abc4;border-color:#28324c}",
       "#learning-root .bc-kind.on{color:var(--bc);background:color-mix(in srgb,var(--bc) 10%,transparent);border-color:color-mix(in srgb,var(--bc) 34%,transparent)}",
       "#learning-root .bc-dot{width:7px;height:7px;border-radius:50%;background:var(--bc);flex:none}",
@@ -5976,14 +6008,14 @@ class Component extends DCLogic {
       "#learning-root .bc-filterrow{display:flex;align-items:center;gap:10px}",
       "#learning-root .bc-search{flex:1;max-width:420px;display:flex;align-items:center;gap:8px;padding:8px 12px;background:#0e1320;border:1px solid #1b2233;border-radius:8px}",
       "#learning-root .bc-search span{font-size:14px;color:#5a627e}",
-      "#learning-root .bc-search input{flex:1;min-width:0;background:transparent;border:0;outline:0;color:#c6cee6;font:13px 'JetBrains Mono',monospace}",
+      "#learning-root .bc-search input{flex:1;min-width:0;background:transparent;border:0;outline:0;color:#c6cee6;font-family:'JetBrains Mono',monospace;font-size:13px}",
       "#learning-root .bc-select{position:relative;min-width:158px}",
       "#learning-root .bc-select.actor{min-width:220px}",
       "#learning-root .bc-selectbtn{display:flex;align-items:center;gap:10px;width:100%;padding:8px 12px;background:#0e1320;border:1px solid #1b2233;border-radius:8px;color:#5a627e;font-size:13px;cursor:pointer;text-align:left}",
       "#learning-root .bc-selectbtn span:first-child{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
       "#learning-root .bc-menu{position:absolute;top:calc(100% + 5px);left:0;right:0;z-index:40;background:#0e1320;border:1px solid #28324c;border-radius:8px;padding:5px;box-shadow:0 14px 34px rgba(0,0,0,.55);max-height:300px;overflow-y:auto}",
       "#learning-root .bc-select.actor .bc-menu{min-width:260px}",
-      "#learning-root .bc-option{display:block;width:100%;border:0;background:none;padding:7px 10px;border-radius:6px;color:#8b93ac;text-align:left;font:12.5px 'JetBrains Mono',monospace;cursor:pointer}",
+      "#learning-root .bc-option{display:block;width:100%;border:0;background:none;padding:7px 10px;border-radius:6px;color:#8b93ac;text-align:left;font-family:'JetBrains Mono',monospace;font-size:12.5px;cursor:pointer}",
       "#learning-root .bc-option:hover,#learning-root .bc-option.on{background:#141a2b;color:#c6cee6}",
       "#learning-root .bc-mobile-actions{display:none}",
       "#learning-root .bc-panel{flex:1;min-height:0;display:flex;flex-direction:column;background:#0b0f1a;border:1px solid #1b2233;border-radius:11px;overflow:hidden}",
@@ -5991,17 +6023,17 @@ class Component extends DCLogic {
       "#learning-root .bc-biohead{display:flex;align-items:center;gap:12px;min-width:0}",
       "#learning-root .bc-back{display:flex;align-items:center;gap:6px;padding:5px 10px;border:1px solid #1b2233;border-radius:7px;background:none;color:#8b93ac;font-size:12.5px;cursor:pointer}",
       "#learning-root .bc-back:hover{border-color:#28324c;color:#c6cee6}",
-      "#learning-root .bc-biokey{font:600 15px 'JetBrains Mono',monospace;color:#7dcfff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
-      "#learning-root .bc-status{display:flex;align-items:center;gap:6px;padding:3px 9px;border-radius:20px;background:color-mix(in srgb,var(--bc) 12%,transparent);font:11px 'JetBrains Mono',monospace;color:var(--bc);white-space:nowrap}",
+      "#learning-root .bc-biokey{font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:600;color:#7dcfff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
+      "#learning-root .bc-status{display:flex;align-items:center;gap:6px;padding:3px 9px;border-radius:20px;background:color-mix(in srgb,var(--bc) 12%,transparent);font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--bc);white-space:nowrap}",
       "#learning-root .bc-status i{width:6px;height:6px;border-radius:50%;background:var(--bc)}",
-      "#learning-root .bc-biometa{margin-left:auto;font:11.5px 'JetBrains Mono',monospace;color:#5a627e;white-space:nowrap}",
-      "#learning-root .bc-biocontent{margin-top:10px;background:#080b13;border:1px solid #161d2c;border-radius:8px;padding:10px 14px;font:12.5px/1.55 'JetBrains Mono',monospace;color:#a2abc4;white-space:pre-wrap;max-height:150px;overflow:auto}",
+      "#learning-root .bc-biometa{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#5a627e;white-space:nowrap}",
+      "#learning-root .bc-biocontent{margin-top:10px;background:#080b13;border:1px solid #161d2c;border-radius:8px;padding:10px 14px;font-family:'JetBrains Mono',monospace;font-size:12.5px;line-height:1.55;color:#a2abc4;white-space:pre-wrap;max-height:150px;overflow:auto}",
       "#learning-root .bc-biofoot{margin-top:8px;font-size:11.5px;color:#464f6b}",
       "#learning-root .bc-feed{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable}",
       "#learning-root .bc-day{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:10px;padding:9px 18px;background:#0b0f1a;border-bottom:1px solid #141a28}",
       "#learning-root .bc-day b{font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#8b93ac}",
       "#learning-root .bc-day i{height:1px;flex:1;background:#141a28}",
-      "#learning-root .bc-day span{font:11px 'JetBrains Mono',monospace;color:#464f6b}",
+      "#learning-root .bc-day span{font-family:'JetBrains Mono',monospace;font-size:11px;color:#464f6b}",
       "#learning-root .bc-event{border-bottom:1px solid #101623}",
       "#learning-root .bc-event.backfilled{opacity:.6}",
       "#learning-root .bc-event.live-new{animation:bc-new 3.4s ease-out both}",
@@ -6009,38 +6041,38 @@ class Component extends DCLogic {
       "#learning-root .bc-row{display:flex;align-items:center;gap:12px;padding:0 18px;height:40px;cursor:pointer;background:transparent}",
       "#learning-root .bc-row:hover{background:#0f1524}",
       "#learning-root .bc-event.open .bc-row{background:#0d1322}",
-      "#learning-root .bc-key{font:500 13px 'JetBrains Mono',monospace;color:var(--bc);border:0;background:none;padding:0;cursor:pointer;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:none;text-align:left}",
+      "#learning-root .bc-key{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:500;color:var(--bc);border:0;background:none;padding:0;cursor:pointer;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:none;text-align:left}",
       "#learning-root .bc-key:hover{text-decoration:underline}",
       "#learning-root .bc-sentence{flex:1;min-width:0;font-size:12.5px;color:#8b93ac;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
-      "#learning-root .bc-tag{flex:none;padding:2px 7px;border-radius:5px;background:#11141f;border:1px solid #1b2233;font:10px 'JetBrains Mono',monospace;color:#5a627e;letter-spacing:.04em}",
-      "#learning-root .bc-count{flex:none;padding:2px 8px;border-radius:20px;background:rgba(224,105,129,.12);border:1px solid rgba(224,105,129,.3);font:11px 'JetBrains Mono',monospace;color:#e0697f}",
-      "#learning-root .bc-time{font:12px 'JetBrains Mono',monospace;color:#5a627e;width:48px;text-align:right;flex:none}",
+      "#learning-root .bc-tag{flex:none;padding:2px 7px;border-radius:5px;background:#11141f;border:1px solid #1b2233;font-family:'JetBrains Mono',monospace;font-size:10px;color:#5a627e;letter-spacing:.04em}",
+      "#learning-root .bc-count{flex:none;padding:2px 8px;border-radius:20px;background:rgba(224,105,129,.12);border:1px solid rgba(224,105,129,.3);font-family:'JetBrains Mono',monospace;font-size:11px;color:#e0697f}",
+      "#learning-root .bc-time{font-family:'JetBrains Mono',monospace;font-size:12px;color:#5a627e;width:48px;text-align:right;flex:none}",
       "#learning-root .bc-caret{color:#3a4258;font-size:12px;transition:transform .15s;flex:none}",
       "#learning-root .bc-event.open .bc-caret{transform:rotate(90deg)}",
       "#learning-root .bc-expand{padding:2px 18px 16px 40px;animation:bc-expand .18s ease-out}",
       "@keyframes bc-expand{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}",
       "#learning-root .bc-box{background:#080b13;border:1px solid #161d2c;border-radius:8px;padding:12px 14px;color:#a2abc4;font-size:13px;line-height:1.55}",
-      "#learning-root .bc-boxlabel{color:#5a627e;font:10px 'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:.1em}",
+      "#learning-root .bc-boxlabel{color:#5a627e;font-family:'JetBrains Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.1em}",
       "#learning-root .bc-action{border:0;background:none;padding:0;color:#7aa2f7;font-size:12.5px;cursor:pointer}",
       "#learning-root .bc-action:hover{color:#9db8ff}",
       "#learning-root .bc-diff{display:grid;grid-template-columns:1fr 1fr;gap:12px}",
       "#learning-root .bc-dpane{background:#080b13;border:1px solid #161d2c;border-radius:8px;overflow:hidden;min-width:0}",
       "#learning-root .bc-unified{display:none}",
-      "#learning-root .bc-dhead{padding:6px 12px;font:11px 'JetBrains Mono',monospace;color:#5a627e;border-bottom:1px solid #141a28;display:flex;justify-content:space-between}",
+      "#learning-root .bc-dhead{padding:6px 12px;font-family:'JetBrains Mono',monospace;font-size:11px;color:#5a627e;border-bottom:1px solid #141a28;display:flex;justify-content:space-between}",
       "#learning-root .bc-dbody{padding:8px 0}",
-      "#learning-root .bc-line{display:flex;gap:8px;padding:1px 12px;font:12.5px/1.55 'JetBrains Mono',monospace;color:#a2abc4;white-space:pre-wrap;word-break:break-word}",
+      "#learning-root .bc-line{display:flex;gap:8px;padding:1px 12px;font-family:'JetBrains Mono',monospace;font-size:12.5px;line-height:1.55;color:#a2abc4;white-space:pre-wrap;word-break:break-word}",
       "#learning-root .bc-line.del{background:rgba(224,105,129,.08);color:#c08a95}",
       "#learning-root .bc-line.add{background:rgba(158,206,106,.07);color:#a8c98b}",
       "#learning-root .bc-gut{width:9px;flex:none;color:#464f6b}",
       "#learning-root .bc-meta{margin-top:12px;display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#141a28;border:1px solid #161d2c;border-radius:8px;overflow:hidden}",
       "#learning-root .bc-mcell{background:#080b13;padding:9px 12px;min-width:0}",
-      "#learning-root .bc-mcell b{display:block;font:10px 'JetBrains Mono',monospace;letter-spacing:.1em;text-transform:uppercase;color:#464f6b}",
-      "#learning-root .bc-mcell span{display:block;margin-top:3px;font:12.5px 'JetBrains Mono',monospace;color:#a2abc4;word-break:break-all}",
+      "#learning-root .bc-mcell b{display:block;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#464f6b}",
+      "#learning-root .bc-mcell span{display:block;margin-top:3px;font-family:'JetBrains Mono',monospace;font-size:12.5px;color:#a2abc4;word-break:break-all}",
       "#learning-root .bc-burstkeys{margin-top:10px;max-height:150px;overflow-y:auto;display:flex;flex-wrap:wrap;gap:6px}",
-      "#learning-root .bc-burstkeys span{padding:3px 8px;border-radius:6px;background:#0e1320;border:1px solid #1b2233;font:11.5px 'JetBrains Mono',monospace;color:#c08a95}",
+      "#learning-root .bc-burstkeys span{padding:3px 8px;border-radius:6px;background:#0e1320;border:1px solid #1b2233;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#c08a95}",
       "#learning-root .bc-begin{display:flex;align-items:center;gap:12px;padding:16px 18px}",
       "#learning-root .bc-begin i{height:1px;flex:1;background:#141a28}",
-      "#learning-root .bc-begin span{font:11px 'JetBrains Mono',monospace;color:#3a4258;letter-spacing:.05em}",
+      "#learning-root .bc-begin span{font-family:'JetBrains Mono',monospace;font-size:11px;color:#3a4258;letter-spacing:.05em}",
       "#learning-root .bc-empty{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:40px;text-align:center}",
       "#learning-root .bc-empty .icon{font-size:32px;color:#2c3350}",
       "#learning-root .bc-empty b{font-size:15px;color:#c6cee6;font-weight:500}",
@@ -6048,7 +6080,7 @@ class Component extends DCLogic {
       "#learning-root .bc-sheetback,#learning-root .bc-sheet{display:none}",
       "@media (prefers-reduced-motion:reduce){#learning-root .bc-event.live-new,#learning-root .bc-expand{animation:none!important}#learning-root .bc-caret{transition:none!important}}",
       "@media (max-width:768px){#learning-root .lr-head{padding-left:16px;padding-right:16px}#learning-root .lr-skbody{padding-left:14px;padding-right:14px}#learning-root .lr-thead{display:none}#learning-root .lr-trow{flex-wrap:wrap;gap:6px 10px}#learning-root .lr-c-name{flex:1 1 100%;white-space:normal}#learning-root .lr-c-ver,#learning-root .lr-c-changed{width:auto;flex:none}#learning-root .lr-c-score{width:auto;flex:1}#learning-root .lr-nrow{gap:8px}#learning-root .lr-cmd{width:100%;max-width:none}#learning-root .lr-cmd code{white-space:normal;word-break:break-all}#learning-root .lr-detail{width:100%;left:0;border-left:none}#learning-root #lr-know-linkcount,#learning-root #lr-know-controls{display:none!important}}",
-      "@media (max-width:768px){#learning-root #lr-know-chrome{top:12px;left:16px;right:16px;gap:10px}#learning-root #lr-know-chrome .bc-switch{order:0;flex:1 0 100%}#learning-root .bc-switch button{flex:1;justify-content:center;padding:7px 10px;font-size:12.5px}#learning-root #lr-know-chrome.changelog #lr-know-count{order:1;padding:0;border:0;background:none!important;font-size:11.5px}#learning-root #lr-changelog{padding:100px 16px 16px;gap:10px}#learning-root .bc-filterbar{display:none}#learning-root .bc-mobile-actions{display:flex;position:absolute;right:16px;top:58px;z-index:14}#learning-root .bc-filterbtn{display:flex;align-items:center;gap:6px;padding:5px 9px;border:1px solid #1b2233;border-radius:7px;background:#0e1320;color:#8b93ac;font-size:11.5px}#learning-root .bc-filterbtn b{min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:#7dcfff;color:#06121e;font-size:10.5px;display:flex;align-items:center;justify-content:center}#learning-root .bc-row{height:48px;padding:0 14px;gap:10px}#learning-root .bc-key{font-size:12.5px;flex:1;max-width:none;min-width:0}#learning-root .bc-sentence{display:none}#learning-root .bc-time{font-size:11px;width:34px}#learning-root .bc-caret{display:none}#learning-root .bc-kindtag{display:block!important;flex:none;font:11px 'JetBrains Mono',monospace;color:var(--bc)}#learning-root .bc-day{padding:8px 14px}#learning-root .bc-expand{padding:2px 14px 14px 32px}#learning-root .bc-mobile-sentence{display:block!important;font-size:12px;color:#8b93ac;line-height:1.5;margin-bottom:10px}#learning-root .bc-diff{display:block}#learning-root .bc-dpane.before,#learning-root .bc-dpane.after{display:none}#learning-root .bc-unified{display:block}#learning-root .bc-line{font-size:11.5px;line-height:1.5;padding-left:11px;padding-right:11px}#learning-root .bc-meta{grid-template-columns:1fr 1fr}#learning-root .bc-bio{padding:12px 14px}#learning-root .bc-biohead{gap:10px}#learning-root .bc-back{padding:5px 9px;font-size:12px}#learning-root .bc-biokey{font-size:13px;flex:1}#learning-root .bc-biometa{display:none}#learning-root .bc-status{font-size:10.5px;padding:3px 8px}#learning-root .bc-biocontent{font-size:11.5px;padding:9px 12px;margin-top:9px}#learning-root .bc-biofoot{font-size:11px}#learning-root .bc-sheetback{display:block;position:absolute;inset:0;z-index:49;background:rgba(2,3,8,.58)}#learning-root .bc-sheet{display:flex;position:absolute;left:0;right:0;bottom:0;z-index:50;max-height:78%;background:#0e1320;border:1px solid #28324c;border-radius:14px 14px 0 0;padding:12px 16px 20px;flex-direction:column;gap:13px;box-shadow:0 -18px 50px rgba(0,0,0,.55);overflow-y:auto}#learning-root .bc-sheethead{display:flex;align-items:center;justify-content:space-between;color:#c6cee6;font-weight:600}#learning-root .bc-sheetclose{border:0;background:none;color:#8b93ac;font-size:20px}#learning-root .bc-sheet .bc-kindrow{gap:6px}#learning-root .bc-sheet .bc-kind{padding:5px 9px}#learning-root .bc-sheet .bc-search{max-width:none}#learning-root .bc-sheet .bc-select{width:100%;min-width:0}#learning-root .bc-sheet .bc-menu{position:static;margin-top:5px;max-height:170px}}",
+      "@media (max-width:768px){#learning-root #lr-know-chrome{top:12px;left:16px;right:16px;gap:10px}#learning-root #lr-know-chrome .bc-switch{order:0;flex:1 0 100%}#learning-root .bc-switch button{flex:1;justify-content:center;padding:7px 10px;font-size:12.5px}#learning-root #lr-know-chrome.changelog #lr-know-count{order:1;padding:0;border:0;background:none!important;font-size:11.5px}#learning-root #lr-changelog{padding:100px 16px 16px;gap:10px}#learning-root .bc-filterbar{display:none}#learning-root .bc-mobile-actions{display:flex;position:absolute;right:16px;top:58px;z-index:14}#learning-root .bc-filterbtn{display:flex;align-items:center;gap:6px;padding:5px 9px;border:1px solid #1b2233;border-radius:7px;background:#0e1320;color:#8b93ac;font-size:11.5px}#learning-root .bc-filterbtn b{min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:#7dcfff;color:#06121e;font-size:10.5px;display:flex;align-items:center;justify-content:center}#learning-root .bc-row{height:48px;padding:0 14px;gap:10px}#learning-root .bc-key{font-size:12.5px;flex:1;max-width:none;min-width:0}#learning-root .bc-sentence{display:none}#learning-root .bc-time{font-size:11px;width:34px}#learning-root .bc-caret{display:none}#learning-root .bc-kindtag{display:block!important;flex:none;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--bc)}#learning-root .bc-day{padding:8px 14px}#learning-root .bc-expand{padding:2px 14px 14px 32px}#learning-root .bc-mobile-sentence{display:block!important;font-size:12px;color:#8b93ac;line-height:1.5;margin-bottom:10px}#learning-root .bc-diff{display:block}#learning-root .bc-dpane.before,#learning-root .bc-dpane.after{display:none}#learning-root .bc-unified{display:block}#learning-root .bc-line{font-size:11.5px;line-height:1.5;padding-left:11px;padding-right:11px}#learning-root .bc-meta{grid-template-columns:1fr 1fr}#learning-root .bc-bio{padding:12px 14px}#learning-root .bc-biohead{gap:10px}#learning-root .bc-back{padding:5px 9px;font-size:12px}#learning-root .bc-biokey{font-size:13px;flex:1}#learning-root .bc-biometa{display:none}#learning-root .bc-status{font-size:10.5px;padding:3px 8px}#learning-root .bc-biocontent{font-size:11.5px;padding:9px 12px;margin-top:9px}#learning-root .bc-biofoot{font-size:11px}#learning-root .bc-sheetback{display:block;position:absolute;inset:0;z-index:49;background:rgba(2,3,8,.58)}#learning-root .bc-sheet{display:flex;position:absolute;left:0;right:0;bottom:0;z-index:50;max-height:78%;background:#0e1320;border:1px solid #28324c;border-radius:14px 14px 0 0;padding:12px 16px 20px;flex-direction:column;gap:13px;box-shadow:0 -18px 50px rgba(0,0,0,.55);overflow-y:auto}#learning-root .bc-sheethead{display:flex;align-items:center;justify-content:space-between;color:#c6cee6;font-weight:600}#learning-root .bc-sheetclose{border:0;background:none;color:#8b93ac;font-size:20px}#learning-root .bc-sheet .bc-kindrow{gap:6px}#learning-root .bc-sheet .bc-kind{padding:5px 9px}#learning-root .bc-sheet .bc-search{max-width:none}#learning-root .bc-sheet .bc-select{width:100%;min-width:0}#learning-root .bc-sheet .bc-menu{position:static;margin-top:5px;max-height:170px}}",
       "@media (pointer:coarse){#learning-root .lr-dclose{width:44px;height:44px;font-size:17px}}"
     ].join('\n');
     document.head.appendChild(st);
