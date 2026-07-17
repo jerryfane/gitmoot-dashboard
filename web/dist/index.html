@@ -41,8 +41,14 @@
  .gm-ptr-indicator.gm-ptr-show{opacity:1}
  .gm-ptr-indicator.gm-ptr-refreshing span:before{content:'';width:8px;height:8px;border:1px solid rgba(110,198,255,.28);border-top-color:#6ec6ff;border-radius:50%;animation:gm-ptr-spin .7s linear infinite}
  @keyframes gm-ptr-spin{to{transform:rotate(360deg)}}
+ .gm-skewbar{position:fixed;left:216px;right:0;top:54px;z-index:55;display:flex;align-items:center;gap:10px;padding:8px 16px;border-bottom:1px solid rgba(224,175,104,.42);background:rgba(10,11,22,.97);backdrop-filter:blur(8px);pointer-events:none}
+ .gm-skewdot{width:6px;height:6px;flex:none;border-radius:50%;background:#e0af68;box-shadow:0 0 8px #e0af68}
+ .gm-skewtext{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#e8c58a;font-size:12px}
+ .gm-skewtitle{font-weight:600}.gm-skewpair{margin-left:8px;color:#a88a55;font:10px 'JetBrains Mono',monospace}.gm-skewhint{margin-left:8px}
+ .gm-skew-dismiss{width:44px;height:44px;flex:none;margin:-8px -12px -8px 0;padding:0;border:0;background:none;color:#a88a55;font-size:16px;cursor:pointer;pointer-events:auto}
  @media (pointer:coarse){html,body,.gm-shell{overscroll-behavior:none}}
  @media (max-width:768px){.gm-aplink{display:none!important}.gm-ptr-scroll{overscroll-behavior-y:none}.tk-tabs,.pl-runs,.wfd-stats{overscroll-behavior-x:contain}}
+ @media (max-width:768px){.gm-skewbar{left:0;right:0;top:auto;bottom:calc(60px + env(safe-area-inset-bottom));border-bottom:0;border-top:1px solid rgba(224,175,104,.42);z-index:59}}
 </style>
 </helmet>
 <div class="gm-shell" style="display:flex;flex-direction:column;height:100vh;height:100dvh;width:100%;overflow:hidden;background:#07080f;color:#a8aecf;font-family:Inter,system-ui,sans-serif;font-size:14px">
@@ -73,6 +79,14 @@
       </div>
     </div>
   </header>
+
+  <sc-if value="{{ buildSkewVisible }}" hint-placeholder-val="{{ false }}">
+    <div class="gm-skewbar" role="status">
+      <span class="gm-skewdot" aria-hidden="true"></span>
+      <div class="gm-skewtext"><strong class="gm-skewtitle">Dashboard and daemon are running different builds</strong><span class="gm-skewpair">dashboard {{ buildSkewServer }} · daemon {{ buildSkewDaemon }}</span><span class="gm-skewhint">restart the stale service to pick up the current build</span></div>
+      <button type="button" class="gm-skew-dismiss" onClick="{{ dismissBuildSkew }}" aria-label="Dismiss build mismatch notice">×</button>
+    </div>
+  </sc-if>
 
   <div style="display:flex;flex:1;min-height:0;width:100%;overflow:hidden">
 
@@ -330,6 +344,8 @@
 class Component extends DCLogic {
   constructor(props) {
     super(props);
+    this._healthFetchSeq = 0;
+    try { this.state.buildSkewDismissed = localStorage.getItem('gitmoot.skewDismissed') || ''; } catch (e) {}
     // ---- URL routing: seed the initial view from location BEFORE first render ----
     // Field initializers (state = {...}) have already run at this point, so we
     // override state.view directly (no setState — not mounted yet) and stash any
@@ -633,7 +649,7 @@ class Component extends DCLogic {
     // Persistent top bar: daemon liveness for the "daemon · up … · ● LIVE" chip.
     // daemonUp starts true because this page is served over HTTP by a live process;
     // the seed fetch (_navSeed) corrects it within the first cycle and keeps it live.
-    daemonUp: true, daemonStartedAt: 0, daemonVersion: '',
+    daemonUp: true, daemonStartedAt: 0, daemonVersion: '', buildSkew: '', buildSkewDismissed: '',
     // Nav "needs you" amber dots (repurposed from the old you-are-here dot). Each is
     // seeded once on load (_navSeed), piggybacks the matching view's poll while open,
     // and re-seeds every 60s. chatAttn (above) is the Chat item's flag.
@@ -4624,9 +4640,11 @@ class Component extends DCLogic {
   }
 
   fetchHealth(isPoll) {
+    const seq = ++this._healthFetchSeq;
     fetch('/api/health', { cache: 'no-store' })
       .then(r => r.ok ? r.text() : Promise.reject(new Error('HTTP ' + r.status)))
       .then(txt => {
+        if (seq !== this._healthFetchSeq) return;
         if (isPoll && this._healthSig === txt) { this._updateHealthLiveCells(); return; } // unchanged — just tick
         this._healthSig = txt;
         let json = null; try { json = JSON.parse(txt); } catch (e) { json = null; }
@@ -4636,6 +4654,7 @@ class Component extends DCLogic {
         this.renderHealth(this._healthData);
       })
       .catch(err => {
+        if (seq !== this._healthFetchSeq) return;
         if (isPoll) return; // keep current view on a transient poll failure
         this._healthLoaded = true;
         const bn = this._healthRoot && this._healthRoot.querySelector('#hl-banner');
@@ -10265,7 +10284,8 @@ class Component extends DCLogic {
   // Runs once on load and every 60s; the per-view fetches also call the same
   // _*Apply* updaters so an open view keeps its own dot live between seeds.
   _navSeed() {
-    fetch('/api/health', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(j => { if (j) this._tbApplyHealth(j); }).catch(() => {});
+    const healthSeq = ++this._healthFetchSeq;
+    fetch('/api/health', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(j => { if (j && healthSeq === this._healthFetchSeq) this._tbApplyHealth(j); }).catch(() => {});
     fetch('/api/pipelines', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(j => { if (Array.isArray(j)) this._navApplyPipelines(j); }).catch(() => {});
     fetch('/api/workflows', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(j => { if (Array.isArray(j)) this._navApplyWorkflows(j); }).catch(() => {});
     fetch('/api/tasks', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(j => { if (Array.isArray(j)) this._navApplyTasks(j); }).catch(() => {});
@@ -10282,10 +10302,25 @@ class Component extends DCLogic {
     const up = !!dm.running;
     const st = dm.startedAt || 0;
     const ver = dm.version || '';
+    const srv = (data.server && data.server.version) || '';
+    const canonicalVersion = (v) => {
+      if (typeof v !== 'string') return '';
+      const s = v.trim().replace(/^v/i, '');
+      return (!s || s.toLowerCase() === 'unknown' || s.toLowerCase() === 'dev') ? '' : s;
+    };
+    const serverBuild = canonicalVersion(srv);
+    const daemonBuild = canonicalVersion(ver);
+    const equal = serverBuild && daemonBuild && serverBuild === daemonBuild;
+    const skew = dm.running === true && serverBuild && daemonBuild && !equal ? encodeURIComponent(serverBuild) + '|' + encodeURIComponent(daemonBuild) : '';
     const patch = {};
     if (up !== this.state.daemonUp) patch.daemonUp = up;
     if (st !== this.state.daemonStartedAt) patch.daemonStartedAt = st;
     if (ver !== this.state.daemonVersion) patch.daemonVersion = ver;
+    if (skew !== this.state.buildSkew) patch.buildSkew = skew;
+    if (equal && this.state.buildSkewDismissed) {
+      patch.buildSkewDismissed = '';
+      try { localStorage.removeItem('gitmoot.skewDismissed'); } catch (e) {}
+    }
     if (attn !== this.state.healthAttn) patch.healthAttn = attn;
     if (Object.keys(patch).length) this.setState(patch);
   }
@@ -10316,6 +10351,12 @@ class Component extends DCLogic {
   // ---- Mobile "More" bottom sheet (Galaxy / Charts / Learning) --------------
   _navOpenMore = () => { this.setState({ moreOpen: true }); };
   _navCloseMore = () => { this.setState({ moreOpen: false }); };
+  _dismissBuildSkew = () => {
+    const pair = this.state.buildSkew || '';
+    if (!pair) return;
+    try { localStorage.setItem('gitmoot.skewDismissed', pair); } catch (e) {}
+    this.setState({ buildSkewDismissed: pair });
+  };
   _navMoreGalaxy = () => { this.setState({ moreOpen: false }); this.showGalaxy(); };
   _navMoreOverview = () => { this.setState({ moreOpen: false }); this.showOverview(); };
   _navMoreTasks = () => { this.setState({ moreOpen: false }); this.showTasks(); };
@@ -11861,6 +11902,11 @@ class Component extends DCLogic {
     const liveWord = dUp ? 'LIVE' : 'daemon down';
     const liveBadgeStyle = { display: 'flex', alignItems: 'center', gap: '7px', padding: '5px 11px', borderRadius: '20px', flex: 'none', background: dUp ? 'rgba(158,206,106,0.1)' : 'rgba(90,96,136,0.12)', border: '1px solid ' + (dUp ? 'rgba(158,206,106,0.24)' : 'rgba(90,96,136,0.32)') };
     const liveDotStyle = { width: '7px', height: '7px', borderRadius: '50%', flex: 'none', background: dUp ? '#9ece6a' : '#5a6088', boxShadow: dUp ? '0 0 10px rgba(158,206,106,0.7)' : 'none', animation: dUp ? 'livedot 1.6s ease-in-out infinite' : 'none' };
+    const buildSkew = this.state.buildSkew || '';
+    const buildSkewSep = buildSkew.indexOf('|');
+    const buildSkewVisible = buildSkewSep > 0 && buildSkew !== this.state.buildSkewDismissed;
+    const buildSkewServer = buildSkewSep > 0 ? decodeURIComponent(buildSkew.slice(0, buildSkewSep)) : '';
+    const buildSkewDaemon = buildSkewSep > 0 ? decodeURIComponent(buildSkew.slice(buildSkewSep + 1)) : '';
     // Mobile "More" sheet visibility + the shared tab-pip style (needs-you pip on a tab).
     const moreSheetVisible = isMobile && !!this.state.moreOpen;
     const tabPip = (on, color) => { const c=color||'#e0af68'; return { position: 'absolute', top: '7px', right: 'calc(50% - 18px)', width: '6px', height: '6px', borderRadius: '50%', background: on ? c : 'transparent', boxShadow: on ? '0 0 8px '+c : 'none' }; };
@@ -11939,6 +11985,7 @@ class Component extends DCLogic {
       showAgentsFromMore: this._navMoreAgents, showAttentionFromMore: this._navMoreAttention, showHealthFromMore: this._navMoreHealth,
       moreLearnDotStyle: needsDot(learningAttn),
       daemonText, daemonTextStyle, liveWord, liveBadgeStyle, liveDotStyle,
+      buildSkewVisible, buildSkewServer, buildSkewDaemon, dismissBuildSkew: this._dismissBuildSkew,
       railStyle, tabBarStyle, tabLabelStyle, mobileMenuStyle,
       tabGraphStyle: tabStyle(isGraph), tabOverviewStyle: tabStyle(isOverview), tabTasksStyle: { ...tabStyle(isTasks), position: 'relative' }, tabJobsStyle: tabStyle(isJobs), tabWorkflowsStyle: { ...tabStyle(isWorkflows), position: 'relative' }, tabAgentsStyle: tabStyle(isAgents), tabBrainStyle: tabStyle(isBrain),
             tabHealthStyle: { ...tabStyle(isHealth), position: 'relative' },
