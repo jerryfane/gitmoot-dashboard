@@ -228,7 +228,7 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 // statusForError maps a DataSource error to an HTTP status code: not-found
 // sentinels become 404, everything else 500.
 func statusForError(err error) int {
-	if errors.Is(err, ErrRunNotFound) || errors.Is(err, ErrJobNotFound) || errors.Is(err, ErrAgentNotFound) || errors.Is(err, ErrPipelineRunNotFound) || errors.Is(err, ErrPipelineNotFound) || errors.Is(err, ErrChatThreadNotFound) || errors.Is(err, ErrWorkflowNotFound) {
+	if errors.Is(err, ErrRunNotFound) || errors.Is(err, ErrJobNotFound) || errors.Is(err, ErrAgentNotFound) || errors.Is(err, ErrPipelineRunNotFound) || errors.Is(err, ErrPipelineNotFound) || errors.Is(err, ErrOrgRoleNotFound) || errors.Is(err, ErrChatThreadNotFound) || errors.Is(err, ErrWorkflowNotFound) {
 		return http.StatusNotFound
 	}
 	return http.StatusInternalServerError
@@ -403,6 +403,62 @@ func (s *server) handleTasks(w http.ResponseWriter, r *http.Request) {
 		return tasks[i].ID < tasks[j].ID
 	})
 	writeJSON(w, http.StatusOK, tasks)
+}
+
+// handleOrg serves GET /api/org through the optional organization extension.
+func (s *server) handleOrg(w http.ResponseWriter, r *http.Request) {
+	ds, ok := s.ds.(OrgDataSource)
+	if !ok {
+		http.Error(w, "org unsupported by data source", http.StatusNotFound)
+		return
+	}
+	v, err := ds.Org(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), statusForError(err))
+		return
+	}
+	if v.Roles == nil {
+		v.Roles = []OrgNode{}
+	}
+	for i := range v.Roles {
+		if v.Roles[i].Scope == nil {
+			v.Roles[i].Scope = []string{}
+		}
+	}
+	if v.Escalations == nil {
+		v.Escalations = []OrgEscalation{}
+	}
+	if v.Feed == nil {
+		v.Feed = []OrgFeedRow{}
+	}
+	writeJSON(w, http.StatusOK, v)
+}
+
+// handleOrgRole serves GET /api/org/role/{name}.
+func (s *server) handleOrgRole(w http.ResponseWriter, r *http.Request) {
+	ds, ok := s.ds.(OrgDataSource)
+	if !ok {
+		http.Error(w, "org unsupported by data source", http.StatusNotFound)
+		return
+	}
+	v, err := ds.OrgRole(r.Context(), r.PathValue("name"))
+	if err != nil {
+		http.Error(w, err.Error(), statusForError(err))
+		return
+	}
+	if v.Identity.Scope == nil {
+		v.Identity.Scope = []string{}
+	}
+	if v.Identity.Path == nil {
+		v.Identity.Path = []string{}
+	}
+	if v.Activity.JobsToday == nil {
+		v.Activity.JobsToday = map[string]int{}
+	}
+	if v.Escalations == nil {
+		v.Escalations = []OrgEscalation{}
+	}
+	writeJSON(w, http.StatusOK, v)
 }
 
 // handleWorkflows serves GET /api/workflows. The handler normalizes the
