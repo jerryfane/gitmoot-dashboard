@@ -124,6 +124,11 @@
       <span style="flex:1">Agents</span>
       <span style="{{ agentsNavDotStyle }}"></span>
     </div>
+    <div onClick="{{ showOrg }}" title="Fleet hierarchy, presence + escalations" style="{{ orgNavStyle }}">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><rect x="9" y="3" width="6" height="5" rx="1.4"/><rect x="3" y="16" width="6" height="5" rx="1.4"/><rect x="15" y="16" width="6" height="5" rx="1.4"/><path d="M12 8v3.5M6 16v-2.5h12V16"/></svg>
+      <span style="flex:1">Org</span>
+      <span style="{{ orgNavDotStyle }}"></span>
+    </div>
     <div onClick="{{ showChat }}" title="Agent chat threads, mentions + job promotions" style="{{ chatNavStyle }}">
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M4 5h13a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H9l-4 3v-3H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/></svg>
       <span style="flex:1">Chat</span>
@@ -301,7 +306,7 @@
       <div style="font-family:'JetBrains Mono';font-size:9.5px;letter-spacing:0.15em;color:#5a6088;padding:2px 8px 5px">WORK</div>
       <div onClick="{{ showOverviewFromMore }}" style="padding:10px;color:#c8cce6;cursor:pointer">Overview</div><div onClick="{{ showTasksFromMore }}" style="padding:10px;color:#c8cce6;cursor:pointer">Tasks</div><div onClick="{{ showWorkflowsFromMore }}" style="padding:10px;color:#c8cce6;cursor:pointer">Workflows</div><div onClick="{{ showJobsFromMore }}" style="padding:10px;color:#c8cce6;cursor:pointer">Jobs</div><div onClick="{{ showPipelinesFromMore }}" style="padding:10px;color:#c8cce6;cursor:pointer">Pipelines</div>
       <div style="font-family:'JetBrains Mono';font-size:9.5px;letter-spacing:0.15em;color:#5a6088;padding:12px 8px 5px">FLEET</div>
-      <div onClick="{{ showAgentsFromMore }}" style="padding:10px;color:#c8cce6;cursor:pointer">Agents</div><div onClick="{{ showChatFromMore }}" style="padding:10px;color:#c8cce6;cursor:pointer">Chat</div>
+      <div onClick="{{ showAgentsFromMore }}" style="padding:10px;color:#c8cce6;cursor:pointer">Agents</div><div onClick="{{ showOrgFromMore }}" style="padding:10px;color:#c8cce6;cursor:pointer">Org</div><div onClick="{{ showChatFromMore }}" style="padding:10px;color:#c8cce6;cursor:pointer">Chat</div>
       <div style="font-family:'JetBrains Mono';font-size:9.5px;letter-spacing:0.15em;color:#5a6088;padding:12px 8px 5px">INSIGHT</div>
       <div onClick="{{ showBrainFromMore }}" style="padding:10px;color:#c8cce6;cursor:pointer">Brain</div><div onClick="{{ showGalaxyFromMore }}" style="padding:10px;color:#c8cce6;cursor:pointer">Galaxy</div><div onClick="{{ showChartsFromMore }}" style="padding:10px;color:#c8cce6;cursor:pointer">Charts</div><div onClick="{{ showLearningFromMore }}" style="padding:10px;color:#c8cce6;cursor:pointer">Learning</div>
       <div style="font-family:'JetBrains Mono';font-size:9.5px;letter-spacing:0.15em;color:#5a6088;padding:12px 8px 5px">SYSTEM</div>
@@ -377,7 +382,7 @@ class Component extends DCLogic {
 
   // ---- client-side router ----------------------------------------------------
   // Route table:  / -> overview (or graph when ?run= is present) | /tasks |
-  //   /galaxy | /jobs[?agent=<name>] | /agents |
+  //   /galaxy | /jobs[?agent=<name>] | /agents | /org |
   //   /agents/<name> | /brain | /charts | /health | /config. Agent names are encode/decode-
   //   URIComponent'd and treated as one path segment after /agents/.
   _parseRoute(pathname, search) {
@@ -395,6 +400,7 @@ class Component extends DCLogic {
     if (p === '/health') return { view: 'health' };
     if (p === '/config') return { view: 'config' };
     if (p === '/attention') return { view: 'attention' };
+    if (p === '/org') return { view: 'org' };
     // /learning normalizes to /learning/skills (constructor/_onPopState canonicalize).
     if (p === '/learning') return { view: 'learning', tab: 'skills' };
     if (p === '/learning/skills') return { view: 'learning', tab: 'skills' };
@@ -504,6 +510,7 @@ class Component extends DCLogic {
       case 'workflows': return opts.name ? '/workflows/' + encodeURIComponent(opts.name) : '/workflows';
       case 'chat': return opts.name ? '/chat/' + encodeURIComponent(opts.name) : '/chat';
       case 'agents': return opts.agent ? '/agents/' + encodeURIComponent(opts.agent) : '/agents';
+      case 'org': return '/org';
       case 'charts': return '/charts';
       case 'health': return '/health';
       case 'config': return '/config';
@@ -534,6 +541,7 @@ class Component extends DCLogic {
       case 'workflows': return opts.name ? 'gitmoot · workflow · ' + opts.name : 'gitmoot · workflows';
       case 'chat': return opts.name ? 'gitmoot · chat · ' + opts.name : 'gitmoot · chat';
       case 'agents': return opts.agent ? 'gitmoot · agents · ' + opts.agent : 'gitmoot · agents';
+      case 'org': return 'gitmoot · org';
       case 'charts': return 'gitmoot · charts';
       case 'health': return 'gitmoot · health';
       case 'config': return 'gitmoot · config';
@@ -716,6 +724,7 @@ class Component extends DCLogic {
           this._queuePullToRefreshSync();
           if (this.state.view === 'jobs') this.renderJobsTable();
           if (this.state.view === 'agents') { this._agApplyMobileClass(); this.renderAgentsPane(true); }
+          if (this.state.view === 'org' && this._orgData) { this._orgCenterAfterRender = true; this.renderOrg(this._orgData); }
           if (this.state.view === 'pipelines' && this._plDetailName) { this._plLayout(); this._plUpdateScrollCue(); }
           if (this.state.view === 'chat') this._chatRerender();
           if (this.state.view === 'charts' && this._chartsLoaded) this.renderCharts(false);
@@ -783,6 +792,7 @@ class Component extends DCLogic {
     this.stopGalaxyPoll();
     this.stopJobsPoll();
     this.stopAgentsPoll();
+    this.stopOrgPoll();
     this.stopChartsPoll();
     this.stopHealthPoll();
     this.stopConfigPoll();
@@ -810,6 +820,7 @@ class Component extends DCLogic {
     try { document.removeEventListener('keydown', this._jobsKeydown); } catch (e) {}
     try { document.removeEventListener('keydown', this._galaxyKeydown); } catch (e) {}
     try { document.removeEventListener('keydown', this._agentsKeydown); } catch (e) {}
+    try { document.removeEventListener('keydown', this._orgKeydown); } catch (e) {}
     try { document.removeEventListener('keydown', this._healthKeydown); } catch (e) {}
     try { document.removeEventListener('keydown', this._attentionKeydown); } catch (e) {}
     try { document.removeEventListener('keydown', this._learningKeydown); } catch (e) {}
@@ -819,9 +830,12 @@ class Component extends DCLogic {
     try { document.removeEventListener('keydown', this._workflowKeydown); } catch (e) {}
     try { document.removeEventListener('keydown', this._tasksKeydown); } catch (e) {}
     try { window.removeEventListener('resize', this._knowResize); } catch (e) {}
+    try { window.removeEventListener('resize', this._orgResize); } catch (e) {}
+    try { if (this._orgTreeRO) this._orgTreeRO.disconnect(); } catch (e) {}
     try { if (this._galaxyRoot) this._galaxyRoot.remove(); } catch (e) {}
     try { if (this._jobsRoot) this._jobsRoot.remove(); } catch (e) {}
     try { if (this._agentsRoot) this._agentsRoot.remove(); } catch (e) {}
+    try { if (this._orgRoot) this._orgRoot.remove(); } catch (e) {}
     try { if (this._chartsRoot) this._chartsRoot.remove(); } catch (e) {}
     try { if (this._healthRoot) this._healthRoot.remove(); } catch (e) {}
     try { if (this._configRoot) this._configRoot.remove(); } catch (e) {}
@@ -957,6 +971,7 @@ class Component extends DCLogic {
     else if (view === 'galaxy') this.fetchGalaxy(this._galaxyRepo || '', true);
     else if (view === 'jobs') this.fetchJobs(true);
     else if (view === 'agents') this.fetchAgents(true);
+    else if (view === 'org') this.fetchOrg(true);
     else if (view === 'charts') this.fetchCharts(true);
     else if (view === 'health') this.fetchHealth(true);
     else if (view === 'config') this.fetchConfig(true);
@@ -1006,6 +1021,7 @@ class Component extends DCLogic {
       workflows: ['#workflow-root .wfi-scroll', '#workflow-root .wfd-scroll'],
       jobs: ['#jobs-root .jb-tablewrap'],
       agents: ['#agents-root .ag-list', '#agents-root .ag-pane'],
+      org: ['#org-root .org-content', '#org-root .org-chart-scroll', '#org-root .org-col-body'],
       charts: ['#charts-root .ch-scroll'],
       attention: ['#attention-root .at-scroll'],
       health: ['#health-root .hl-body'],
@@ -1244,6 +1260,17 @@ class Component extends DCLogic {
     } else {
       this.stopAgentsPoll();
       if (this._agentsRoot) this._agentsRoot.style.display = 'none';
+    }
+    // Org overlay (read-only fleet hierarchy, presence, escalations + signals).
+    if (v === 'org') {
+      const root = this.ensureOrgDom();
+      root.style.display = 'flex';
+      this.startOrgPoll();
+      this.fetchOrg(false);
+      setTimeout(() => this._orgComputeEdges(), 0);
+    } else {
+      this.stopOrgPoll();
+      if (this._orgRoot) this._orgRoot.style.display = 'none';
     }
     // Charts overlay (hand-rolled inline-SVG charts).
     if (v === 'charts') {
@@ -2863,6 +2890,7 @@ class Component extends DCLogic {
     this._navRoute('jobs', { agent: this._jobsFacetAgent || undefined });
   };
   showAgents = () => { this.setState({ view: 'agents' }); this._navRoute('agents', { agent: this._agentsSelected || undefined }); };
+  showOrg = () => { this.setState({ view: 'org' }); this._navRoute('org'); };
   showCharts = () => { this.setState({ view: 'charts' }); this._navRoute('charts'); };
   showBrain = () => { this._learningTab = 'knowledge'; this.setState({ view: 'brain' }); this._navRoute('brain'); };
   showHealth = () => { this.setState({ view: 'health' }); this._navRoute('health'); };
@@ -2882,6 +2910,420 @@ class Component extends DCLogic {
     this._agentsPoll = setInterval(() => { if (this.state.view !== 'agents') return; this.fetchAgents(true); }, 12000);
   }
   stopAgentsPoll() { try { clearInterval(this._agentsPoll); } catch (e) {} this._agentsPoll = null; }
+  startOrgPoll() {
+    if (this._orgPoll) return;
+    this._orgPoll = setInterval(() => { if (this.state.view === 'org') this.fetchOrg(true); }, 12000);
+  }
+  stopOrgPoll() { try { clearInterval(this._orgPoll); } catch (e) {} this._orgPoll = null; }
+
+  // ============================================================
+  // Org page (#1097): store-backed fleet hierarchy + presence.
+  // The tree is derived entirely from name/parent relationships and
+  // its connectors are measured after each render.
+  // ============================================================
+  ensureOrgDom() {
+    if (this._orgRoot) return this._orgRoot;
+    const st = document.createElement('style');
+    st.textContent = [
+      "#org-root{font-family:Inter,system-ui,sans-serif;color:#a8aecf;background:#07080f;overflow:hidden}",
+      "#org-root *{box-sizing:border-box}#org-root button{font:inherit}",
+      "#org-root .org-content{height:100%;min-height:0;display:flex;flex-direction:column;overflow:hidden}",
+      "#org-root .org-health{flex:none;display:flex;align-items:center;gap:16px;padding:12px 20px;border-bottom:1px solid rgba(160,168,220,.08);background:#080a14}",
+      "#org-root .org-tiles{display:flex;flex:1;min-width:0;gap:10px;flex-wrap:wrap}.org-tile{min-width:82px;padding:7px 14px;border:1px solid rgba(160,168,220,.08);border-radius:10px;background:rgba(10,11,22,.5)}",
+      "#org-root .org-tile b{display:block;font:600 21px 'JetBrains Mono',monospace;line-height:1.1}.org-tile span{display:block;margin-top:3px;color:#5a6088;font:8.5px 'JetBrains Mono',monospace;letter-spacing:.09em;text-transform:uppercase}",
+      "#org-root .org-fresh{display:flex;align-items:center;gap:7px;flex:none;color:#5a6088;font:10.5px 'JetBrains Mono',monospace;white-space:nowrap}.org-fresh i{width:6px;height:6px;border-radius:50%;background:#5a6088}",
+      "#org-root .org-detect{display:inline-flex;align-items:center;padding:4px 8px;border:1px solid rgba(224,175,104,.22);border-radius:6px;color:#b99a68;background:rgba(224,175,104,.06);font:9.5px 'JetBrains Mono',monospace;white-space:nowrap}",
+      "#org-root .org-errorbar{flex:none;padding:7px 20px;border-bottom:1px solid rgba(247,118,142,.18);background:rgba(247,118,142,.05);color:#bd7383;font:10.5px 'JetBrains Mono',monospace}",
+      "#org-root .org-chart-region{flex:1.3;min-height:250px;display:flex;flex-direction:column;position:relative;overflow:hidden;border-bottom:1px solid rgba(160,168,220,.08)}",
+      "#org-root .org-sec-head{height:40px;flex:none;display:flex;align-items:center;gap:9px;padding:0 18px;color:#8b90b8;font:600 10px 'JetBrains Mono',monospace;letter-spacing:.14em;text-transform:uppercase}.org-sec-head .org-hint{color:#5a6088;font-size:10px;font-weight:400;letter-spacing:0;text-transform:none}.org-sec-head .org-count{padding:1px 8px;border-radius:10px;background:rgba(160,168,220,.1);color:#c7c9e5;font-size:9.5px;letter-spacing:0}.org-sec-head .org-right{margin-left:auto;color:#5a6088;font-size:9.5px;font-weight:400;letter-spacing:0;text-transform:none}",
+      "#org-root .org-title-dot{width:8px;height:8px;border-radius:50%;background:#bb9af7;box-shadow:0 0 8px rgba(187,154,247,.55);flex:none}",
+      "#org-root .org-chart-scroll{flex:1;min-height:0;overflow:auto;position:relative}.org-tree-wrap{position:relative;box-sizing:border-box;min-width:100%;width:max-content;display:flex;justify-content:center;padding:34px 54px 52px}.org-tree-svg{position:absolute;inset:0;overflow:visible;pointer-events:none;z-index:0}.org-tree{position:relative;z-index:1;display:flex;justify-content:center}.org-roots,.org-children{display:flex;align-items:flex-start;justify-content:center;gap:22px}.org-children{margin-top:42px}.org-branch{display:flex;flex-direction:column;align-items:center}",
+      "#org-root .org-node{appearance:none;display:flex;flex-direction:column;gap:5px;min-width:152px;max-width:196px;padding:9px 12px 10px;border:1px solid rgba(160,168,220,.13);border-radius:10px;background:rgba(13,15,28,.72);color:inherit;text-align:left;cursor:pointer;position:relative;box-shadow:0 1px 2px rgba(0,0,0,.28);transition:border-color .16s,transform .16s,background .16s;z-index:2}.org-node:hover{border-color:rgba(187,154,247,.42);transform:translateY(-1px)}.org-node.sel{border-color:rgba(187,154,247,.5);background:rgba(187,154,247,.1);box-shadow:0 0 0 1px rgba(187,154,247,.18),0 12px 32px rgba(0,0,0,.35)}.org-node.root{background:rgba(187,154,247,.045);border-color:rgba(187,154,247,.25)}",
+      "#org-root .org-node-main{display:flex;align-items:center;gap:9px;min-width:0}.org-node-name{color:#eef0ff;font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.org-node-sub{color:#5a6088;font:9.5px 'JetBrains Mono',monospace;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.org-presence{width:9px;height:9px;border-radius:50%;flex:none}.org-presence.working{background:#9ece6a;box-shadow:0 0 8px rgba(158,206,106,.55)}.org-presence.blocked{background:#ff9e64;box-shadow:0 0 8px rgba(255,158,100,.5)}.org-presence.idle{background:#6b7199}.org-presence.never-seen{background:transparent;border:1.5px solid rgba(139,144,184,.75)}",
+      "#org-root .org-rootmark{width:21px;height:21px;border:1px solid rgba(187,154,247,.38);border-radius:6px;display:grid;place-items:center;color:#bb9af7;flex:none}.org-rootmark:after{content:'';width:6px;height:6px;border:1px solid currentColor;transform:rotate(45deg)}",
+      "#org-root .org-badges{display:flex;flex-wrap:wrap;gap:5px;margin-top:1px}.org-badge{display:inline-flex;align-items:center;padding:2px 6px;border-radius:5px;font:600 9px 'JetBrains Mono',monospace;line-height:1.15;white-space:nowrap}.org-badge.blocked{color:#ff9e64;background:rgba(255,158,100,.12)}.org-badge.overdue{color:#e0af68;background:rgba(224,175,104,.1)}.org-badge.wakes{color:#f7768e;background:rgba(247,118,142,.12)}",
+      "#org-root .org-split{flex:1;min-height:220px;display:grid;grid-template-columns:1fr 1fr}.org-col{min-width:0;min-height:0;display:flex;flex-direction:column}.org-col:first-child{border-right:1px solid rgba(160,168,220,.08)}.org-col-body{flex:1;min-height:0;overflow:auto;padding:8px 14px 18px}",
+      "#org-root .org-esc-list{display:flex;flex-direction:column;gap:9px}.org-esc-card{padding:11px 13px;border:1px solid rgba(160,168,220,.09);border-radius:10px;background:rgba(10,11,22,.5)}.org-esc-top{display:flex;align-items:baseline;gap:7px;margin-bottom:7px;color:#5a6088;font:11.5px 'JetBrains Mono',monospace}.org-esc-from{color:#a8aecf}.org-esc-to{color:#c7c9e5}.org-esc-age{margin-left:auto;color:#5a6088;font-size:10px}.org-esc-q{color:#c7c9e5;font-size:12.5px;line-height:1.5;margin-bottom:9px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.org-wf{color:#8b90b8;font:10.5px 'JetBrains Mono',monospace;text-decoration:none}.org-wf:hover{color:#c5f882}.org-quiet{display:flex;align-items:center;gap:9px;padding:16px 4px 20px;color:#8b90b8;font-size:13px}.org-check{width:16px;height:16px;border:1.5px solid rgba(158,206,106,.5);border-radius:50%;display:grid;place-items:center;color:#9ece6a;font-size:9px}",
+      "#org-root .org-feed-row{padding:7px 11px 8px;border-radius:8px;margin-bottom:1px}.org-feed-line{display:grid;grid-template-columns:42px max-content 110px minmax(0,1fr);align-items:baseline;gap:9px}.org-feed-time,.org-feed-kind,.org-feed-role,.org-feed-detail,.org-feed-since{font:11px 'JetBrains Mono',monospace}.org-feed-time{color:#5a6088}.org-feed-kind{font-weight:600}.org-feed-role{color:#a8aecf;overflow:hidden;text-overflow:ellipsis}.org-feed-detail{color:#8b90b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.org-feed-since{padding-left:51px;margin-top:2px;color:#5a6088;font-size:10px}",
+      "#org-root .org-panel{position:absolute;top:0;right:0;bottom:0;width:368px;z-index:20;display:flex;flex-direction:column;overflow:hidden;border-left:1px solid rgba(160,168,220,.12);background:rgba(9,10,20,.97);backdrop-filter:blur(12px);box-shadow:-24px 0 48px rgba(0,0,0,.45);animation:panelin .22s cubic-bezier(.2,.7,.3,1)}.org-panel-head{flex:none;padding:16px 16px 13px;border-bottom:1px solid rgba(160,168,220,.1)}.org-panel-titleline{display:flex;align-items:flex-start;gap:10px}.org-panel-title{flex:1;min-width:0}.org-panel-name{color:#eef0ff;font-size:17px;font-weight:600;line-height:1.2;overflow-wrap:anywhere}.org-panel-sub{margin-top:3px;color:#868db5;font:10.5px 'JetBrains Mono',monospace}.org-panel-close{width:26px;height:26px;flex:none;border:1px solid rgba(160,168,220,.12);border-radius:7px;background:rgba(160,168,220,.08);color:#868db5;cursor:pointer}.org-panel-state{display:inline-flex;margin-top:12px;padding:4px 10px;border-radius:7px;font:600 10.5px 'JetBrains Mono',monospace;letter-spacing:.04em}.org-panel-body{flex:1;min-height:0;overflow:auto;padding:17px 16px 26px;display:flex;flex-direction:column;gap:19px}.org-panel-sec h3{margin:0 0 10px;color:#5a6088;font:500 9.5px 'JetBrains Mono',monospace;letter-spacing:.14em;text-transform:uppercase}.org-kv{display:flex;align-items:baseline;gap:12px;margin-bottom:8px}.org-kv-k{width:82px;flex:none;color:#5a6088;font-size:12px}.org-kv-v{flex:1;color:#c7c9e5;font:11.5px 'JetBrains Mono',monospace;text-align:right;overflow-wrap:anywhere}.org-panel-note{color:#8b90b8;font-size:12.5px;line-height:1.6}.org-panel-row{margin-bottom:7px;color:#a8aecf;font:11.5px 'JetBrains Mono',monospace;line-height:1.45}.org-panel-esc{padding:7px 10px;border:1px solid rgba(160,168,220,.08);border-radius:7px;background:rgba(160,168,220,.05);color:#8b90b8;font:11px 'JetBrains Mono',monospace;margin-top:6px}",
+      "#org-root .org-loading,#org-root .org-failure,#org-root .org-empty{height:100%;display:grid;place-items:center;padding:36px 24px}.org-loading-card,.org-failure-card,.org-empty-card{width:min(560px,100%)}.org-loading-line{height:12px;border-radius:5px;background:rgba(160,168,220,.08);margin:12px 0;animation:orgShimmer 1.5s ease-in-out infinite}.org-loading-line.short{width:55%}.org-empty-kicker{display:flex;align-items:center;gap:9px;margin-bottom:20px;color:#8b90b8;font:10px 'JetBrains Mono',monospace;letter-spacing:.16em;text-transform:uppercase}.org-empty h1,.org-failure h1{margin:0 0 12px;color:#eef0ff;font-size:26px;font-weight:600}.org-empty p,.org-failure p{margin:0;color:#8b90b8;font-size:14.5px;line-height:1.65}.org-empty pre{margin:22px 0 0;padding:14px 16px;border:1px solid rgba(160,168,220,.12);border-radius:10px;background:#0a0b16;color:#c7c9e5;font:12px/1.65 'JetBrains Mono',monospace;overflow:auto}.org-empty pre b{color:#bb9af7}.org-empty pre em{color:#7aa2f7;font-style:normal}.org-empty pre i{color:#c5f882;font-style:normal}@keyframes orgShimmer{50%{opacity:.42}}",
+      "@media(max-width:768px){#org-root .org-content{overflow-y:auto;-webkit-overflow-scrolling:touch}.org-health{align-items:flex-start!important;flex-direction:column;padding:10px 14px!important}.org-tiles{flex-wrap:nowrap!important;width:100%;overflow-x:auto;padding-bottom:2px}.org-tile{flex:none}.org-chart-region{flex:none!important;height:450px;min-height:450px}.org-split{flex:none!important;display:flex!important;flex-direction:column}.org-col{min-height:250px}.org-col:first-child{border-right:0!important;border-bottom:1px solid rgba(160,168,220,.08)}.org-col-body{overflow:visible!important}.org-panel{left:0;width:auto!important;border-left:0!important}.org-sec-head .org-hint{display:none}.org-tree-wrap{padding:32px 32px 48px}.org-feed-line{grid-template-columns:38px max-content minmax(70px,110px) minmax(130px,1fr)}}",
+      "@media(pointer:coarse){#org-root .org-panel-close{width:44px;height:44px;font-size:17px}#org-root .org-node{min-height:56px}}"
+    ].join('\n');
+    document.head.appendChild(st);
+
+    const root = document.createElement('div');
+    root.id = 'org-root';
+    root.style.cssText = 'position:fixed;left:216px;top:54px;right:0;bottom:0;z-index:40;background:#07080f;display:none;flex-direction:column;overflow:hidden';
+    root.innerHTML = '<div class="org-content"><div class="org-loading"><div class="org-loading-card"><div class="org-loading-line short"></div><div class="org-loading-line"></div><div class="org-loading-line"></div></div></div></div>';
+    document.body.appendChild(root);
+    this._dockOverlay(root);
+    this._orgRoot = root;
+
+    root.addEventListener('click', (e) => {
+      const close = e.target.closest && e.target.closest('[data-org-close]');
+      if (close) { this.closeOrgRole(); return; }
+      const node = e.target.closest && e.target.closest('[data-org-node]');
+      if (node) { e.stopPropagation(); this.openOrgRole(node.getAttribute('data-org-node')); return; }
+      const wf = e.target.closest && e.target.closest('[data-org-workflow]');
+      if (wf) { e.preventDefault(); this.showWorkflow(wf.getAttribute('data-org-workflow')); return; }
+      if (e.target.classList && e.target.classList.contains('org-chart-scroll')) this.closeOrgRole();
+    });
+    this._orgKeydown = (e) => {
+      if (e.key === 'Escape' && this.state.view === 'org' && this._orgSelected) this.closeOrgRole();
+    };
+    document.addEventListener('keydown', this._orgKeydown);
+    this._orgResize = () => { if (this.state.view === 'org') this._orgComputeEdges(); };
+    window.addEventListener('resize', this._orgResize);
+    return root;
+  }
+
+  _orgEsc(s) { return this._galaxyEsc(s); }
+  _orgCompactAge(value) {
+    const at = Date.parse(value || '');
+    if (!Number.isFinite(at)) return '';
+    const sec = Math.max(0, Math.floor((Date.now() - at) / 1000));
+    if (sec < 60) return sec + 's';
+    if (sec < 3600) return Math.floor(sec / 60) + 'm';
+    if (sec < 86400) return Math.floor(sec / 3600) + 'h';
+    return Math.floor(sec / 86400) + 'd';
+  }
+  _orgUpdatedLabel(value) {
+    const age = this._orgCompactAge(value);
+    return age ? ('updated ' + age + ' ago') : 'updated time unknown';
+  }
+  _orgTime(value) {
+    const at = Date.parse(value || '');
+    if (!Number.isFinite(at)) return '—';
+    const d = new Date(at);
+    return String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0');
+  }
+  _orgNodeSub(node, isRoot) {
+    if (isRoot) return 'root';
+    const scope = Array.isArray(node.scope) ? node.scope.filter(Boolean) : [];
+    if (scope.length) return scope.slice(0, 2).join(' · ');
+    if (node.merge_rule) return 'merge · ' + node.merge_rule;
+    return '';
+  }
+  _orgBadgesHTML(node) {
+    const b = node.badges || {};
+    const out = [];
+    if (b.blocked_since) out.push('<span class="org-badge blocked">blocked ' + this._orgEsc(this._orgCompactAge(b.blocked_since)) + '</span>');
+    if (b.overdue) out.push('<span class="org-badge overdue">⟳ overdue ' + this._orgEsc(b.overdue) + '</span>');
+    if ((Number(b.missed_wakes) || 0) > 0) out.push('<span class="org-badge wakes">⚠ ' + Number(b.missed_wakes) + ' missed wakes</span>');
+    return out.length ? '<div class="org-badges">' + out.join('') + '</div>' : '';
+  }
+  _orgTreeHTML(roles) {
+    const byName = {};
+    const children = {};
+    roles.forEach(r => { if (r && r.name) byName[r.name] = r; });
+    roles.forEach(r => {
+      if (!r || !r.name) return;
+      const p = r.parent && byName[r.parent] ? r.parent : '';
+      (children[p] = children[p] || []).push(r);
+    });
+    const branch = (node, lineage) => {
+      if (!node || lineage[node.name]) return '';
+      const next = Object.assign({}, lineage); next[node.name] = true;
+      const isRoot = !node.parent || !byName[node.parent];
+      const selected = this._orgSelected === node.name;
+      const presence = String(node.presence_state || 'idle').toLowerCase();
+      const marker = isRoot ? '<span class="org-rootmark" aria-hidden="true"></span>' : '<span class="org-presence ' + this._orgEsc(presence) + '" aria-hidden="true"></span>';
+      const kids = (children[node.name] || []).map(k => branch(k, next)).join('');
+      return '<div class="org-branch">' +
+        '<button type="button" class="org-node' + (selected ? ' sel' : '') + (isRoot ? ' root' : '') + '" data-org-node="' + this._orgEsc(node.name) + '" title="' + this._orgEsc(node.name + ' · ' + (isRoot ? 'org root' : presence)) + '">' +
+          '<span class="org-node-main">' + marker + '<span class="org-node-name">' + this._orgEsc(node.name) + '</span></span>' +
+          '<span class="org-node-sub">' + this._orgEsc(this._orgNodeSub(node, isRoot)) + '</span>' +
+          this._orgBadgesHTML(node) +
+        '</button>' +
+        (kids ? '<div class="org-children">' + kids + '</div>' : '') +
+      '</div>';
+    };
+    const roots = children[''] || [];
+    return '<div class="org-roots">' + roots.map(r => branch(r, {})).join('') + '</div>';
+  }
+  _orgEdgeStyle(node) {
+    const b = node.badges || {};
+    if (node.presence_state === 'blocked') return { stroke: 'rgba(255,158,100,.55)', width: 1.9 };
+    if (b.overdue || (Number(b.missed_wakes) || 0) > 0) return { stroke: 'rgba(224,175,104,.5)', width: 1.7 };
+    if (node.presence_state === 'never-seen') return { stroke: 'rgba(139,144,184,.22)', width: 1.2 };
+    return { stroke: 'rgba(160,168,220,.16)', width: 1.4 };
+  }
+  _orgComputeEdges() {
+    const root = this._orgRoot;
+    const wrap = root && root.querySelector('.org-tree-wrap');
+    const svg = wrap && wrap.querySelector('.org-tree-svg');
+    if (!wrap || !svg || !this._orgData) return;
+    const wr = wrap.getBoundingClientRect();
+    const els = {};
+    wrap.querySelectorAll('[data-org-node]').forEach(el => { els[el.getAttribute('data-org-node')] = el; });
+    const paths = [];
+    (this._orgData.roles || []).forEach(node => {
+      if (!node || !node.parent || !els[node.parent] || !els[node.name]) return;
+      const pr = els[node.parent].getBoundingClientRect();
+      const cr = els[node.name].getBoundingClientRect();
+      const x1 = pr.left + pr.width / 2 - wr.left, y1 = pr.bottom - wr.top - 1;
+      const x2 = cr.left + cr.width / 2 - wr.left, y2 = cr.top - wr.top + 1;
+      const my = (y1 + y2) / 2;
+      const tone = this._orgEdgeStyle(node);
+      paths.push('<path d="M' + x1.toFixed(1) + ',' + y1.toFixed(1) + ' C' + x1.toFixed(1) + ',' + my.toFixed(1) + ' ' + x2.toFixed(1) + ',' + my.toFixed(1) + ' ' + x2.toFixed(1) + ',' + y2.toFixed(1) + '" stroke="' + tone.stroke + '" stroke-width="' + tone.width + '" fill="none" stroke-linecap="round"></path>');
+    });
+    const width = Math.max(wrap.scrollWidth, Math.ceil(wr.width));
+    const height = Math.max(wrap.scrollHeight, Math.ceil(wr.height));
+    svg.setAttribute('width', width);
+    svg.setAttribute('height', height);
+    svg.setAttribute('viewBox', '0 0 ' + width + ' ' + height);
+    svg.innerHTML = paths.join('');
+  }
+  _orgCenterTree() {
+    const scroll = this._orgRoot && this._orgRoot.querySelector('.org-chart-scroll');
+    const roles = (this._orgData && this._orgData.roles) || [];
+    const names = new Set(roles.map(r => r && r.name).filter(Boolean));
+    const rootRole = roles.find(r => r && (!r.parent || !names.has(r.parent)));
+    if (!scroll || !rootRole) return;
+    const node = Array.from(scroll.querySelectorAll('[data-org-node]')).find(el => el.getAttribute('data-org-node') === rootRole.name);
+    if (!node) return;
+    const sr = scroll.getBoundingClientRect(), nr = node.getBoundingClientRect();
+    scroll.scrollLeft += (nr.left + nr.width / 2) - (sr.left + sr.width / 2);
+  }
+  _orgHealthHTML(data) {
+    const h = data.health || {};
+    const tile = (value, label, color) => '<div class="org-tile"><b style="color:' + color + '">' + Number(value || 0) + '</b><span>' + label + '</span></div>';
+    const stalled = Number(h.stalled_wakes || 0);
+    return '<div class="org-health">' +
+      '<div class="org-tiles">' +
+        tile(h.roles, 'roles', '#eef0ff') + tile(h.working, 'working now', '#9ece6a') +
+        tile(h.blocked, 'blocked', Number(h.blocked) ? '#ff9e64' : '#5a6088') +
+        tile(h.overdue, 'overdue', Number(h.overdue) ? '#e0af68' : '#5a6088') +
+        tile(h.open_escalations, 'open escalations', Number(h.open_escalations) ? '#e0af68' : '#5a6088') +
+        tile(stalled, 'stalled wakes', stalled ? '#e0af68' : '#5a6088') +
+      '</div>' +
+      (!data.detection_enabled && data.detection_hint ? '<span class="org-detect">' + this._orgEsc(data.detection_hint) + '</span>' : '') +
+      '<div class="org-fresh"><i></i><span data-org-relative="' + this._orgEsc(data.data_as_of || '') + '">' + this._orgEsc(this._orgUpdatedLabel(data.data_as_of)) + '</span></div>' +
+    '</div>';
+  }
+  _orgEscalationsHTML(items) {
+    const sorted = (Array.isArray(items) ? items.slice() : []).sort((a, b) => Date.parse(a.at || '') - Date.parse(b.at || ''));
+    if (!sorted.length) return '<div class="org-quiet"><span class="org-check">✓</span><span>No open escalations — the chart is quiet.</span></div>';
+    return '<div class="org-esc-list">' + sorted.map(e =>
+      '<div class="org-esc-card"><div class="org-esc-top"><span class="org-esc-from">' + this._orgEsc(e.from) + '</span><span>→</span><span class="org-esc-to">' + this._orgEsc(e.to) + '</span><span class="org-esc-age" data-org-age="' + this._orgEsc(e.at || '') + '">' + this._orgEsc(this._orgCompactAge(e.at)) + '</span></div>' +
+      '<div class="org-esc-q">' + this._orgEsc(e.question) + '</div>' +
+      (e.wf ? '<a class="org-wf" href="/workflows/' + encodeURIComponent(e.wf) + '" data-org-workflow="' + this._orgEsc(e.wf) + '">' + this._orgEsc(e.wf) + ' <span style="opacity:.6">↗</span></a>' : '') +
+      '</div>'
+    ).join('') + '</div>';
+  }
+  _orgFeedHTML(items) {
+    const colors = { blocked_since: '#ff9e64', recycle_overdue: '#e0af68', recycle: '#9ece6a' };
+    const rows = Array.isArray(items) ? items : [];
+    if (!rows.length) return '<div class="org-quiet"><span class="org-check">✓</span><span>No current signals.</span></div>';
+    return rows.map(f => {
+      const since = f.since ? '<div class="org-feed-since">since ' + this._orgEsc(f.since) + '</div>' : '';
+      return '<div class="org-feed-row"><div class="org-feed-line">' +
+        '<span class="org-feed-time" title="' + this._orgEsc(f.at || '') + '">' + this._orgEsc(this._orgTime(f.at)) + '</span>' +
+        '<span class="org-feed-kind" style="color:' + (colors[f.kind] || '#8b90b8') + '">' + this._orgEsc(f.kind) + '</span>' +
+        '<span class="org-feed-role">' + this._orgEsc(f.role) + '</span>' +
+        '<span class="org-feed-detail">' + this._orgEsc(f.detail || (f.kind === 'recycle' ? 'handoff journaled' : '')) + '</span>' +
+      '</div>' + since + '</div>';
+    }).join('');
+  }
+  _orgPanelState(state, isRoot) {
+    if (isRoot) return { label: 'ORG ROOT', color: '#bb9af7', bg: 'rgba(187,154,247,.1)' };
+    const m = {
+      working: { label: 'WORKING', color: '#9ece6a', bg: 'rgba(158,206,106,.1)' },
+      blocked: { label: 'BLOCKED', color: '#ff9e64', bg: 'rgba(255,158,100,.12)' },
+      idle: { label: 'IDLE', color: '#8b90b8', bg: 'rgba(160,168,220,.08)' },
+      'never-seen': { label: 'NEVER SEEN', color: '#8b90b8', bg: 'rgba(160,168,220,.06)' }
+    };
+    return m[state] || m.idle;
+  }
+  _orgPanelHTML(name) {
+    if (!name) return '';
+    const summary = ((this._orgData && this._orgData.roles) || []).find(r => r.name === name) || {};
+    const loading = this._orgDetailStatus === 'loading';
+    const detail = this._orgRoleCache && this._orgRoleCache[name];
+    const error = this._orgDetailError || '';
+    const identity = (detail && detail.identity) || summary;
+    const presence = (detail && detail.presence) || { state: summary.presence_state, blocked_since: summary.badges && summary.badges.blocked_since, last_seen_at: summary.last_seen_at, missed_wakes: summary.badges && summary.badges.missed_wakes };
+    const isRoot = !identity.parent;
+    const state = isRoot ? 'root' : (presence.state || summary.presence_state || 'idle');
+    const tone = this._orgPanelState(state, isRoot);
+    const kv = (k, v) => v === '' || v == null ? '' : '<div class="org-kv"><span class="org-kv-k">' + this._orgEsc(k) + '</span><span class="org-kv-v">' + this._orgEsc(v) + '</span></div>';
+    let body = '';
+    if (loading && !detail) {
+      body = '<div class="org-panel-note">Loading role details…</div>';
+    } else if (error && !detail) {
+      body = '<div class="org-panel-note" style="color:#bd7383">' + this._orgEsc(error) + '</div>';
+    } else {
+      const scope = Array.isArray(identity.scope) ? identity.scope.join(', ') : '';
+      const identityRows = kv('parent', identity.parent || '—') + kv('merge rule', identity.merge_rule || '—') + kv('pane', identity.pane || '—') + kv('scope', scope || '—');
+      let presenceBody = '';
+      if (isRoot) {
+        presenceBody = '<div class="org-panel-note">root — human owner, no agent presence. Coordinators escalate to this org root.</div>';
+      } else if (state === 'never-seen') {
+        presenceBody = '<div class="org-panel-note">never seen — known from config only; no agent presence has been recorded.</div>';
+      } else {
+        presenceBody =
+          '<div class="org-panel-row">state · ' + this._orgEsc(state) + '</div>' +
+          (summary.presence_detail ? '<div class="org-panel-row">detail · ' + this._orgEsc(summary.presence_detail) + '</div>' : '') +
+          (presence.blocked_since ? '<div class="org-panel-row">blocked since · ' + this._orgEsc(this._orgCompactAge(presence.blocked_since)) + ' ago</div>' : '') +
+          (presence.last_seen_at ? '<div class="org-panel-row">last dispatch · ' + this._orgEsc(this._orgCompactAge(presence.last_seen_at)) + ' ago</div>' : '') +
+          '<div class="org-panel-row">missed wakes · ' + Number(presence.missed_wakes || 0) + '</div>';
+      }
+      const recycle = (detail && detail.recycle) || {};
+      const recycleRows = [];
+      if (recycle.last_handoff_at) recycleRows.push('handoff journaled · ' + this._orgCompactAge(recycle.last_handoff_at) + ' ago');
+      if (recycle.last_handoff_text) recycleRows.push('“' + recycle.last_handoff_text + '”');
+      if (recycle.recycle_after) recycleRows.push('recycle after · ' + recycle.recycle_after);
+      if (recycle.remaining) recycleRows.push('remaining · ' + recycle.remaining);
+      if (recycle.overdue) recycleRows.push('overdue · ' + recycle.overdue);
+      const activity = (detail && detail.activity) || {};
+      const jobs = activity.jobs_today && typeof activity.jobs_today === 'object' ? activity.jobs_today : {};
+      const jobParts = Object.keys(jobs).sort().map(k => jobs[k] + ' ' + k);
+      const activityRows = [];
+      if (jobParts.length) activityRows.push(jobParts.join(' · '));
+      if (activity.notes != null) activityRows.push(Number(activity.notes) + ' journal notes');
+      const escs = detail && Array.isArray(detail.escalations) ? detail.escalations : [];
+      body =
+        '<div class="org-panel-sec"><h3>Identity</h3>' + identityRows + '</div>' +
+        '<div class="org-panel-sec"><h3>Presence</h3>' + presenceBody + '</div>' +
+        (recycleRows.length ? '<div class="org-panel-sec"><h3>Recycle</h3>' + recycleRows.map(r => '<div class="org-panel-row">' + this._orgEsc(r) + '</div>').join('') + '</div>' : '') +
+        (activityRows.length ? '<div class="org-panel-sec"><h3>Recent activity <span style="color:#4a4f74">· attributed</span></h3>' + activityRows.map(r => '<div class="org-panel-row">' + this._orgEsc(r) + '</div>').join('') + '</div>' : '') +
+        '<div class="org-panel-sec"><h3>Open escalations</h3><div class="org-panel-row" style="color:' + (escs.length ? '#e0af68' : '#5a6088') + '">' + (escs.length ? escs.length + ' open' : 'None') + '</div>' +
+        escs.map(e => '<div class="org-panel-esc">' + this._orgEsc(e.from + ' → ' + e.to + ' · ' + this._orgCompactAge(e.at)) + '<br>' + this._orgEsc(e.question) + '</div>').join('') + '</div>';
+    }
+    return '<aside class="org-panel" aria-label="Role details"><div class="org-panel-head"><div class="org-panel-titleline">' +
+      (isRoot ? '<span class="org-rootmark"></span>' : '<span class="org-presence ' + this._orgEsc(state) + '" style="margin-top:5px"></span>') +
+      '<div class="org-panel-title"><div class="org-panel-name">' + this._orgEsc(name) + '</div><div class="org-panel-sub">' + this._orgEsc(isRoot ? 'org root' : this._orgNodeSub(summary, false)) + '</div></div>' +
+      '<button type="button" class="org-panel-close" data-org-close aria-label="Close role details">×</button></div>' +
+      '<span class="org-panel-state" style="color:' + tone.color + ';background:' + tone.bg + '">' + tone.label + '</span></div>' +
+      '<div class="org-panel-body">' + body + '</div></aside>';
+  }
+  _orgEmptyHTML() {
+    return '<div class="org-empty"><div class="org-empty-card"><div class="org-empty-kicker"><span class="org-title-dot"></span><span>fleet · org</span></div><h1>Org not configured</h1><p>No roles are defined yet. Add an <code>[org.roles.*]</code> table to your gitmoot config and this read-only view will fill in from the daemon store.</p><pre><b>[org.roles.</b><i>"lead"</i><b>]</b>\n<em>parent</em> = <i>"owner"</i>\n<em>scope</em> = <i>"gitmoot/*"</i>\n<em>merge_rule</em> = <i>"self"</i></pre></div></div>';
+  }
+  renderOrg(data) {
+    if (!this._orgRoot) return;
+    data = data || {};
+    const roles = Array.isArray(data.roles) ? data.roles : [];
+    const content = this._orgRoot.querySelector('.org-content');
+    if (!content) return;
+    const previousChart = content.querySelector('.org-chart-scroll');
+    const previousScrollLeft = previousChart ? previousChart.scrollLeft : 0;
+    const centerAfterRender = !!this._orgCenterAfterRender || !previousChart;
+    this._orgCenterAfterRender = false;
+    if (!roles.length) {
+      try { if (this._orgTreeRO) this._orgTreeRO.disconnect(); } catch (e) {}
+      content.innerHTML = (this._orgError ? '<div class="org-errorbar">' + this._orgEsc(this._orgError) + '</div>' : '') + this._orgEmptyHTML();
+      return;
+    }
+    const escs = Array.isArray(data.escalations) ? data.escalations : [];
+    const feed = Array.isArray(data.feed) ? data.feed : [];
+    content.innerHTML =
+      this._orgHealthHTML(data) +
+      (this._orgError ? '<div class="org-errorbar">' + this._orgEsc(this._orgError) + '</div>' : '') +
+      '<section class="org-chart-region"><div class="org-sec-head"><span class="org-title-dot"></span><span>The Org Chart</span><span class="org-hint">click a role for details</span></div>' +
+        '<div class="org-chart-scroll"><div class="org-tree-wrap"><svg class="org-tree-svg" aria-hidden="true"></svg><div class="org-tree">' + this._orgTreeHTML(roles) + '</div></div></div>' +
+      '</section>' +
+      '<div class="org-split">' +
+        '<section class="org-col"><div class="org-sec-head"><span class="org-title-dot" style="background:' + (escs.length ? '#e0af68;box-shadow:0 0 8px rgba(224,175,104,.5)' : '#9ece6a;box-shadow:0 0 8px rgba(158,206,106,.4)') + '"></span><span>Escalations</span><span class="org-count">' + escs.length + ' open</span><span class="org-right">oldest first</span></div><div class="org-col-body">' + this._orgEscalationsHTML(escs) + '</div></section>' +
+        '<section class="org-col"><div class="org-sec-head"><span class="org-title-dot" style="background:#9ece6a;box-shadow:0 0 8px rgba(158,206,106,.4)"></span><span>Event feed</span><span class="org-right">current signals</span></div><div class="org-col-body">' + this._orgFeedHTML(feed) + '</div></section>' +
+      '</div>' +
+      this._orgPanelHTML(this._orgSelected);
+    try { if (this._orgTreeRO) this._orgTreeRO.disconnect(); } catch (e) {}
+    const tree = content.querySelector('.org-tree');
+    if (tree && typeof ResizeObserver !== 'undefined') {
+      this._orgTreeRO = new ResizeObserver(() => this._orgComputeEdges());
+      this._orgTreeRO.observe(tree);
+    }
+    requestAnimationFrame(() => {
+      this._orgComputeEdges();
+      const chart = content.querySelector('.org-chart-scroll');
+      if (centerAfterRender) this._orgCenterTree();
+      else if (chart) chart.scrollLeft = previousScrollLeft;
+    });
+    setTimeout(() => this._orgComputeEdges(), 120);
+    this._queuePullToRefreshSync();
+  }
+  _orgRefreshTimes() {
+    if (!this._orgRoot) return;
+    this._orgRoot.querySelectorAll('[data-org-relative]').forEach(el => { el.textContent = this._orgUpdatedLabel(el.getAttribute('data-org-relative')); });
+    this._orgRoot.querySelectorAll('[data-org-age]').forEach(el => { el.textContent = this._orgCompactAge(el.getAttribute('data-org-age')); });
+  }
+  async fetchOrg(background) {
+    if (this._orgFetching) return;
+    this._orgFetching = true;
+    if (!background && !this._orgData && this._orgRoot) {
+      const c = this._orgRoot.querySelector('.org-content');
+      if (c) c.innerHTML = '<div class="org-loading"><div class="org-loading-card"><div class="org-loading-line short"></div><div class="org-loading-line"></div><div class="org-loading-line"></div></div></div>';
+    }
+    try {
+      const res = await fetch('/api/org', { cache: 'no-store' });
+      if (!res.ok) throw new Error(res.status === 404 ? 'Org data requires a newer gitmoot build.' : ('Could not load Org data (HTTP ' + res.status + ').'));
+      const text = await res.text();
+      if (background && this._orgSignature === text) { this._orgRefreshTimes(); return; }
+      const data = JSON.parse(text || '{}');
+      data.roles = Array.isArray(data.roles) ? data.roles : [];
+      data.escalations = Array.isArray(data.escalations) ? data.escalations : [];
+      data.feed = Array.isArray(data.feed) ? data.feed : [];
+      this._orgSignature = text;
+      this._orgData = data;
+      this._orgError = '';
+      this.renderOrg(data);
+      if (this._orgSelected) this.fetchOrgRole(this._orgSelected, true);
+    } catch (err) {
+      this._orgError = err && err.message ? err.message : 'Could not load Org data.';
+      if (this._orgData) this.renderOrg(this._orgData);
+      else if (this._orgRoot) {
+        const c = this._orgRoot.querySelector('.org-content');
+        if (c) c.innerHTML = '<div class="org-failure"><div class="org-failure-card"><h1>Org is unavailable</h1><p>' + this._orgEsc(this._orgError) + '</p></div></div>';
+      }
+    } finally {
+      this._orgFetching = false;
+    }
+  }
+  openOrgRole(name) {
+    if (!name) return;
+    if (this._orgSelected === name) { this.closeOrgRole(); return; }
+    this._orgSelected = name;
+    this._orgDetailError = '';
+    this._orgDetailStatus = this._orgRoleCache && this._orgRoleCache[name] ? 'ready' : 'loading';
+    if (this._orgData) this.renderOrg(this._orgData);
+    this.fetchOrgRole(name, false);
+  }
+  closeOrgRole() {
+    if (!this._orgSelected) return;
+    this._orgSelected = '';
+    this._orgDetailStatus = '';
+    this._orgDetailError = '';
+    if (this._orgData) this.renderOrg(this._orgData);
+  }
+  async fetchOrgRole(name, background) {
+    if (!name || (this._orgRoleFetching && this._orgRoleFetching === name)) return;
+    this._orgRoleFetching = name;
+    if (!this._orgRoleCache) this._orgRoleCache = {};
+    if (!background && !this._orgRoleCache[name]) this._orgDetailStatus = 'loading';
+    try {
+      const res = await fetch('/api/org/role/' + encodeURIComponent(name), { cache: 'no-store' });
+      if (!res.ok) throw new Error('Could not load role details (HTTP ' + res.status + ').');
+      const data = await res.json();
+      data.escalations = Array.isArray(data.escalations) ? data.escalations : [];
+      if (data.identity) {
+        data.identity.scope = Array.isArray(data.identity.scope) ? data.identity.scope : [];
+        data.identity.path = Array.isArray(data.identity.path) ? data.identity.path : [];
+      }
+      this._orgRoleCache[name] = data;
+      if (this._orgSelected === name) { this._orgDetailStatus = 'ready'; this._orgDetailError = ''; this.renderOrg(this._orgData); }
+    } catch (err) {
+      if (this._orgSelected === name) {
+        this._orgDetailStatus = 'error';
+        this._orgDetailError = err && err.message ? err.message : 'Could not load role details.';
+        this.renderOrg(this._orgData);
+      }
+    } finally {
+      if (this._orgRoleFetching === name) this._orgRoleFetching = '';
+    }
+  }
+
   startChartsPoll() {
     if (this._chartsPoll) return;
     this._chartsPoll = setInterval(() => { if (this.state.view !== 'charts') return; this.fetchCharts(true); }, 12000);
@@ -10369,6 +10811,7 @@ class Component extends DCLogic {
   _navMorePipelines = () => { this.setState({ moreOpen: false }); this.showPipelines(); };
   _navMoreChat = () => { this.setState({ moreOpen: false }); this.showChat(); };
   _navMoreAgents = () => { this.setState({ moreOpen: false }); this.showAgents(); };
+  _navMoreOrg = () => { this.setState({ moreOpen: false }); this.showOrg(); };
   _navMoreAttention = () => { this.setState({ moreOpen: false }); this.showAttention(); };
   _navMoreHealth = () => { this.setState({ moreOpen: false }); this.showHealth(); };
 
@@ -11246,7 +11689,7 @@ class Component extends DCLogic {
     el.style.bottom = this._overlayBottom();
   }
   _redockOverlays() {
-    [this._overviewRoot, this._tasksRoot, this._galaxyRoot, this._workflowRoot, this._jobsRoot, this._agentsRoot, this._chartsRoot, this._healthRoot, this._configRoot, this._learningRoot, this._pipelinesRoot, this._chatRoot]
+    [this._overviewRoot, this._tasksRoot, this._galaxyRoot, this._workflowRoot, this._jobsRoot, this._agentsRoot, this._orgRoot, this._chartsRoot, this._healthRoot, this._configRoot, this._learningRoot, this._pipelinesRoot, this._chatRoot]
       .forEach(r => this._dockOverlay(r));
   }
 
@@ -11849,6 +12292,7 @@ class Component extends DCLogic {
     const isBrain = view === 'brain';
     const isJobs = view === 'jobs';
     const isAgents = view === 'agents';
+    const isOrg = view === 'org';
     const isCharts = view === 'charts';
     const isHealth = view === 'health';
     const isConfig = view === 'config';
@@ -11874,6 +12318,7 @@ class Component extends DCLogic {
     const workflowsNavStyle = { ...navActive(isWorkflows), position: 'relative' };
     const chatNavStyle = { ...navActive(isChat), position: 'relative' };
     const agentsNavStyle = { ...navActive(isAgents), position: 'relative' };
+    const orgNavStyle = { ...navActive(isOrg), position: 'relative' };
     const chartsNavStyle = { ...navActive(isCharts), position: 'relative' };
     const healthNavStyle = { ...navActive(isHealth), position: 'relative' };
     const configNavStyle = { ...navActive(isConfig), position: 'relative' };
@@ -11935,9 +12380,9 @@ class Component extends DCLogic {
     // Graph keeps its repo › run-title (and the run-state dot); every other view shows
     // its section + a cheaply-available selected entity (chat thread / pipeline / agent),
     // falling back to its nav group + section name.
-    const NAV_GROUP = { overview: 'work', tasks: 'work', graph: 'work', jobs: 'work', pipelines: 'work', workflows: 'work', agents: 'fleet', chat: 'fleet', brain: 'insight', galaxy: 'insight', charts: 'insight', learning: 'insight', attention: 'system', health: 'system', config: 'system' };
-    const SECT = { overview: 'overview', tasks: 'tasks', graph: 'graph', jobs: 'jobs', pipelines: 'pipelines', workflows: 'workflows', agents: 'agents', chat: 'chat', brain: 'brain', galaxy: 'galaxy', charts: 'charts', learning: 'learning', attention: 'attention', health: 'health', config: 'config' };
-    let crumbRoot, crumbLeaf, crumbShowDot = false;
+    const NAV_GROUP = { overview: 'work', tasks: 'work', graph: 'work', jobs: 'work', pipelines: 'work', workflows: 'work', agents: 'fleet', org: 'fleet', chat: 'fleet', brain: 'insight', galaxy: 'insight', charts: 'insight', learning: 'insight', attention: 'system', health: 'system', config: 'system' };
+    const SECT = { overview: 'overview', tasks: 'tasks', graph: 'graph', jobs: 'jobs', pipelines: 'pipelines', workflows: 'workflows', agents: 'agents', org: 'org', chat: 'chat', brain: 'brain', galaxy: 'galaxy', charts: 'charts', learning: 'learning', attention: 'attention', health: 'health', config: 'config' };
+    let crumbRoot, crumbLeaf, crumbShowDot = isOrg;
     if (isGraph) {
       crumbRoot = activeRun.repo || 'graph'; crumbLeaf = activeRun.title || 'run'; crumbShowDot = true;
     } else {
@@ -11961,12 +12406,12 @@ class Component extends DCLogic {
       zoomIn: this.zoomIn, zoomOut: this.zoomOut, fit: this.fit,
       toggleRuns: this.toggleRuns, runsTabVisible,
       showGraph: this.showGraph, showOverview: this.showOverview, showTasks: this.showTasks, showBrain: this.showBrain, showGalaxy: this.showGalaxy,
-      showJobs: this.showJobs, showAgents: this.showAgents,
+      showJobs: this.showJobs, showAgents: this.showAgents, showOrg: this.showOrg,
       showCharts: this.showCharts, showHealth: this.showHealth, showConfig: this.showConfig, showLearning: this.showLearning,
       showPipelines: this.showPipelines, showWorkflows: this.showWorkflows, showChat: this.showChat, showAttention: this.showAttention,
-      graphNavStyle, overviewNavStyle, tasksNavStyle, brainNavStyle, galaxyNavStyle, jobsNavStyle, pipelinesNavStyle, workflowsNavStyle, chatNavStyle, agentsNavStyle, chartsNavStyle, healthNavStyle, configNavStyle, attentionNavStyle, learningNavStyle,
+      graphNavStyle, overviewNavStyle, tasksNavStyle, brainNavStyle, galaxyNavStyle, jobsNavStyle, pipelinesNavStyle, workflowsNavStyle, chatNavStyle, agentsNavStyle, orgNavStyle, chartsNavStyle, healthNavStyle, configNavStyle, attentionNavStyle, learningNavStyle,
       graphNavDotStyle: needsDot(false), brainNavDotStyle: needsDot(false), galaxyNavDotStyle: needsDot(false),
-      jobsNavDotStyle: needsDot(false), agentsNavDotStyle: needsDot(false),
+      jobsNavDotStyle: needsDot(false), agentsNavDotStyle: needsDot(false), orgNavDotStyle: needsDot(false),
       chartsNavDotStyle: needsDot(false), healthNavDotStyle: needsDot(healthAttn && !isHealth),
       configNavDotStyle: needsDot(false),
       attentionNavDotStyle: needsDot(attnAttn && !isAttention, '#f7768e'),
@@ -11982,7 +12427,7 @@ class Component extends DCLogic {
       showOverviewFromMore: this._navMoreOverview, showTasksFromMore: this._navMoreTasks, showWorkflowsFromMore: this._navMoreWorkflows, showJobsFromMore: this._navMoreJobs, showBrainFromMore: this._navMoreBrain,
       showGalaxyFromMore: this._navMoreGalaxy, showChartsFromMore: this._navMoreCharts, showLearningFromMore: this._navMoreLearning,
       showConfigFromMore: this._navMoreConfig, showPipelinesFromMore: this._navMorePipelines, showChatFromMore: this._navMoreChat,
-      showAgentsFromMore: this._navMoreAgents, showAttentionFromMore: this._navMoreAttention, showHealthFromMore: this._navMoreHealth,
+      showAgentsFromMore: this._navMoreAgents, showOrgFromMore: this._navMoreOrg, showAttentionFromMore: this._navMoreAttention, showHealthFromMore: this._navMoreHealth,
       moreLearnDotStyle: needsDot(learningAttn),
       daemonText, daemonTextStyle, liveWord, liveBadgeStyle, liveDotStyle,
       buildSkewVisible, buildSkewServer, buildSkewDaemon, dismissBuildSkew: this._dismissBuildSkew,
@@ -11992,10 +12437,10 @@ class Component extends DCLogic {
       tabAttentionStyle: { ...tabStyle(isAttention), position: 'relative' },
             tabPipelinesStyle: { ...tabStyle(isPipelines), position: 'relative' },
       tabChatStyle: { ...tabStyle(isChat), position: 'relative' },
-      tabMoreStyle: { ...tabStyle(isGraph || isJobs || isGalaxy || isCharts || isLearning || isConfig || isPipelines || isChat || isAgents || isAttention || isHealth), position: 'relative' },
+      tabMoreStyle: { ...tabStyle(isGraph || isJobs || isGalaxy || isCharts || isLearning || isConfig || isPipelines || isChat || isAgents || isOrg || isAttention || isHealth), position: 'relative' },
       crumbRepoStyle, crumbSepStyle, liveTextStyle, detailAsideStyle, zoomCtrlStyle, footerStyle,
       crumbRepo: crumbRoot, crumbTitle: crumbLeaf,
-      crumbDotStyle: crumbShowDot ? { width: '8px', height: '8px', borderRadius: '50%', flex: 'none', background: crumbCol.c, boxShadow: activeRun.state === 'running' ? '0 0 8px ' + crumbCol.g : 'none', animation: activeRun.state === 'running' ? 'dotpulse 1.4s ease-in-out infinite' : 'none' } : { display: 'none' },
+      crumbDotStyle: crumbShowDot ? { width: '8px', height: '8px', borderRadius: '50%', flex: 'none', background: isOrg ? '#bb9af7' : crumbCol.c, boxShadow: isOrg ? '0 0 8px rgba(187,154,247,.6)' : (activeRun.state === 'running' ? '0 0 8px ' + crumbCol.g : 'none'), animation: (!isOrg && activeRun.state === 'running') ? 'dotpulse 1.4s ease-in-out infinite' : 'none' } : { display: 'none' },
       hasSelected: !!sel && isGraph,
       closePanel: this.closePanel,
       togglePrompt: this.togglePrompt, toggleOutput: this.toggleOutput,
