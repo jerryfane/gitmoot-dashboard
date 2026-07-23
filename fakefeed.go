@@ -24,6 +24,8 @@ var (
 	ErrPipelineRunNotFound = errors.New("pipeline run not found")
 	// ErrPipelineNotFound indicates the requested pipeline does not exist.
 	ErrPipelineNotFound = errors.New("pipeline not found")
+	// ErrOrgRoleNotFound indicates the requested org role does not exist.
+	ErrOrgRoleNotFound = errors.New("org role not found")
 	// ErrChatThreadNotFound indicates the requested chat thread does not exist.
 	ErrChatThreadNotFound = errors.New("chat thread not found")
 	// ErrWorkflowNotFound indicates the requested workflow label does not exist.
@@ -801,6 +803,129 @@ func (f *FakeDataSource) Tasks(ctx context.Context) ([]TaskSummary, error) {
 		}
 	}
 	return tasks, nil
+}
+
+const fakeOrgDataAsOf = "2026-07-23T01:45:00Z"
+
+func fakeOrgView() OrgView {
+	escalations := []OrgEscalation{
+		{
+			From:     "g4",
+			To:       "lead",
+			Wf:       "g2/1097-org-dashboard",
+			Question: "Should the blocked role keep the current store projection or wait for the RFC field rename?",
+			At:       "2026-07-23T01:34:00Z",
+		},
+		{
+			From:     "vetrina",
+			To:       "owner",
+			Wf:       "vetrina/dashboard-visual-audit",
+			Question: "The recycle deadline passed with the comparison pass still open; should the role hand off now?",
+			At:       "2026-07-23T01:08:00Z",
+		},
+	}
+	return OrgView{
+		DataAsOf:         fakeOrgDataAsOf,
+		DetectionEnabled: true,
+		DetectionHint:    "",
+		Health: OrgHealth{
+			Roles:           10,
+			Working:         3,
+			Blocked:         1,
+			Overdue:         1,
+			OpenEscalations: len(escalations),
+			StalledWakes:    3,
+		},
+		Roles: []OrgNode{
+			{Name: "owner", Depth: 0, Scope: []string{"fleet"}, MergeRule: "owner-approval", Pane: "owner", PresenceState: "idle", PresenceDetail: "fleet oversight", Badges: OrgBadges{}, LastSeenAt: "2026-07-23T01:42:00Z"},
+			{Name: "lead", Parent: "owner", Depth: 1, Scope: []string{"coordination", "delivery"}, MergeRule: "review", Pane: "lead", PresenceState: "working", PresenceDetail: "coordinating RFC #1042 phase 4", Badges: OrgBadges{}, LastSeenAt: "2026-07-23T01:44:00Z"},
+			{Name: "g2", Parent: "lead", Depth: 2, Scope: []string{"gitmoot", "dashboard"}, MergeRule: "squash", Pane: "g2", PresenceState: "working", PresenceDetail: "implementing the Org data API", Badges: OrgBadges{}, LastSeenAt: "2026-07-23T01:43:00Z"},
+			{Name: "g3", Parent: "lead", Depth: 2, Scope: []string{"research", "review"}, MergeRule: "squash", Pane: "g3", PresenceState: "idle", PresenceDetail: "available", Badges: OrgBadges{}, LastSeenAt: "2026-07-23T01:19:00Z"},
+			{Name: "g4", Parent: "lead", Depth: 2, Scope: []string{"gitmoot", "integration"}, MergeRule: "squash", Pane: "g4", PresenceState: "blocked", PresenceDetail: "waiting on an API contract decision", Badges: OrgBadges{BlockedSince: "2026-07-23T01:31:00Z", MissedWakes: 2}, LastSeenAt: "2026-07-23T01:30:00Z"},
+			{Name: "herdres", Parent: "lead", Depth: 2, Scope: []string{"messaging", "telegram"}, MergeRule: "squash", Pane: "herdres", PresenceState: "idle", PresenceDetail: "delivery queue clear", Badges: OrgBadges{}, LastSeenAt: "2026-07-23T00:48:00Z"},
+			{Name: "jarvis", Parent: "lead", Depth: 2, Scope: []string{"operations"}, MergeRule: "squash", Pane: "jarvis", PresenceState: "never-seen", Badges: OrgBadges{}},
+			{Name: "joltra", Parent: "lead", Depth: 2, Scope: []string{"media", "production"}, MergeRule: "squash", Pane: "joltra", PresenceState: "working", PresenceDetail: "rendering the weekly clip batch", Badges: OrgBadges{}, LastSeenAt: "2026-07-23T01:41:00Z"},
+			{Name: "trend-scout", Parent: "lead", Depth: 2, Scope: []string{"research", "signals"}, MergeRule: "squash", Pane: "trend-scout", PresenceState: "idle", PresenceDetail: "next scan scheduled", Badges: OrgBadges{}, LastSeenAt: "2026-07-23T00:37:00Z"},
+			{Name: "vetrina", Parent: "lead", Depth: 2, Scope: []string{"design", "visual-review"}, MergeRule: "squash", Pane: "vetrina", PresenceState: "idle", PresenceDetail: "comparison pass awaiting handoff", Badges: OrgBadges{Overdue: "23m", MissedWakes: 1}, LastSeenAt: "2026-07-23T00:52:00Z"},
+		},
+		Escalations: escalations,
+		Feed: []OrgFeedRow{
+			{Kind: "blocked_since", Role: "g4", At: "2026-07-23T01:31:00Z", Since: "14m", Detail: "waiting on an API contract decision"},
+			{Kind: "recycle_overdue", Role: "vetrina", At: "2026-07-23T01:22:00Z", Since: "23m", Detail: "visual audit handoff is overdue"},
+			{Kind: "recycle", Role: "joltra", At: "2026-07-23T00:58:00Z", Detail: "handoff recorded after the weekly clip batch"},
+		},
+	}
+}
+
+// Org implements the deterministic read-only organization snapshot.
+func (f *FakeDataSource) Org(ctx context.Context) (OrgView, error) {
+	return fakeOrgView(), nil
+}
+
+// OrgRole implements the organization role drill-down.
+func (f *FakeDataSource) OrgRole(ctx context.Context, name string) (OrgRoleView, error) {
+	org := fakeOrgView()
+	var node *OrgNode
+	for i := range org.Roles {
+		if org.Roles[i].Name == name {
+			node = &org.Roles[i]
+			break
+		}
+	}
+	if node == nil {
+		return OrgRoleView{}, ErrOrgRoleNotFound
+	}
+
+	path := []string{"owner"}
+	if node.Name != "owner" {
+		path = append(path, "lead")
+	}
+	if node.Depth > 1 {
+		path = append(path, node.Name)
+	}
+	escalations := make([]OrgEscalation, 0, 1)
+	for _, escalation := range org.Escalations {
+		if escalation.From == name || escalation.To == name {
+			escalations = append(escalations, escalation)
+		}
+	}
+
+	view := OrgRoleView{
+		Identity: OrgRoleIdentity{
+			Name: node.Name, Parent: node.Parent, MergeRule: node.MergeRule,
+			Pane: node.Pane, Scope: append([]string(nil), node.Scope...), Depth: node.Depth, Path: path,
+		},
+		Presence: OrgRolePresence{
+			State: node.PresenceState, BlockedSince: node.Badges.BlockedSince,
+			LastSeenAt: node.LastSeenAt, MissedWakes: node.Badges.MissedWakes,
+		},
+		Recycle: OrgRoleRecycle{
+			LastHandoffAt: "2026-07-23T00:58:00Z", LastHandoffText: "Completed the previous assignment and left a concise handoff.",
+			RecycleAfter: "2h", Remaining: "1h13m",
+		},
+		Activity:    OrgRoleActivity{JobsToday: map[string]int{"succeeded": 4, "failed": 0, "running": 0}, Notes: 3},
+		Escalations: escalations,
+	}
+	switch name {
+	case "g2":
+		view.Activity = OrgRoleActivity{JobsToday: map[string]int{"succeeded": 5, "failed": 0, "running": 1}, Notes: 4}
+	case "g4":
+		view.Recycle = OrgRoleRecycle{
+			LastHandoffAt: "2026-07-23T00:55:00Z", LastHandoffText: "Integration tests passed; contract naming still needs a decision.",
+			RecycleAfter: "2h", Remaining: "1h10m",
+		}
+		view.Activity = OrgRoleActivity{JobsToday: map[string]int{"succeeded": 3, "failed": 1, "blocked": 1}, Notes: 6}
+	case "jarvis":
+		view.Recycle = OrgRoleRecycle{}
+		view.Activity = OrgRoleActivity{JobsToday: map[string]int{}, Notes: 0}
+	case "vetrina":
+		view.Recycle = OrgRoleRecycle{
+			LastHandoffAt: "2026-07-22T23:22:00Z", LastHandoffText: "Desktop comparison is complete; mobile review remains.",
+			RecycleAfter: "2h", Overdue: "23m",
+		}
+		view.Activity = OrgRoleActivity{JobsToday: map[string]int{"succeeded": 2, "failed": 0}, Notes: 5}
+	}
+	return view, nil
 }
 
 // Workflow implements WorkflowDataSource with complete run trees and an

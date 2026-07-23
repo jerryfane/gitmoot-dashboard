@@ -17,6 +17,17 @@ import (
 
 type noWorkflowDataSource struct{ DataSource }
 type noChangeCursorDataSource struct{ DataSource }
+type noOrgDataSource struct{ DataSource }
+
+type sparseOrgDataSource struct{ DataSource }
+
+func (d sparseOrgDataSource) Org(context.Context) (OrgView, error) {
+	return OrgView{}, nil
+}
+
+func (d sparseOrgDataSource) OrgRole(_ context.Context, name string) (OrgRoleView, error) {
+	return OrgRoleView{Identity: OrgRoleIdentity{Name: name}}, nil
+}
 
 type configSnapshotDataSource struct {
 	DataSource
@@ -433,6 +444,188 @@ func TestFakeTasksContractOrderingAndDeterminism(t *testing.T) {
 		if !bytes.Contains(raw1, []byte(field)) {
 			t.Fatalf("tasks wire payload missing %s: %s", field, raw1)
 		}
+	}
+}
+
+func TestFakeOrgContractAndDeterminism(t *testing.T) {
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+
+	raw1 := getRaw(t, srv.URL+"/api/org")
+	raw2 := getRaw(t, srv.URL+"/api/org")
+	if !bytes.Equal(raw1, raw2) {
+		t.Fatalf("org changed across identical reads\nfirst=%s\nsecond=%s", raw1, raw2)
+	}
+	var org OrgView
+	if err := json.Unmarshal(raw1, &org); err != nil {
+		t.Fatalf("decode org: %v", err)
+	}
+	if org.DataAsOf != fakeOrgDataAsOf || !org.DetectionEnabled || org.DetectionHint != "" {
+		t.Fatalf("org snapshot metadata = %+v", org)
+	}
+	if len(org.Roles) != 10 || org.Health.Roles != len(org.Roles) {
+		t.Fatalf("org roles health=%+v roles=%+v", org.Health, org.Roles)
+	}
+	wantOrder := []string{"owner", "lead", "g2", "g3", "g4", "herdres", "jarvis", "joltra", "trend-scout", "vetrina"}
+	gotOrder := make([]string, 0, len(org.Roles))
+	states := map[string]bool{}
+	for _, role := range org.Roles {
+		gotOrder = append(gotOrder, role.Name)
+		states[role.PresenceState] = true
+		if role.Scope == nil {
+			t.Fatalf("role %q scope is nil", role.Name)
+		}
+		switch role.Name {
+		case "g4":
+			if role.PresenceState != "blocked" || role.Badges.BlockedSince == "" || role.Badges.MissedWakes == 0 {
+				t.Fatalf("g4 blocked fixture = %+v", role)
+			}
+		case "vetrina":
+			if role.Badges.Overdue == "" {
+				t.Fatalf("vetrina overdue fixture = %+v", role)
+			}
+		case "jarvis":
+			if role.PresenceState != "never-seen" || role.LastSeenAt != "" {
+				t.Fatalf("jarvis empty-seat fixture = %+v", role)
+			}
+		}
+	}
+	if !reflect.DeepEqual(gotOrder, wantOrder) {
+		t.Fatalf("org role order = %v, want %v", gotOrder, wantOrder)
+	}
+	for _, state := range []string{"blocked", "working", "idle", "never-seen"} {
+		if !states[state] {
+			t.Fatalf("org fixture missing presence state %q: %+v", state, org.Roles)
+		}
+	}
+	if len(org.Escalations) != 2 || org.Health.OpenEscalations != len(org.Escalations) {
+		t.Fatalf("org escalations health=%+v escalations=%+v", org.Health, org.Escalations)
+	}
+	if len(org.Feed) != 3 {
+		t.Fatalf("org feed = %+v", org.Feed)
+	}
+	allowedKinds := map[string]bool{"blocked_since": true, "recycle_overdue": true, "recycle": true}
+	for _, row := range org.Feed {
+		if !allowedKinds[row.Kind] || row.Role == "" || row.At == "" {
+			t.Fatalf("invalid org feed row = %+v", row)
+		}
+	}
+	for _, field := range []string{
+		`"data_as_of"`, `"detection_enabled"`, `"open_escalations"`,
+		`"presence_state"`, `"blocked_since"`, `"missed_wakes"`,
+	} {
+		if !bytes.Contains(raw1, []byte(field)) {
+			t.Fatalf("org wire payload missing %s: %s", field, raw1)
+		}
+	}
+}
+
+func TestFakeOrgRoleContractAndDeterminism(t *testing.T) {
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+
+	url := srv.URL + "/api/org/role/g4"
+	raw1 := getRaw(t, url)
+	raw2 := getRaw(t, url)
+	if !bytes.Equal(raw1, raw2) {
+		t.Fatalf("org role changed across identical reads\nfirst=%s\nsecond=%s", raw1, raw2)
+	}
+	var role OrgRoleView
+	if err := json.Unmarshal(raw1, &role); err != nil {
+		t.Fatalf("decode org role: %v", err)
+	}
+	if role.Identity.Name != "g4" || role.Identity.Parent != "lead" || role.Identity.Depth != 2 {
+		t.Fatalf("org role identity = %+v", role.Identity)
+	}
+	if !reflect.DeepEqual(role.Identity.Path, []string{"owner", "lead", "g4"}) || role.Identity.Scope == nil {
+		t.Fatalf("org role path/scope = %+v", role.Identity)
+	}
+	if role.Presence.State != "blocked" || role.Presence.BlockedSince == "" || role.Presence.MissedWakes == 0 {
+		t.Fatalf("org role presence = %+v", role.Presence)
+	}
+	if role.Recycle.LastHandoffAt == "" || role.Recycle.LastHandoffText == "" || role.Recycle.RecycleAfter == "" || role.Recycle.Remaining == "" {
+		t.Fatalf("org role recycle = %+v", role.Recycle)
+	}
+	if role.Activity.JobsToday == nil || role.Activity.JobsToday["blocked"] != 1 || role.Activity.Notes == 0 || len(role.Escalations) != 1 {
+		t.Fatalf("org role activity/escalations = %+v", role)
+	}
+	for _, field := range []string{
+		`"merge_rule"`, `"blocked_since"`, `"last_handoff_at"`,
+		`"recycle_after"`, `"jobs_today"`, `"escalations"`,
+	} {
+		if !bytes.Contains(raw1, []byte(field)) {
+			t.Fatalf("org role wire payload missing %s: %s", field, raw1)
+		}
+	}
+}
+
+func TestHandleOrgUnsupportedDataSource(t *testing.T) {
+	srv := httptest.NewServer(Serve(noOrgDataSource{DataSource: NewFakeDataSource()}))
+	defer srv.Close()
+
+	for _, path := range []string{"/api/org", "/api/org/role/g4"} {
+		resp, err := http.Get(srv.URL + path)
+		if err != nil {
+			t.Fatalf("GET %s: %v", path, err)
+		}
+		body, readErr := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if readErr != nil {
+			t.Fatalf("read %s: %v", path, readErr)
+		}
+		if resp.StatusCode != http.StatusNotFound || !strings.Contains(string(body), "org unsupported by data source") {
+			t.Fatalf("GET %s status=%d body=%q, want 404 unsupported", path, resp.StatusCode, body)
+		}
+	}
+}
+
+func TestHandleOrgRoleNotFound(t *testing.T) {
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/api/org/role/unknown")
+	if err != nil {
+		t.Fatalf("GET unknown org role: %v", err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusNotFound || !strings.Contains(string(body), ErrOrgRoleNotFound.Error()) {
+		t.Fatalf("status=%d body=%q, want 404 org role not found", resp.StatusCode, body)
+	}
+}
+
+func TestHandleOrgNormalizesNilCollections(t *testing.T) {
+	srv := httptest.NewServer(Serve(sparseOrgDataSource{DataSource: NewFakeDataSource()}))
+	defer srv.Close()
+
+	var org map[string]any
+	if err := json.Unmarshal(getRaw(t, srv.URL+"/api/org"), &org); err != nil {
+		t.Fatalf("decode sparse org: %v", err)
+	}
+	for _, field := range []string{"roles", "escalations", "feed"} {
+		value, ok := org[field].([]any)
+		if !ok || value == nil || len(value) != 0 {
+			t.Fatalf("sparse org %s = %#v, want []", field, org[field])
+		}
+	}
+
+	var role map[string]any
+	if err := json.Unmarshal(getRaw(t, srv.URL+"/api/org/role/empty"), &role); err != nil {
+		t.Fatalf("decode sparse org role: %v", err)
+	}
+	identity := role["identity"].(map[string]any)
+	activity := role["activity"].(map[string]any)
+	if scope, ok := identity["scope"].([]any); !ok || scope == nil {
+		t.Fatalf("sparse role scope = %#v, want []", identity["scope"])
+	}
+	if path, ok := identity["path"].([]any); !ok || path == nil {
+		t.Fatalf("sparse role path = %#v, want []", identity["path"])
+	}
+	if jobs, ok := activity["jobs_today"].(map[string]any); !ok || jobs == nil {
+		t.Fatalf("sparse role jobs_today = %#v, want {}", activity["jobs_today"])
+	}
+	if escalations, ok := role["escalations"].([]any); !ok || escalations == nil {
+		t.Fatalf("sparse role escalations = %#v, want []", role["escalations"])
 	}
 }
 

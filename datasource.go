@@ -481,6 +481,116 @@ type TasksDataSource interface {
 	Tasks(ctx context.Context) ([]TaskSummary, error)
 }
 
+// OrgDataSource is the optional read-only organization visibility extension.
+// Keeping it separate preserves the core DataSource contract for older bridges.
+type OrgDataSource interface {
+	Org(ctx context.Context) (OrgView, error)
+	OrgRole(ctx context.Context, name string) (OrgRoleView, error)
+}
+
+// OrgView is the deterministic organization snapshot served by GET /api/org.
+type OrgView struct {
+	DataAsOf         string          `json:"data_as_of"` // RFC3339; max source timestamp, never now
+	DetectionEnabled bool            `json:"detection_enabled"`
+	DetectionHint    string          `json:"detection_hint"` // "" when enabled
+	Health           OrgHealth       `json:"health"`
+	Roles            []OrgNode       `json:"roles"` // sorted by tree path (server guarantees deterministic order)
+	Escalations      []OrgEscalation `json:"escalations"`
+	Feed             []OrgFeedRow    `json:"feed"`
+}
+
+// OrgHealth is the organization-wide presence and escalation rollup.
+type OrgHealth struct {
+	Roles           int `json:"roles"`
+	Working         int `json:"working"`
+	Blocked         int `json:"blocked"`
+	Overdue         int `json:"overdue"`
+	OpenEscalations int `json:"open_escalations"`
+	StalledWakes    int `json:"stalled_wakes"`
+}
+
+// OrgNode is one role in tree-path order.
+type OrgNode struct {
+	Name           string    `json:"name"`
+	Parent         string    `json:"parent"` // empty for root
+	Depth          int       `json:"depth"`
+	Scope          []string  `json:"scope"`
+	MergeRule      string    `json:"merge_rule"`
+	Pane           string    `json:"pane"`           // configured pane name only
+	PresenceState  string    `json:"presence_state"` // blocked | working | idle | never-seen
+	PresenceDetail string    `json:"presence_detail,omitempty"`
+	Badges         OrgBadges `json:"badges"`
+	LastSeenAt     string    `json:"last_seen_at,omitempty"` // labeled "last dispatch" by clients
+}
+
+// OrgBadges contains the blocked/recycle signals displayed on an org node.
+type OrgBadges struct {
+	BlockedSince string `json:"blocked_since,omitempty"` // RFC3339
+	Overdue      string `json:"overdue,omitempty"`       // Go duration text
+	MissedWakes  int    `json:"missed_wakes"`
+}
+
+// OrgEscalation is one open read-only escalation.
+type OrgEscalation struct {
+	From     string `json:"from"`
+	To       string `json:"to"`
+	Wf       string `json:"wf"`
+	Question string `json:"question"`
+	At       string `json:"at"` // RFC3339
+}
+
+// OrgFeedRow is one organization signal.
+type OrgFeedRow struct {
+	Kind   string `json:"kind"` // blocked_since | recycle_overdue | recycle
+	Role   string `json:"role"`
+	At     string `json:"at"` // RFC3339
+	Since  string `json:"since,omitempty"`
+	Detail string `json:"detail,omitempty"`
+}
+
+// OrgRoleView is the read-only drill-down served by GET /api/org/role/{name}.
+type OrgRoleView struct {
+	Identity    OrgRoleIdentity `json:"identity"`
+	Presence    OrgRolePresence `json:"presence"`
+	Recycle     OrgRoleRecycle  `json:"recycle"`
+	Activity    OrgRoleActivity `json:"activity"`
+	Escalations []OrgEscalation `json:"escalations"`
+}
+
+// OrgRoleIdentity is the configured role identity and tree path.
+type OrgRoleIdentity struct {
+	Name      string   `json:"name"`
+	Parent    string   `json:"parent"`
+	MergeRule string   `json:"merge_rule"`
+	Pane      string   `json:"pane"`
+	Scope     []string `json:"scope"`
+	Depth     int      `json:"depth"`
+	Path      []string `json:"path"`
+}
+
+// OrgRolePresence is the role's latest dispatch-derived presence.
+type OrgRolePresence struct {
+	State        string `json:"state"`
+	BlockedSince string `json:"blocked_since,omitempty"`
+	LastSeenAt   string `json:"last_seen_at,omitempty"`
+	MissedWakes  int    `json:"missed_wakes"`
+}
+
+// OrgRoleRecycle is the latest handoff and recycle timing projection.
+type OrgRoleRecycle struct {
+	LastHandoffAt   string `json:"last_handoff_at,omitempty"`
+	LastHandoffText string `json:"last_handoff_text,omitempty"`
+	RecycleAfter    string `json:"recycle_after,omitempty"`
+	Remaining       string `json:"remaining,omitempty"`
+	Overdue         string `json:"overdue,omitempty"`
+}
+
+// OrgRoleActivity is the role's aggregate activity for the current UTC day.
+type OrgRoleActivity struct {
+	JobsToday map[string]int `json:"jobs_today"`
+	Notes     int            `json:"notes"`
+}
+
 // ChartDay is one UTC day bucket. Jobs bucket by their Started day; token sums
 // are that day's jobs' usage. Explicit state fields keep the JSON deterministic.
 type ChartDay struct {

@@ -109,3 +109,24 @@ func TestChatThreadsRouteRegistered(t *testing.T) {
 		t.Fatalf("GET /api/chat/threads Content-Type = %q, want application/json", ct)
 	}
 }
+
+// TestOrgRoutesRegistered asserts both optional Org API routes are wired into
+// the mux and served as JSON rather than falling through to the SPA shell.
+func TestOrgRoutesRegistered(t *testing.T) {
+	srv := httptest.NewServer(Serve(NewFakeDataSource()))
+	defer srv.Close()
+
+	for _, path := range []string{"/api/org", "/api/org/role/g4"} {
+		resp, err := http.Get(srv.URL + path)
+		if err != nil {
+			t.Fatalf("GET %s: %v", path, err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("GET %s status = %d, want 200", path, resp.StatusCode)
+		}
+		if ct := resp.Header.Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
+			t.Fatalf("GET %s Content-Type = %q, want application/json", path, ct)
+		}
+	}
+}

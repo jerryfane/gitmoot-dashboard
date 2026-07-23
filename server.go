@@ -12,7 +12,8 @@ import (
 // static UI (with SPA fallback to index.html) plus the JSON API (handleRuns/
 // handleJobs/handleAgents/handleAgent/handleCharts/handleHealth/
 // handleLearningSkills/handleLearningKnowledge/handlePipelines/
-// handlePipelineDetail/handlePipelineRun/handleOverview/handleTasks/handleWorkflows/handleWorkflow/handleChatThreads/handleChatThread/
+// handlePipelineDetail/handlePipelineRun/handleOverview/handleTasks/
+// handleOrg/handleOrgRole/handleWorkflows/handleWorkflow/handleChatThreads/handleChatThread/
 // handleAttention/handleJobChecks/handleBinaryVerdicts/
 // handleState/handleJob/handleGraph/handleChangeEvents in api.go) and the
 // run-state SSE stream (handleEvents in sse.go).
@@ -34,6 +35,8 @@ func Serve(ds DataSource) http.Handler {
 	mux.HandleFunc("GET /api/pipeline/run/{id}", s.handlePipelineRun)
 	mux.HandleFunc("GET /api/overview", s.handleOverview)
 	mux.HandleFunc("GET /api/tasks", s.handleTasks)
+	mux.HandleFunc("GET /api/org", s.handleOrg)
+	mux.HandleFunc("GET /api/org/role/{name}", s.handleOrgRole)
 	mux.HandleFunc("GET /api/workflows", s.handleWorkflows)
 	mux.HandleFunc("GET /api/workflow/{label}", s.handleWorkflow)
 	mux.HandleFunc("GET /api/chat/threads", s.handleChatThreads)
@@ -70,7 +73,8 @@ func newServer(ds DataSource) *server {
 
 // The JSON API handlers (handleRuns/handleJobs/handleAgents/handleAgent/
 // handleCharts/handleHealth/handleLearningSkills/handleLearningKnowledge/
-// handlePipelines/handlePipelineDetail/handlePipelineRun/handleOverview/handleTasks/handleWorkflows/handleWorkflow/handleChatThreads/
+// handlePipelines/handlePipelineDetail/handlePipelineRun/handleOverview/handleTasks/
+// handleOrg/handleOrgRole/handleWorkflows/handleWorkflow/handleChatThreads/
 // handleChatThread/handleAttention/handleJobChecks/handleBinaryVerdicts/
 // handleState/handleJob/handleGraph/handleChangeEvents) live in api.go and the
 // run-state SSE handler (handleEvents) lives in sse.go.
