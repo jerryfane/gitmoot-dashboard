@@ -837,7 +837,7 @@ func fakeOrgView() OrgView {
 			StalledWakes:    3,
 		},
 		Roles: []OrgNode{
-			{Name: "owner", Depth: 0, Scope: []string{"fleet"}, MergeRule: "owner-approval", Pane: "owner", PresenceState: "idle", PresenceDetail: "fleet oversight", Badges: OrgBadges{}, LastSeenAt: "2026-07-23T01:42:00Z"},
+			{Name: "owner", DisplayName: "Jerry", Depth: 0, Scope: []string{"fleet"}, MergeRule: "owner-approval", Pane: "owner", PresenceState: "idle", PresenceDetail: "fleet oversight", Badges: OrgBadges{}, LastSeenAt: "2026-07-23T01:42:00Z"},
 			{Name: "lead", Parent: "owner", Depth: 1, Scope: []string{"coordination", "delivery"}, MergeRule: "review", Pane: "lead", PresenceState: "working", PresenceDetail: "coordinating RFC #1042 phase 4", Badges: OrgBadges{}, LastSeenAt: "2026-07-23T01:44:00Z"},
 			{Name: "g2", Parent: "lead", Depth: 2, Scope: []string{"gitmoot", "dashboard"}, MergeRule: "squash", Pane: "g2", PresenceState: "working", PresenceDetail: "implementing the Org data API", Badges: OrgBadges{}, LastSeenAt: "2026-07-23T01:43:00Z"},
 			{Name: "g3", Parent: "lead", Depth: 2, Scope: []string{"research", "review"}, MergeRule: "squash", Pane: "g3", PresenceState: "idle", PresenceDetail: "available", Badges: OrgBadges{}, LastSeenAt: "2026-07-23T01:19:00Z"},
@@ -892,7 +892,7 @@ func (f *FakeDataSource) OrgRole(ctx context.Context, name string) (OrgRoleView,
 
 	view := OrgRoleView{
 		Identity: OrgRoleIdentity{
-			Name: node.Name, Parent: node.Parent, MergeRule: node.MergeRule,
+			Name: node.Name, DisplayName: node.DisplayName, Parent: node.Parent, MergeRule: node.MergeRule,
 			Pane: node.Pane, Scope: append([]string(nil), node.Scope...), Depth: node.Depth, Path: path,
 		},
 		Presence: OrgRolePresence{

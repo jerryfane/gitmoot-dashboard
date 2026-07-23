@@ -512,6 +512,7 @@ type OrgHealth struct {
 // OrgNode is one role in tree-path order.
 type OrgNode struct {
 	Name           string    `json:"name"`
+	DisplayName    string    `json:"display_name,omitempty"`
 	Parent         string    `json:"parent"` // empty for root
 	Depth          int       `json:"depth"`
 	Scope          []string  `json:"scope"`
@@ -559,13 +560,14 @@ type OrgRoleView struct {
 
 // OrgRoleIdentity is the configured role identity and tree path.
 type OrgRoleIdentity struct {
-	Name      string   `json:"name"`
-	Parent    string   `json:"parent"`
-	MergeRule string   `json:"merge_rule"`
-	Pane      string   `json:"pane"`
-	Scope     []string `json:"scope"`
-	Depth     int      `json:"depth"`
-	Path      []string `json:"path"`
+	Name        string   `json:"name"`
+	DisplayName string   `json:"display_name,omitempty"`
+	Parent      string   `json:"parent"`
+	MergeRule   string   `json:"merge_rule"`
+	Pane        string   `json:"pane"`
+	Scope       []string `json:"scope"`
+	Depth       int      `json:"depth"`
+	Path        []string `json:"path"`
 }
 
 // OrgRolePresence is the role's latest dispatch-derived presence.

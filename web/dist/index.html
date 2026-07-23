@@ -67,7 +67,7 @@
       <span style="font-family:'JetBrains Mono';font-size:12.5px;color:#eef0ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ crumbTitle }}</span>
     </div>
     <div style="margin-left:auto;display:flex;align-items:center;gap:14px;flex:none">
-      <a href="https://activepieces.themartian.app" target="_blank" rel="noopener noreferrer" class="gm-aplink" title="Open Activepieces (activepieces.themartian.app) — the flow builder that drives gitmoot pipelines through the bridge.">
+      <a href="https://activepieces.themartian.app" target="_blank" rel="noopener noreferrer" class="gm-aplink" title="Open Activepieces (activepieces.themartian.app) - the flow builder that drives gitmoot pipelines through the bridge.">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13l7-9-1 6h4l-7 9 1-6z"/></svg>
         <span>Activepieces</span>
         <svg class="ext" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8"/></svg>
@@ -158,7 +158,7 @@
     </div>
 
     <div style="font-family:'JetBrains Mono';font-size:9.5px;letter-spacing:0.15em;color:#5a6088;padding:14px 10px 7px">SYSTEM</div>
-    <div onClick="{{ showAttention }}" title="Needs a human — blocked gates, pending approvals, candidates awaiting promotion" style="{{ attentionNavStyle }}">
+    <div onClick="{{ showAttention }}" title="Needs a human - blocked gates, pending approvals, candidates awaiting promotion" style="{{ attentionNavStyle }}">
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
       <span style="flex:1">Needs a human</span>
       <span style="{{ attentionNavDotStyle }}"></span>
@@ -333,7 +333,7 @@
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2.2"/><circle cx="5" cy="7" r="1.6"/><circle cx="19" cy="6" r="1.6"/><circle cx="18" cy="18" r="1.6"/><circle cx="6" cy="18" r="1.6"/><path d="M10.2 10.8 6.4 8M13.6 10.5 17.6 7.2M13.7 13.5l3.2 3.2M10.3 13.5l-3 3.2"/></svg>
       <span style="{{ tabLabelStyle }}">Brain</span>
     </div>
-    <div onClick="{{ showMore }}" title="More — Galaxy, Charts, Learning, Config" style="{{ tabMoreStyle }}">
+    <div onClick="{{ showMore }}" title="More - Galaxy, Charts, Learning, Config" style="{{ tabMoreStyle }}">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
       <span style="{{ tabLabelStyle }}">More</span>
       <span style="{{ tabMoreAttnStyle }}"></span>
@@ -1422,15 +1422,15 @@ class Component extends DCLogic {
     if(status==='unsupported'){box.innerHTML='<div class="ov-empty" style="padding:48px 10px">Overview requires a newer gitmoot build. Jobs, Workflows, and the run graph remain available.</div>';return;}
     if(!data){box.innerHTML=status==='error'?'<div class="ov-empty" style="padding:48px 10px">Overview is temporarily unavailable.</div>':'<div class="ov-loading"><div class="ov-shimmer wide"></div><div class="ov-shimmer"></div><div class="ov-shimmer"></div><div class="ov-shimmer wide"></div></div>';return;}
     const esc=this._ovEsc.bind(this),needs=Array.isArray(data.needs_you)?data.needs_you:[],act=data.activity||{},workflows=Array.isArray(act.workflows)?act.workflows:[],today=data.today||{},notable=Array.isArray(today.notable)?today.notable:[],scheduled=Array.isArray(data.scheduled)?data.scheduled:[],fleet=Array.isArray(data.fleet)?data.fleet:[];
-    const needHTML=needs.length?'<section class="ov-panel ov-needs"><div class="ov-head"><span class="ov-dot warn"></span>Needs you <span class="ov-count">'+needs.length+'</span><span class="right">stalled workflows · PRs to merge · blocked jobs · groom proposals</span></div><div class="ov-needs-list">'+needs.map(n=>{const stalled=n.kind==='stalled_workflow',badge=stalled?'STALLED':n.kind==='pr_awaiting_merge'?'PR '+(n.ref||''):n.kind==='blocked_job'?'BLOCKED '+(n.ref||''):'GROOM '+(n.ref||''),ci=n.ci?'<span class="ov-ci '+esc(n.ci)+'">CI '+(n.ci==='green'?'✓':n.ci==='red'?'✗':'…')+'</span>':'';return '<a class="ov-need '+(stalled?'stalled':'')+'" href="'+esc(n.link||'#')+'" data-ov-link><div class="ov-need-top"><span class="ov-badge">'+esc(badge)+'</span><span style="margin-left:auto">'+esc(this._ovDur(n.age_s))+'</span></div>'+(stalled?'<div class="ov-need-label">'+this._wfLabelHTML(n.label||'')+'</div>':'')+'<div class="ov-need-title">'+esc(n.title||'Needs attention')+'</div><div class="ov-need-meta">'+(stalled?'pane '+esc(n.pane||'—')+' · sess '+esc(n.session_id||'—')+(n.last_note?'<br>last note · '+esc(n.last_note):''):esc(n.repo||''))+ci+'</div></a>';}).join('')+'</div></section>':'<div class="ov-clear"><span>✓</span><b>Nothing needs you</b><span>0 PRs · 0 blocked · 0 proposals · 0 stalled workflows</span></div>';
+    const needHTML=needs.length?'<section class="ov-panel ov-needs"><div class="ov-head"><span class="ov-dot warn"></span>Needs you <span class="ov-count">'+needs.length+'</span><span class="right">stalled workflows · PRs to merge · blocked jobs · groom proposals</span></div><div class="ov-needs-list">'+needs.map(n=>{const stalled=n.kind==='stalled_workflow',badge=stalled?'STALLED':n.kind==='pr_awaiting_merge'?'PR '+(n.ref||''):n.kind==='blocked_job'?'BLOCKED '+(n.ref||''):'GROOM '+(n.ref||''),ci=n.ci?'<span class="ov-ci '+esc(n.ci)+'">CI '+(n.ci==='green'?'✓':n.ci==='red'?'✗':'…')+'</span>':'';return '<a class="ov-need '+(stalled?'stalled':'')+'" href="'+esc(n.link||'#')+'" data-ov-link><div class="ov-need-top"><span class="ov-badge">'+esc(badge)+'</span><span style="margin-left:auto">'+esc(this._ovDur(n.age_s))+'</span></div>'+(stalled?'<div class="ov-need-label">'+this._wfLabelHTML(n.label||'')+'</div>':'')+'<div class="ov-need-title">'+esc(n.title||'Needs attention')+'</div><div class="ov-need-meta">'+(stalled?'pane '+esc(n.pane||'-')+' · sess '+esc(n.session_id||'-')+(n.last_note?'<br>last note · '+esc(n.last_note):''):esc(n.repo||''))+ci+'</div></a>';}).join('')+'</div></section>':'<div class="ov-clear"><span>✓</span><b>Nothing needs you</b><span>0 PRs · 0 blocked · 0 proposals · 0 stalled workflows</span></div>';
     const activity='<section class="ov-panel ov-pad"><div class="ov-head"><span class="ov-dot"></span>Live fleet activity <span style="color:#555c83;letter-spacing:0;text-transform:none">by workflow</span><span class="right">'+Number(act.queued||0)+' queued · <a href="/workflows" data-ov-link>Workflows ↗</a></span></div>'+(workflows.length?workflows.map(w=>{const p=this._wfSplitLabel(w.label||'');return '<div class="ov-activity-row"><span class="ov-dot"></span><div><div class="ov-label">'+(p.namespace?'<span class="ns">'+esc(p.namespace)+'/</span>':'')+esc(p.campaign)+'</div><div class="ov-agents">'+esc((w.agents||[]).join(', '))+'</div></div><span class="ov-running">▶ '+Number(w.running||0)+' running</span><span class="ov-age">'+esc(this._ovDur(w.started_ago_s))+'</span></div>';}).join('')+(act.unattended_note?'<div class="ov-unattended">unattended · '+esc(act.unattended_note)+'</div>':''):'<div class="ov-empty"><span class="ov-muted-dot" style="display:inline-block;margin-right:8px"></span>Fleet idle · no jobs yet · '+Number(act.queued||0)+' queued</div>')+'</section>';
-    const notableHTML='<section class="ov-panel ov-pad ov-notable '+(notable.length?'':'empty-mobile')+'"><div class="ov-head">Notable completions <span class="right">last 5 finished</span></div>'+(notable.length?notable.map(n=>'<div class="ov-notable-row"><span class="ov-outcome '+esc(n.outcome)+'">'+(n.outcome==='succeeded'?'✓':n.outcome==='failed'?'✗':'⊘')+'</span><span class="ov-agent">'+esc(n.agent||'agent')+'</span><span class="ov-job-title">'+esc(n.title||'job')+'</span><span class="ov-num elapsed">'+esc(n.elapsed_s?this._ovDur(n.elapsed_s):'—')+'</span><span class="ov-num">'+esc(this._ovDur(n.age_s))+'</span></div>').join(''):'<div class="ov-empty">No jobs have finished in the last 24h.</div>')+'</section>';
+    const notableHTML='<section class="ov-panel ov-pad ov-notable '+(notable.length?'':'empty-mobile')+'"><div class="ov-head">Notable completions <span class="right">last 5 finished</span></div>'+(notable.length?notable.map(n=>'<div class="ov-notable-row"><span class="ov-outcome '+esc(n.outcome)+'">'+(n.outcome==='succeeded'?'✓':n.outcome==='failed'?'✗':'⊘')+'</span><span class="ov-agent">'+esc(n.agent||'agent')+'</span><span class="ov-job-title">'+esc(n.title||'job')+'</span><span class="ov-num elapsed">'+esc(n.elapsed_s?this._ovDur(n.elapsed_s):'-')+'</span><span class="ov-num">'+esc(this._ovDur(n.age_s))+'</span></div>').join(''):'<div class="ov-empty">No jobs have finished in the last 24h.</div>')+'</section>';
     const hours=Array.isArray(today.per_hour)?today.per_hour:[],max=Math.max(1,...hours.map(Number)),bars=hours.some(Number)?'<div class="ov-bars">'+hours.map(v=>'<span class="ov-bar" style="height:'+Math.max(4,Math.round(Number(v||0)/max*58))+'px"></span>').join('')+'</div><div class="ov-bar-axis"><span>24h ago</span><span>jobs / hour</span><span>now</span></div>':'';
     const todayHTML='<section class="ov-panel ov-pad"><div class="ov-head">Today <span class="right">rolling 24h</span></div><div class="ov-today-tiles"><div class="ov-tile"><b>'+this._ovNum(today.completed)+'</b><span>completed</span></div><div class="ov-tile fail"><b>'+this._ovNum(today.failed)+'</b><span>failed</span></div><div class="ov-tile cancel"><b>'+this._ovNum(today.cancelled)+'</b><span>cancelled</span></div></div>'+bars+'<div class="ov-token"><b>'+this._ovNum(Number(today.tokens_in||0)+Number(today.tokens_out||0))+'</b> tokens · '+this._ovNum(today.tokens_in)+' in · '+this._ovNum(today.tokens_out)+' out</div></section>';
-    const scheduledHTML='<section class="ov-panel ov-pad ov-scheduled '+(scheduled.length?'':'empty-mobile')+'"><div class="ov-head">Scheduled <span class="right">next pipeline runs</span></div>'+(scheduled.length?scheduled.map(s=>'<div class="ov-sched-row"><div><div class="ov-sched-name">'+esc(s.name)+'</div><div class="ov-sched-sub">'+esc(s.schedule)+'</div></div><span class="ov-status '+esc(s.last_status)+'">'+esc(s.last_status||'—')+'</span><span class="ov-next"><small>next in</small>'+esc(this._ovDur(s.next_in_s))+'</span></div>').join(''):'<div class="ov-empty">No pipelines declared yet.</div>')+'</section>';
+    const scheduledHTML='<section class="ov-panel ov-pad ov-scheduled '+(scheduled.length?'':'empty-mobile')+'"><div class="ov-head">Scheduled <span class="right">next pipeline runs</span></div>'+(scheduled.length?scheduled.map(s=>'<div class="ov-sched-row"><div><div class="ov-sched-name">'+esc(s.name)+'</div><div class="ov-sched-sub">'+esc(s.schedule)+'</div></div><span class="ov-status '+esc(s.last_status)+'">'+esc(s.last_status||'-')+'</span><span class="ov-next"><small>next in</small>'+esc(this._ovDur(s.next_in_s))+'</span></div>').join(''):'<div class="ov-empty">No pipelines declared yet.</div>')+'</section>';
     const fleetHTML='<section class="ov-panel ov-pad ov-fleet '+(fleet.length?'':'empty-mobile')+'"><div class="ov-head">Fleet at a glance <span class="right"><a href="/agents" data-ov-link>Agents ↗</a></span></div>'+(fleet.length?'<div class="ov-fleet-list">'+fleet.map(a=>'<div class="ov-fleet-item"><span class="'+(a.running?'ov-dot':'ov-muted-dot')+'"></span><b>'+esc(a.agent)+'</b><span class="ov-runtime '+this._ovRuntime(a.runtime)+'">'+esc(a.runtime||'shell')+'</span><span class="ov-fleet-jobs">'+Number(a.jobs_today||0)+' today</span></div>').join('')+'</div>':'<div class="ov-empty">No agents registered yet.</div>')+'</section>';
     const fresh=!needs.length&&!workflows.length&&!Number(today.completed||0)&&!Number(today.failed||0)&&!scheduled.length&&!fleet.length;
-    box.innerHTML=needHTML+'<div class="ov-grid"><div class="ov-stack">'+activity+notableHTML+'</div><div class="ov-stack">'+todayHTML+scheduledHTML+'</div>'+fleetHTML+'</div>'+(fresh?'<div class="ov-fresh" style="display:none">Fresh install — no pipelines or agents registered yet.</div>':'');
+    box.innerHTML=needHTML+'<div class="ov-grid"><div class="ov-stack">'+activity+notableHTML+'</div><div class="ov-stack">'+todayHTML+scheduledHTML+'</div>'+fleetHTML+'</div>'+(fresh?'<div class="ov-fresh" style="display:none">Fresh install - no pipelines or agents registered yet.</div>':'');
   }
 
   // ============================================================
@@ -1469,7 +1469,7 @@ class Component extends DCLogic {
     if(!this._tasksRoot)return;const board=this._tasksRoot.querySelector('#tk-board'),summary=this._tasksRoot.querySelector('#tk-summary'),tabs=this._tasksRoot.querySelector('#tk-tabs'),slot=this._tasksRoot.querySelector('#tk-detail-slot');if(status==='unsupported'){summary.textContent='';tabs.innerHTML='';board.innerHTML='<div class="tk-empty" style="grid-column:1/-1">Tasks requires a newer gitmoot build.</div>';slot.innerHTML='';return;}if(!data){summary.textContent='';tabs.innerHTML='';board.innerHTML=status==='error'?'<div class="tk-empty" style="grid-column:1/-1">Tasks are temporarily unavailable.</div>':'<div class="tk-shimmer"></div><div class="tk-shimmer"></div><div class="tk-shimmer"></div><div class="tk-shimmer"></div>';slot.innerHTML='';return;}
     const all=Array.isArray(data)?data:[],repos=[...new Set(all.map(t=>t.repo).filter(Boolean))].sort(),agents=[...new Set(all.map(t=>t.agent).filter(Boolean))].sort(),repoSel=this._tasksRoot.querySelector('#tk-repo'),agentSel=this._tasksRoot.querySelector('#tk-agent'),fill=(el,vals,label,current)=>{el.innerHTML='<option value="all">'+label+'</option>'+vals.map(v=>'<option value="'+this._ovEsc(v)+'" '+(v===current?'selected':'')+'>'+this._ovEsc(this._tkRepo(v))+'</option>').join('');};fill(repoSel,repos,'Repo',this._tasksFilters.repo);fill(agentSel,agents,'Agent',this._tasksFilters.agent);
     const q=String(this._tasksFilters.query||'').toLowerCase(),filtered=all.filter(t=>(this._tasksFilters.repo==='all'||t.repo===this._tasksFilters.repo)&&(this._tasksFilters.agent==='all'||t.agent===this._tasksFilters.agent)&&(!q||[t.title,t.repo,t.agent,t.blocked_reason,String(t.pr_number||'')].join(' ').toLowerCase().indexOf(q)>=0));const states=[['implementing','Implementing'],['pr_open','PR open'],['blocked','Blocked'],['merged','Merged · 7d']],counts={};states.forEach(s=>counts[s[0]]=filtered.filter(t=>t.state===s[0]).length);const tracked=['implementing','pr_open','blocked'].reduce((n,s)=>n+counts[s],0);summary.textContent=tracked+' tracked · '+counts.blocked+' blocked';tabs.innerHTML=states.map(s=>'<button class="tk-tab '+(this._tasksTab===s[0]?'active':'')+'" data-tk-tab="'+s[0]+'">'+s[1]+' · '+counts[s[0]]+'</button>').join('');
-    board.innerHTML=states.map(s=>{const items=filtered.filter(t=>t.state===s[0]);const empty={implementing:'— none in flight —',pr_open:'— no open PRs —',blocked:'— nothing blocked —',merged:'— none —'}[s[0]];return '<section class="tk-col '+s[0]+' '+(this._tasksTab===s[0]?'mobile-active':'')+'"><div class="tk-col-head"><span class="tk-col-dot"></span>'+s[1]+'<span class="tk-col-count">'+items.length+'</span></div><div class="tk-col-body">'+(items.length?items.map(t=>this._tkCard(t)).join(''):'<div class="tk-empty">'+empty+'</div>')+'</div></section>';}).join('');const selected=all.find(t=>t.id===this._tasksSelected);if(this._tasksSelected&&!selected)this._tasksSelected='';slot.innerHTML=this._tkDetail(selected);const hint=this._tasksRoot.querySelector('.tk-hint');if(hint)hint.remove();if(all.length&&!selected){const h=document.createElement('div');h.className='tk-hint';h.textContent='Click any card to open its detail panel';this._tasksRoot.appendChild(h);}
+    board.innerHTML=states.map(s=>{const items=filtered.filter(t=>t.state===s[0]);const empty={implementing:'- none in flight -',pr_open:'- no open PRs -',blocked:'- nothing blocked -',merged:'- none -'}[s[0]];return '<section class="tk-col '+s[0]+' '+(this._tasksTab===s[0]?'mobile-active':'')+'"><div class="tk-col-head"><span class="tk-col-dot"></span>'+s[1]+'<span class="tk-col-count">'+items.length+'</span></div><div class="tk-col-body">'+(items.length?items.map(t=>this._tkCard(t)).join(''):'<div class="tk-empty">'+empty+'</div>')+'</div></section>';}).join('');const selected=all.find(t=>t.id===this._tasksSelected);if(this._tasksSelected&&!selected)this._tasksSelected='';slot.innerHTML=this._tkDetail(selected);const hint=this._tasksRoot.querySelector('.tk-hint');if(hint)hint.remove();if(all.length&&!selected){const h=document.createElement('div');h.className='tk-hint';h.textContent='Click any card to open its detail panel';this._tasksRoot.appendChild(h);}
   }
 
   // ============================================================
@@ -1573,9 +1573,9 @@ class Component extends DCLogic {
   _wfLabelHTML(label) { const p = this._wfSplitLabel(label); return (p.namespace ? '<span class="wfi-ns">' + this._wfEsc(p.namespace) + '/</span>' : '') + this._wfEsc(p.campaign); }
   _wfNum(n) { n = Number(n || 0); if (n >= 1000000) return (n/1000000).toFixed(n>=10000000?0:1).replace(/\.0$/,'')+'M'; if (n>=1000) return (n/1000).toFixed(n>=100000?0:1).replace(/\.0$/,'')+'K'; return n.toLocaleString('en-US'); }
   _wfDuration(s) { s=Math.max(0,Number(s||0)); if(s<60)return Math.round(s)+'s'; if(s<3600)return Math.round(s/60)+'m'; if(s<86400)return Math.round(s/3600)+'h'; return Math.round(s/86400)+'d'; }
-  _wfAge(ms) { return ms ? this._wfDuration(Math.max(0,Date.now()-Number(ms))/1000) : '—'; }
-  _wfDate(ms, compact) { if(!ms)return '—'; return new Date(Number(ms)).toLocaleString([],compact?{month:'short',day:'numeric'}:{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}); }
-  _wfSpan(first,last) { return first&&last ? this._wfDuration(Math.max(0,Number(last)-Number(first))/1000) : '—'; }
+  _wfAge(ms) { return ms ? this._wfDuration(Math.max(0,Date.now()-Number(ms))/1000) : '-'; }
+  _wfDate(ms, compact) { if(!ms)return '-'; return new Date(Number(ms)).toLocaleString([],compact?{month:'short',day:'numeric'}:{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}); }
+  _wfSpan(first,last) { return first&&last ? this._wfDuration(Math.max(0,Number(last)-Number(first))/1000) : '-'; }
   _wfShowIndex() { if(!this._workflowRoot)return; this._wfDisconnectHistoryObserver(); this._workflowRoot.classList.remove('detail-open'); this._workflowRoot.querySelector('#wf-index').hidden=false; this._workflowRoot.querySelector('#wf-detail').hidden=true; }
   _wfShowDetail() { if(!this._workflowRoot)return; this._workflowRoot.classList.add('detail-open'); this._workflowRoot.querySelector('#wf-index').hidden=true; this._workflowRoot.querySelector('#wf-detail').hidden=false; }
 
@@ -1647,7 +1647,7 @@ class Component extends DCLogic {
   }
   renderWorkflowIndexLoading() { this._wfShowIndex(); this._workflowRoot.querySelector('#wfi-summary').textContent='loading'; this._workflowRoot.querySelector('#wfi-content').innerHTML='<div class="wfi-skeleton">'+Array.from({length:7},()=>'<div class="wf-shimmer"></div>').join('')+'</div>'; }
   renderWorkflowIndexError() { this._wfShowIndex(); this._workflowRoot.querySelector('#wfi-summary').textContent='0 in range'; this._workflowRoot.querySelector('#wfi-content').innerHTML=this._wfEmptyIndexHTML(); }
-  _wfEmptyIndexHTML() { return '<div class="wf-empty"><div class="wf-empty-icon">☷</div><div class="wf-empty-title">No workflows yet</div><div class="wf-empty-copy">Every run joins a workflow. Label one to start a campaign — unlabeled runs stay on the Jobs page; pipeline runs live on the Pipelines page.</div><div class="wf-command"><code>gitmoot run &lt;prompt&gt; --workflow <span style="color:#9ece6a">fable/my-campaign</span></code><button class="wf-copy" data-wf-copy="gitmoot run &lt;prompt&gt; --workflow fable/my-campaign">copy</button></div></div>'; }
+  _wfEmptyIndexHTML() { return '<div class="wf-empty"><div class="wf-empty-icon">☷</div><div class="wf-empty-title">No workflows yet</div><div class="wf-empty-copy">Every run joins a workflow. Label one to start a campaign - unlabeled runs stay on the Jobs page; pipeline runs live on the Pipelines page.</div><div class="wf-command"><code>gitmoot run &lt;prompt&gt; --workflow <span style="color:#9ece6a">fable/my-campaign</span></code><button class="wf-copy" data-wf-copy="gitmoot run &lt;prompt&gt; --workflow fable/my-campaign">copy</button></div></div>'; }
   _wfSyncIndexControls(entries) {
     const namespaces=Array.from(new Set(entries.map(w=>w.namespace||this._wfSplitLabel(w.label).namespace).filter(Boolean))).sort();
     const repos=Array.from(new Set(entries.flatMap(w=>Array.isArray(w.repos)?w.repos:[]).filter(Boolean))).sort();
@@ -1722,7 +1722,7 @@ class Component extends DCLogic {
   _wfRuntime(runtime){runtime=String(runtime||'').toLowerCase();return runtime==='claude'||runtime==='codex'||runtime==='kimi'?runtime:'shell';}
   _wfTimelineRun(run) {
     const r=this._wfRunShape(run),open=!!this._workflowExpanded[r.id];
-    const children=open&&r.children.length?'<div class="wf-children">'+r.children.map(c=>{const state=c.state||'queued';return '<div class="wf-child"><span class="wf-child-dot '+this._wfEsc(state)+'"></span><span class="wf-action">'+this._wfEsc(c.action||'job')+'</span><span>'+this._wfEsc(c.agent||'agent')+'</span><span class="wf-child-state '+this._wfEsc(state)+'">'+this._wfEsc(state)+'</span><span class="wf-elapsed">'+this._wfEsc(c.elapsed_s?this._wfDuration(c.elapsed_s):'—')+'</span></div>';}).join('')+'</div>':'';
+    const children=open&&r.children.length?'<div class="wf-children">'+r.children.map(c=>{const state=c.state||'queued';return '<div class="wf-child"><span class="wf-child-dot '+this._wfEsc(state)+'"></span><span class="wf-action">'+this._wfEsc(c.action||'job')+'</span><span>'+this._wfEsc(c.agent||'agent')+'</span><span class="wf-child-state '+this._wfEsc(state)+'">'+this._wfEsc(state)+'</span><span class="wf-elapsed">'+this._wfEsc(c.elapsed_s?this._wfDuration(c.elapsed_s):'-')+'</span></div>';}).join('')+'</div>':'';
     return '<article class="wft-item" data-wf-entry-key="run:'+this._wfEsc(r.id)+'"><span class="wft-marker '+this._wfEsc(r.state)+'">'+this._wfStatusGlyph(r.state)+'</span><div class="wf-run-block '+this._wfEsc(r.state)+'"><div class="wf-run-top" data-wf-run="'+this._wfEsc(r.id)+'" role="button" tabindex="0"><span class="wf-chev '+(open?'open':'')+'">▸</span><span class="wf-run-title">'+this._wfEsc(r.title)+'</span><span class="wf-run-status '+this._wfEsc(r.state)+'">'+this._wfEsc(r.state==='succeeded'?'done':r.state)+'</span><span class="wf-elapsed">'+this._wfEsc(this._wfDuration(r.elapsed))+'</span></div><div class="wf-run-meta"><span class="wf-agent '+this._wfRuntime(r.runtime)+'">'+this._wfEsc(r.agent||'agent')+'</span><span>'+this._wfEsc(r.repo||'repository')+'</span><a class="wf-graph-link" href="/?run='+encodeURIComponent(r.id)+'" data-wf-graph="'+this._wfEsc(r.id)+'">view as graph ↗</a></div>'+children+'</div></article>';
   }
   _wfTimelineNote(note) {
@@ -1740,13 +1740,13 @@ class Component extends DCLogic {
     const scroll=this._workflowRoot.querySelector('#wfd-scroll'),anchor=this._wfCaptureAnchor(scroll),tokensIn=Number(sum.tokensIn||0),tokensOut=Number(sum.tokensOut||0);
     const labelHTML=(split.namespace?'<span class="ns">'+this._wfEsc(split.namespace)+'/</span>':'')+this._wfEsc(split.campaign);
     const titleHTML=sum.summary?'<div class="wfd-title"><div class="wfd-label">'+labelHTML+'</div><div class="wfd-summary">'+this._wfEsc(sum.summary)+'</div></div>':'<div class="wfd-label">'+labelHTML+'</div>';
-    const outcome=this._wfOutcomeHTML({running:sum.running,queued:sum.queued,succeeded:sum.succeeded,failed:sum.failed,blocked:sum.blocked})||'<span class="wfi-queue">—</span>';
-    const coordHTML='<div class="wfd-coord"><span>coordinator</span><b>'+this._wfEsc(coord.author||'unattended')+'</b><span>· pane '+this._wfEsc(coord.pane||'—')+'</span><span>· sess '+this._wfEsc(coord.session_id||'—')+'</span>'+(coord.session_id?'<button class="wf-copy" data-wf-copy="'+this._wfEsc(coord.session_id)+'">copy</button>':'')+'</div>';
+    const outcome=this._wfOutcomeHTML({running:sum.running,queued:sum.queued,succeeded:sum.succeeded,failed:sum.failed,blocked:sum.blocked})||'<span class="wfi-queue">-</span>';
+    const coordHTML='<div class="wfd-coord"><span>coordinator</span><b>'+this._wfEsc(coord.author||'unattended')+'</b><span>· pane '+this._wfEsc(coord.pane||'-')+'</span><span>· sess '+this._wfEsc(coord.session_id||'-')+'</span>'+(coord.session_id?'<button class="wf-copy" data-wf-copy="'+this._wfEsc(coord.session_id)+'">copy</button>':'')+'</div>';
     const stats='<div class="wfd-stats"><div class="wfd-stat"><b>'+this._wfNum(sum.jobs||0)+'</b><span>jobs</span></div><div class="wfd-stat"><b>'+outcome+'</b><span>outcomes</span></div><div class="wfd-stat"><b>'+this._wfNum(tokensIn)+' <small style="color:#697099;font-weight:400">in</small></b><span>'+this._wfNum(tokensOut)+' out · tokens</span></div><div class="wfd-stat"><b>'+this._wfNum(sum.notes||notes.length)+'</b><span>journal notes</span></div><div class="wfd-stat"><b>'+this._wfSpan(sum.firstAt,sum.lastAt)+'</b><span>'+this._wfDate(sum.firstAt)+' → '+(state==='active'?'now':this._wfDate(sum.lastAt))+'</span></div></div>';
     let stalled='';
     if(state==='stalled'){
       const failed=runs.map(r=>this._wfRunShape(r)).find(r=>r.state==='failed'||r.state==='blocked'),latest=notes.slice().sort((a,b)=>Number(b.createdAt||0)-Number(a.createdAt||0))[0],resume='cd '+(data.work_dir||'/root/gitmoot')+' && claude --resume '+(coord.session_id||'<session>');
-      stalled='<section class="wf-stalled-banner"><div><div class="wf-stalled-title">△ Stalled '+this._wfDuration(data.stalled_for_s||0)+' — coordinator silent since '+this._wfDate(sum.lastAt)+'</div><div class="wf-stalled-copy">'+this._wfEsc(failed?failed.title+' failed and no journal note or new run has followed. The goal is not yet reached. A failure alone is not an alarm — the silence after it is.':'No running work or closing note has followed the last activity.')+'</div>'+(latest?'<div class="wf-last-note">last note · “'+this._wfEsc(latest.body||'')+'”</div>':'')+'</div><div class="wf-go"><h4>Pick it up in herdr</h4><div class="wf-go-row"><span>pane</span><b>'+this._wfEsc(coord.pane||'—')+'</b></div><div class="wf-go-row"><span>session</span><b>'+this._wfEsc(coord.session_id||'—')+'</b></div><div class="wf-resume"><code>'+this._wfEsc(resume)+'</code><button class="wf-copy" data-wf-copy="'+this._wfEsc(resume)+'">copy</button></div><div class="wf-readonly">read-only · dashboard points, never runs</div></div></section>';
+      stalled='<section class="wf-stalled-banner"><div><div class="wf-stalled-title">△ Stalled '+this._wfDuration(data.stalled_for_s||0)+' - coordinator silent since '+this._wfDate(sum.lastAt)+'</div><div class="wf-stalled-copy">'+this._wfEsc(failed?failed.title+' failed and no journal note or new run has followed. The goal is not yet reached. A failure alone is not an alarm - the silence after it is.':'No running work or closing note has followed the last activity.')+'</div>'+(latest?'<div class="wf-last-note">last note · “'+this._wfEsc(latest.body||'')+'”</div>':'')+'</div><div class="wf-go"><h4>Pick it up in herdr</h4><div class="wf-go-row"><span>pane</span><b>'+this._wfEsc(coord.pane||'-')+'</b></div><div class="wf-go-row"><span>session</span><b>'+this._wfEsc(coord.session_id||'-')+'</b></div><div class="wf-resume"><code>'+this._wfEsc(resume)+'</code><button class="wf-copy" data-wf-copy="'+this._wfEsc(resume)+'">copy</button></div><div class="wf-readonly">read-only · dashboard points, never runs</div></div></section>';
     }
     const items=[];runs.forEach(run=>{const r=this._wfRunShape(run);items.push({kind:'run',at:r.state==='running'?Date.now():(r.ended||r.started||0),id:r.id,value:run});});notes.forEach(note=>items.push({kind:'note',at:Number(note.createdAt||0),id:String(note.id),value:note}));items.sort((a,b)=>(b.at-a.at)||String(b.id).localeCompare(String(a.id)));
     const history=this._wfHistory(label),hasEarlier=!(history.runExhausted&&history.noteExhausted);
@@ -2645,7 +2645,7 @@ class Component extends DCLogic {
     el.className = options.className || '';
     el.innerHTML = '<div class="gd-head"><div class="gd-hrow">' +
       '<span class="gd-dot" style="background:' + esc(options.color || '#8b90b8') + '"></span>' +
-      '<div style="flex:1;min-width:0"><div class="gd-title">' + esc(options.title || '—') + '</div>' +
+      '<div style="flex:1;min-width:0"><div class="gd-title">' + esc(options.title || '-') + '</div>' +
       '<div class="gd-sub">' + esc(options.subtitle || '') + '</div>' + (options.headerMeta || '') + '</div>' +
       '<button class="gd-close" type="button" title="close" aria-label="Close">✕</button></div></div>' +
       '<div class="gd-body">' + (options.body || '') + '</div>';
@@ -2787,13 +2787,13 @@ class Component extends DCLogic {
     const title = (job && job.title) || node.label || node.id;
     const runtime = (job && job.runtime) || '';
     const model = (job && job.model) || '';
-    const sub = runtime ? (runtime + (model ? ' · ' + model : '')) : (model || '—');
+    const sub = runtime ? (runtime + (model ? ' · ' + model : '')) : (model || '-');
     const worker = (job && job.workerId) || '';
     const startedAt = (job && job.startedAt) || 0;
     const endedAt = (job && job.endedAt) || 0;
-    const startedLabel = startedAt > 0 ? new Date(startedAt).toLocaleString() : '—';
-    const elapsedLabel = (endedAt && startedAt) ? (((endedAt - startedAt) / 1000).toFixed(1) + 's') : '—';
-    const runtimeLabel = runtime ? (runtime + (model ? ' · ' + model : '')) : '—';
+    const startedLabel = startedAt > 0 ? new Date(startedAt).toLocaleString() : '-';
+    const elapsedLabel = (endedAt && startedAt) ? (((endedAt - startedAt) / 1000).toFixed(1) + 's') : '-';
+    const runtimeLabel = runtime ? (runtime + (model ? ' · ' + model : '')) : '-';
     const prUrl = (job && job.prUrl) || null;
 
     // events: relative +Δs from the first event (or startedAt).
@@ -2803,7 +2803,7 @@ class Component extends DCLogic {
       const base = (evs[0] && evs[0].t) || startedAt || 0;
       evHtml = evs.map((ev, i) => {
         const dt = (ev.t && base) ? Math.max(0, (ev.t - base) / 1000) : 0;
-        const tlabel = (ev.t && base) ? ('+' + dt.toFixed(1) + 's') : '—';
+        const tlabel = (ev.t && base) ? ('+' + dt.toFixed(1) + 's') : '-';
         const c = /fail/i.test(ev.label || '') ? '#f7768e' : /succeed|opened|complete|passed/i.test(ev.label || '') ? '#9ece6a' : '#7aa2f7';
         const last = i === evs.length - 1;
         return '<div class="gd-ev"><div class="rail"><span class="dot" style="background:' + c + ';box-shadow:0 0 6px ' + c + '"></span>' + (last ? '' : '<span class="line"></span>') + '</div>' +
@@ -2814,8 +2814,8 @@ class Component extends DCLogic {
       evHtml = '<div class="gd-ev"><div class="rail"><span class="dot" style="background:#5a6088"></span></div><div style="flex:1"><div class="lbl" style="color:#5a6088">' + msg + '</div></div></div>';
     }
 
-    const prompt = (job && job.prompt) || (status === 'loading' ? 'loading…' : '—');
-    const output = (job && job.output) || (status === 'loading' ? 'loading…' : running ? '… running …' : '—');
+    const prompt = (job && job.prompt) || (status === 'loading' ? 'loading…' : '-');
+    const output = (job && job.output) || (status === 'loading' ? 'loading…' : running ? '… running …' : '-');
 
     const parts = [
       '<div class="gd-head">',
@@ -2867,7 +2867,7 @@ class Component extends DCLogic {
   runtimeColors = { codex: '#7dcfff', claude: '#bb9af7', kimi: '#e0af68', shell: '#5a6088' };
   _runtimeColor(rt) { return this.runtimeColors[rt] || '#5a6088'; }
   _fmtDur(ms) {
-    if (!ms || ms <= 0) return '—';
+    if (!ms || ms <= 0) return '-';
     if (ms < 60000) return (ms / 1000).toFixed(1) + 's';
     const s = Math.round(ms / 1000);
     const m = Math.floor(s / 60), r = s % 60;
@@ -2880,7 +2880,7 @@ class Component extends DCLogic {
     if (n >= 1000) return (n / 1000).toFixed(n >= 10000 ? 0 : 1) + 'k';
     return String(n);
   }
-  _relFromMs(ms) { return (!ms || ms <= 0) ? '—' : this.relTime(Math.max(0, Date.now() - ms)); }
+  _relFromMs(ms) { return (!ms || ms <= 0) ? '-' : this.relTime(Math.max(0, Date.now() - ms)); }
 
   showJobs = (agent) => {
     // may be called with a preset agent name (from an Agents-page card click);
@@ -2937,7 +2937,7 @@ class Component extends DCLogic {
       "#org-root .org-chart-region{flex:1.3;min-height:250px;display:flex;flex-direction:column;position:relative;overflow:hidden;border-bottom:1px solid rgba(160,168,220,.08)}",
       "#org-root .org-sec-head{height:40px;flex:none;display:flex;align-items:center;gap:9px;padding:0 18px;color:#8b90b8;font:600 10px 'JetBrains Mono',monospace;letter-spacing:.14em;text-transform:uppercase}.org-sec-head .org-hint{color:#5a6088;font-size:10px;font-weight:400;letter-spacing:0;text-transform:none}.org-sec-head .org-count{padding:1px 8px;border-radius:10px;background:rgba(160,168,220,.1);color:#c7c9e5;font-size:9.5px;letter-spacing:0}.org-sec-head .org-right{margin-left:auto;color:#5a6088;font-size:9.5px;font-weight:400;letter-spacing:0;text-transform:none}",
       "#org-root .org-title-dot{width:8px;height:8px;border-radius:50%;background:#bb9af7;box-shadow:0 0 8px rgba(187,154,247,.55);flex:none}",
-      "#org-root .org-chart-scroll{flex:1;min-height:0;overflow:auto;position:relative}.org-tree-wrap{position:relative;box-sizing:border-box;min-width:100%;width:max-content;display:flex;justify-content:center;padding:34px 54px 52px}.org-tree-svg{position:absolute;inset:0;overflow:visible;pointer-events:none;z-index:0}.org-tree{position:relative;z-index:1;display:flex;justify-content:center}.org-roots,.org-children{display:flex;align-items:flex-start;justify-content:center;gap:22px}.org-children{margin-top:42px}.org-branch{display:flex;flex-direction:column;align-items:center}",
+      "#org-root .org-chart-scroll{flex:1;min-height:0;overflow-x:auto;overflow-y:auto;position:relative;cursor:grab;touch-action:none}.org-chart-scroll.org-panning{cursor:grabbing;user-select:none}.org-tree-wrap{position:relative;box-sizing:border-box;min-width:100%;width:max-content;display:flex;justify-content:center;padding:34px 54px 52px}.org-tree-svg{position:absolute;inset:0;overflow:visible;pointer-events:none;z-index:0}.org-tree{position:relative;z-index:1;display:flex;justify-content:center}.org-tree-layout{display:flex;flex-direction:column;align-items:center}.org-roots,.org-children{display:flex;align-items:flex-start;justify-content:center;gap:22px}.org-children{margin-top:42px}.org-branch{display:flex;flex-direction:column;align-items:center}.org-unlinked{display:flex;flex-direction:column;align-items:center;gap:9px;margin-top:42px;padding-top:12px;border-top:1px dashed rgba(160,168,220,.12)}.org-unlinked-head{color:#5a6088;font:9px 'JetBrains Mono',monospace;letter-spacing:.12em;text-transform:uppercase}.org-unlinked-row{display:flex;align-items:flex-start;justify-content:center;gap:12px}",
       "#org-root .org-node{appearance:none;display:flex;flex-direction:column;gap:5px;min-width:152px;max-width:196px;padding:9px 12px 10px;border:1px solid rgba(160,168,220,.13);border-radius:10px;background:rgba(13,15,28,.72);color:inherit;text-align:left;cursor:pointer;position:relative;box-shadow:0 1px 2px rgba(0,0,0,.28);transition:border-color .16s,transform .16s,background .16s;z-index:2}.org-node:hover{border-color:rgba(187,154,247,.42);transform:translateY(-1px)}.org-node.sel{border-color:rgba(187,154,247,.5);background:rgba(187,154,247,.1);box-shadow:0 0 0 1px rgba(187,154,247,.18),0 12px 32px rgba(0,0,0,.35)}.org-node.root{background:rgba(187,154,247,.045);border-color:rgba(187,154,247,.25)}",
       "#org-root .org-node-main{display:flex;align-items:center;gap:9px;min-width:0}.org-node-name{color:#eef0ff;font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.org-node-sub{color:#5a6088;font:9.5px 'JetBrains Mono',monospace;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.org-presence{width:9px;height:9px;border-radius:50%;flex:none}.org-presence.working{background:#9ece6a;box-shadow:0 0 8px rgba(158,206,106,.55)}.org-presence.blocked{background:#ff9e64;box-shadow:0 0 8px rgba(255,158,100,.5)}.org-presence.idle{background:#6b7199}.org-presence.never-seen{background:transparent;border:1.5px solid rgba(139,144,184,.75)}",
       "#org-root .org-rootmark{width:21px;height:21px;border:1px solid rgba(187,154,247,.38);border-radius:6px;display:grid;place-items:center;color:#bb9af7;flex:none}.org-rootmark:after{content:'';width:6px;height:6px;border:1px solid currentColor;transform:rotate(45deg)}",
@@ -2988,13 +2988,25 @@ class Component extends DCLogic {
     if (sec < 86400) return Math.floor(sec / 3600) + 'h';
     return Math.floor(sec / 86400) + 'd';
   }
+  _orgDurationStart(value) {
+    const text = String(value || '').replace(/\s+/g, '');
+    const re = /(\d+(?:\.\d+)?)(d|h|m|s)/g;
+    let match, totalMs = 0, matched = '';
+    while ((match = re.exec(text))) {
+      matched += match[0];
+      const scale = match[2] === 'd' ? 86400000 : match[2] === 'h' ? 3600000 : match[2] === 'm' ? 60000 : 1000;
+      totalMs += Number(match[1]) * scale;
+    }
+    if (!totalMs || matched !== text) return '';
+    return new Date((this._orgDataReceivedAt || Date.now()) - totalMs).toISOString();
+  }
   _orgUpdatedLabel(value) {
     const age = this._orgCompactAge(value);
     return age ? ('updated ' + age + ' ago') : 'updated time unknown';
   }
   _orgTime(value) {
     const at = Date.parse(value || '');
-    if (!Number.isFinite(at)) return '—';
+    if (!Number.isFinite(at)) return '-';
     const d = new Date(at);
     return String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0');
   }
@@ -3008,39 +3020,53 @@ class Component extends DCLogic {
   _orgBadgesHTML(node) {
     const b = node.badges || {};
     const out = [];
-    if (b.blocked_since) out.push('<span class="org-badge blocked">blocked ' + this._orgEsc(this._orgCompactAge(b.blocked_since)) + '</span>');
-    if (b.overdue) out.push('<span class="org-badge overdue">⟳ overdue ' + this._orgEsc(b.overdue) + '</span>');
+    if (b.blocked_since) out.push('<span class="org-badge blocked" data-org-age="' + this._orgEsc(b.blocked_since) + '" data-org-age-tmpl="blocked {a}">blocked ' + this._orgEsc(this._orgCompactAge(b.blocked_since)) + '</span>');
+    if (b.overdue) {
+      const overdueAt = this._orgDurationStart(b.overdue);
+      out.push('<span class="org-badge overdue"' + (overdueAt ? ' data-org-age="' + this._orgEsc(overdueAt) + '" data-org-age-tmpl="⟳ overdue {a}"' : '') + '>⟳ overdue ' + this._orgEsc(overdueAt ? this._orgCompactAge(overdueAt) : b.overdue) + '</span>');
+    }
     if ((Number(b.missed_wakes) || 0) > 0) out.push('<span class="org-badge wakes">⚠ ' + Number(b.missed_wakes) + ' missed wakes</span>');
     return out.length ? '<div class="org-badges">' + out.join('') + '</div>' : '';
   }
   _orgTreeHTML(roles) {
     const byName = {};
     const children = {};
+    const emitted = new Set();
     roles.forEach(r => { if (r && r.name) byName[r.name] = r; });
     roles.forEach(r => {
       if (!r || !r.name) return;
       const p = r.parent && byName[r.parent] ? r.parent : '';
       (children[p] = children[p] || []).push(r);
     });
-    const branch = (node, lineage) => {
-      if (!node || lineage[node.name]) return '';
-      const next = Object.assign({}, lineage); next[node.name] = true;
-      const isRoot = !node.parent || !byName[node.parent];
+    const nodeHTML = (node, isRoot) => {
       const selected = this._orgSelected === node.name;
       const presence = String(node.presence_state || 'idle').toLowerCase();
+      const displayName = node.display_name || node.name;
       const marker = isRoot ? '<span class="org-rootmark" aria-hidden="true"></span>' : '<span class="org-presence ' + this._orgEsc(presence) + '" aria-hidden="true"></span>';
+      return '<button type="button" class="org-node' + (selected ? ' sel' : '') + (isRoot ? ' root' : '') + '" data-org-node="' + this._orgEsc(node.name) + '" title="' + this._orgEsc(displayName + ' · ' + (isRoot ? 'org root' : presence)) + '">' +
+        '<span class="org-node-main">' + marker + '<span class="org-node-name">' + this._orgEsc(displayName) + '</span></span>' +
+        '<span class="org-node-sub">' + this._orgEsc(this._orgNodeSub(node, isRoot)) + '</span>' +
+        this._orgBadgesHTML(node) +
+      '</button>';
+    };
+    const branch = (node, lineage) => {
+      if (!node || lineage[node.name] || emitted.has(node.name)) return '';
+      emitted.add(node.name);
+      const next = Object.assign({}, lineage); next[node.name] = true;
+      const isRoot = !node.parent || !byName[node.parent];
       const kids = (children[node.name] || []).map(k => branch(k, next)).join('');
       return '<div class="org-branch">' +
-        '<button type="button" class="org-node' + (selected ? ' sel' : '') + (isRoot ? ' root' : '') + '" data-org-node="' + this._orgEsc(node.name) + '" title="' + this._orgEsc(node.name + ' · ' + (isRoot ? 'org root' : presence)) + '">' +
-          '<span class="org-node-main">' + marker + '<span class="org-node-name">' + this._orgEsc(node.name) + '</span></span>' +
-          '<span class="org-node-sub">' + this._orgEsc(this._orgNodeSub(node, isRoot)) + '</span>' +
-          this._orgBadgesHTML(node) +
-        '</button>' +
+        nodeHTML(node, isRoot) +
         (kids ? '<div class="org-children">' + kids + '</div>' : '') +
       '</div>';
     };
     const roots = children[''] || [];
-    return '<div class="org-roots">' + roots.map(r => branch(r, {})).join('') + '</div>';
+    const rooted = roots.map(r => branch(r, {})).join('');
+    const unlinked = roles.filter(r => r && r.name && !emitted.has(r.name));
+    const unlinkedHTML = unlinked.length
+      ? '<div class="org-unlinked"><div class="org-unlinked-head">unlinked roles</div><div class="org-unlinked-row">' + unlinked.map(r => nodeHTML(r, false)).join('') + '</div></div>'
+      : '';
+    return '<div class="org-tree-layout"><div class="org-roots">' + rooted + '</div>' + unlinkedHTML + '</div>';
   }
   _orgEdgeStyle(node) {
     const b = node.badges || {};
@@ -3060,6 +3086,7 @@ class Component extends DCLogic {
     const paths = [];
     (this._orgData.roles || []).forEach(node => {
       if (!node || !node.parent || !els[node.parent] || !els[node.name]) return;
+      if (els[node.name].closest('.org-unlinked') || els[node.parent].closest('.org-unlinked')) return;
       const pr = els[node.parent].getBoundingClientRect();
       const cr = els[node.name].getBoundingClientRect();
       const x1 = pr.left + pr.width / 2 - wr.left, y1 = pr.bottom - wr.top - 1;
@@ -3079,12 +3106,58 @@ class Component extends DCLogic {
     const scroll = this._orgRoot && this._orgRoot.querySelector('.org-chart-scroll');
     const roles = (this._orgData && this._orgData.roles) || [];
     const names = new Set(roles.map(r => r && r.name).filter(Boolean));
-    const rootRole = roles.find(r => r && (!r.parent || !names.has(r.parent)));
+    const rootRole = roles.find(r => r && (!r.parent || !names.has(r.parent))) || roles.find(r => r && r.name);
     if (!scroll || !rootRole) return;
     const node = Array.from(scroll.querySelectorAll('[data-org-node]')).find(el => el.getAttribute('data-org-node') === rootRole.name);
     if (!node) return;
     const sr = scroll.getBoundingClientRect(), nr = node.getBoundingClientRect();
     scroll.scrollLeft += (nr.left + nr.width / 2) - (sr.left + sr.width / 2);
+  }
+  _orgBindChartPan(scroll) {
+    if (!scroll) return;
+    let drag = null;
+    let suppressClick = false;
+    const end = (e, cancelled) => {
+      if (!drag || e.pointerId !== drag.pointerId) return;
+      const moved = drag.moved;
+      try { if (scroll.hasPointerCapture(e.pointerId)) scroll.releasePointerCapture(e.pointerId); } catch (_) {}
+      scroll.classList.remove('org-panning');
+      drag = null;
+      if (moved && !cancelled) {
+        suppressClick = true;
+        setTimeout(() => { suppressClick = false; }, 0);
+      }
+    };
+    scroll.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0 || e.isPrimary === false) return;
+      if (e.target.closest && e.target.closest('button,a,[data-org-node],[data-org-workflow]')) return;
+      drag = {
+        pointerId: e.pointerId,
+        x: e.clientX,
+        y: e.clientY,
+        left: scroll.scrollLeft,
+        top: scroll.scrollTop,
+        moved: false
+      };
+      scroll.classList.add('org-panning');
+      try { scroll.setPointerCapture(e.pointerId); } catch (_) {}
+    });
+    scroll.addEventListener('pointermove', (e) => {
+      if (!drag || e.pointerId !== drag.pointerId) return;
+      const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+      if (!drag.moved && Math.abs(dx) <= 4 && Math.abs(dy) <= 4) return;
+      drag.moved = true;
+      e.preventDefault();
+      scroll.scrollLeft = drag.left - dx;
+      scroll.scrollTop = drag.top - dy;
+    });
+    scroll.addEventListener('pointerup', (e) => end(e, false));
+    scroll.addEventListener('pointercancel', (e) => end(e, true));
+    scroll.addEventListener('click', (e) => {
+      if (!suppressClick) return;
+      e.preventDefault();
+      e.stopPropagation();
+    }, true);
   }
   _orgHealthHTML(data) {
     const h = data.health || {};
@@ -3104,7 +3177,7 @@ class Component extends DCLogic {
   }
   _orgEscalationsHTML(items) {
     const sorted = (Array.isArray(items) ? items.slice() : []).sort((a, b) => Date.parse(a.at || '') - Date.parse(b.at || ''));
-    if (!sorted.length) return '<div class="org-quiet"><span class="org-check">✓</span><span>No open escalations — the chart is quiet.</span></div>';
+    if (!sorted.length) return '<div class="org-quiet"><span class="org-check">✓</span><span>No open escalations - the chart is quiet.</span></div>';
     return '<div class="org-esc-list">' + sorted.map(e =>
       '<div class="org-esc-card"><div class="org-esc-top"><span class="org-esc-from">' + this._orgEsc(e.from) + '</span><span>→</span><span class="org-esc-to">' + this._orgEsc(e.to) + '</span><span class="org-esc-age" data-org-age="' + this._orgEsc(e.at || '') + '">' + this._orgEsc(this._orgCompactAge(e.at)) + '</span></div>' +
       '<div class="org-esc-q">' + this._orgEsc(e.question) + '</div>' +
@@ -3143,6 +3216,7 @@ class Component extends DCLogic {
     const detail = this._orgRoleCache && this._orgRoleCache[name];
     const error = this._orgDetailError || '';
     const identity = (detail && detail.identity) || summary;
+    const displayName = identity.display_name || summary.display_name || name;
     const presence = (detail && detail.presence) || { state: summary.presence_state, blocked_since: summary.badges && summary.badges.blocked_since, last_seen_at: summary.last_seen_at, missed_wakes: summary.badges && summary.badges.missed_wakes };
     const isRoot = !identity.parent;
     const state = isRoot ? 'root' : (presence.state || summary.presence_state || 'idle');
@@ -3155,27 +3229,27 @@ class Component extends DCLogic {
       body = '<div class="org-panel-note" style="color:#bd7383">' + this._orgEsc(error) + '</div>';
     } else {
       const scope = Array.isArray(identity.scope) ? identity.scope.join(', ') : '';
-      const identityRows = kv('parent', identity.parent || '—') + kv('merge rule', identity.merge_rule || '—') + kv('pane', identity.pane || '—') + kv('scope', scope || '—');
+      const identityRows = kv('parent', identity.parent || '-') + kv('merge rule', identity.merge_rule || '-') + kv('pane', identity.pane || '-') + kv('scope', scope || '-');
       let presenceBody = '';
       if (isRoot) {
-        presenceBody = '<div class="org-panel-note">root — human owner, no agent presence. Coordinators escalate to this org root.</div>';
+        presenceBody = '<div class="org-panel-note">root - human owner, no agent presence. Coordinators escalate to this org root.</div>';
       } else if (state === 'never-seen') {
-        presenceBody = '<div class="org-panel-note">never seen — known from config only; no agent presence has been recorded.</div>';
+        presenceBody = '<div class="org-panel-note">never seen - known from config only; no agent presence has been recorded.</div>';
       } else {
         presenceBody =
           '<div class="org-panel-row">state · ' + this._orgEsc(state) + '</div>' +
           (summary.presence_detail ? '<div class="org-panel-row">detail · ' + this._orgEsc(summary.presence_detail) + '</div>' : '') +
-          (presence.blocked_since ? '<div class="org-panel-row">blocked since · ' + this._orgEsc(this._orgCompactAge(presence.blocked_since)) + ' ago</div>' : '') +
-          (presence.last_seen_at ? '<div class="org-panel-row">last dispatch · ' + this._orgEsc(this._orgCompactAge(presence.last_seen_at)) + ' ago</div>' : '') +
+          (presence.blocked_since ? '<div class="org-panel-row" data-org-age="' + this._orgEsc(presence.blocked_since) + '" data-org-age-tmpl="blocked since · {a} ago">blocked since · ' + this._orgEsc(this._orgCompactAge(presence.blocked_since)) + ' ago</div>' : '') +
+          (presence.last_seen_at ? '<div class="org-panel-row" data-org-age="' + this._orgEsc(presence.last_seen_at) + '" data-org-age-tmpl="last dispatch · {a} ago">last dispatch · ' + this._orgEsc(this._orgCompactAge(presence.last_seen_at)) + ' ago</div>' : '') +
           '<div class="org-panel-row">missed wakes · ' + Number(presence.missed_wakes || 0) + '</div>';
       }
       const recycle = (detail && detail.recycle) || {};
       const recycleRows = [];
-      if (recycle.last_handoff_at) recycleRows.push('handoff journaled · ' + this._orgCompactAge(recycle.last_handoff_at) + ' ago');
-      if (recycle.last_handoff_text) recycleRows.push('“' + recycle.last_handoff_text + '”');
-      if (recycle.recycle_after) recycleRows.push('recycle after · ' + recycle.recycle_after);
-      if (recycle.remaining) recycleRows.push('remaining · ' + recycle.remaining);
-      if (recycle.overdue) recycleRows.push('overdue · ' + recycle.overdue);
+      if (recycle.last_handoff_at) recycleRows.push('<div class="org-panel-row" data-org-age="' + this._orgEsc(recycle.last_handoff_at) + '" data-org-age-tmpl="handoff journaled · {a} ago">handoff journaled · ' + this._orgEsc(this._orgCompactAge(recycle.last_handoff_at)) + ' ago</div>');
+      if (recycle.last_handoff_text) recycleRows.push('<div class="org-panel-row">' + this._orgEsc('“' + recycle.last_handoff_text + '”') + '</div>');
+      if (recycle.recycle_after) recycleRows.push('<div class="org-panel-row">' + this._orgEsc('recycle after · ' + recycle.recycle_after) + '</div>');
+      if (recycle.remaining) recycleRows.push('<div class="org-panel-row">' + this._orgEsc('remaining · ' + recycle.remaining) + '</div>');
+      if (recycle.overdue) recycleRows.push('<div class="org-panel-row">' + this._orgEsc('overdue · ' + recycle.overdue) + '</div>');
       const activity = (detail && detail.activity) || {};
       const jobs = activity.jobs_today && typeof activity.jobs_today === 'object' ? activity.jobs_today : {};
       const jobParts = Object.keys(jobs).sort().map(k => jobs[k] + ' ' + k);
@@ -3186,14 +3260,14 @@ class Component extends DCLogic {
       body =
         '<div class="org-panel-sec"><h3>Identity</h3>' + identityRows + '</div>' +
         '<div class="org-panel-sec"><h3>Presence</h3>' + presenceBody + '</div>' +
-        (recycleRows.length ? '<div class="org-panel-sec"><h3>Recycle</h3>' + recycleRows.map(r => '<div class="org-panel-row">' + this._orgEsc(r) + '</div>').join('') + '</div>' : '') +
+        (recycleRows.length ? '<div class="org-panel-sec"><h3>Recycle</h3>' + recycleRows.join('') + '</div>' : '') +
         (activityRows.length ? '<div class="org-panel-sec"><h3>Recent activity <span style="color:#4a4f74">· attributed</span></h3>' + activityRows.map(r => '<div class="org-panel-row">' + this._orgEsc(r) + '</div>').join('') + '</div>' : '') +
         '<div class="org-panel-sec"><h3>Open escalations</h3><div class="org-panel-row" style="color:' + (escs.length ? '#e0af68' : '#5a6088') + '">' + (escs.length ? escs.length + ' open' : 'None') + '</div>' +
-        escs.map(e => '<div class="org-panel-esc">' + this._orgEsc(e.from + ' → ' + e.to + ' · ' + this._orgCompactAge(e.at)) + '<br>' + this._orgEsc(e.question) + '</div>').join('') + '</div>';
+        escs.map(e => '<div class="org-panel-esc">' + this._orgEsc(e.from + ' → ' + e.to + ' · ') + '<span data-org-age="' + this._orgEsc(e.at || '') + '">' + this._orgEsc(this._orgCompactAge(e.at)) + '</span><br>' + this._orgEsc(e.question) + '</div>').join('') + '</div>';
     }
     return '<aside class="org-panel" aria-label="Role details"><div class="org-panel-head"><div class="org-panel-titleline">' +
       (isRoot ? '<span class="org-rootmark"></span>' : '<span class="org-presence ' + this._orgEsc(state) + '" style="margin-top:5px"></span>') +
-      '<div class="org-panel-title"><div class="org-panel-name">' + this._orgEsc(name) + '</div><div class="org-panel-sub">' + this._orgEsc(isRoot ? 'org root' : this._orgNodeSub(summary, false)) + '</div></div>' +
+      '<div class="org-panel-title"><div class="org-panel-name">' + this._orgEsc(displayName) + '</div><div class="org-panel-sub">' + this._orgEsc(isRoot ? 'org root' : this._orgNodeSub(summary, false)) + '</div></div>' +
       '<button type="button" class="org-panel-close" data-org-close aria-label="Close role details">×</button></div>' +
       '<span class="org-panel-state" style="color:' + tone.color + ';background:' + tone.bg + '">' + tone.label + '</span></div>' +
       '<div class="org-panel-body">' + body + '</div></aside>';
@@ -3205,10 +3279,19 @@ class Component extends DCLogic {
     if (!this._orgRoot) return;
     data = data || {};
     const roles = Array.isArray(data.roles) ? data.roles : [];
+    if (this._orgSelected && !roles.some(r => r && r.name === this._orgSelected)) {
+      const removed = this._orgSelected;
+      this._orgSelected = null;
+      this._orgDetail = null;
+      this._orgDetailStatus = '';
+      this._orgDetailError = '';
+      if (this._orgRoleCache) delete this._orgRoleCache[removed];
+    }
     const content = this._orgRoot.querySelector('.org-content');
     if (!content) return;
     const previousChart = content.querySelector('.org-chart-scroll');
     const previousScrollLeft = previousChart ? previousChart.scrollLeft : 0;
+    const previousScrollTop = previousChart ? previousChart.scrollTop : 0;
     const centerAfterRender = !!this._orgCenterAfterRender || !previousChart;
     this._orgCenterAfterRender = false;
     if (!roles.length) {
@@ -3229,6 +3312,7 @@ class Component extends DCLogic {
         '<section class="org-col"><div class="org-sec-head"><span class="org-title-dot" style="background:#9ece6a;box-shadow:0 0 8px rgba(158,206,106,.4)"></span><span>Event feed</span><span class="org-right">current signals</span></div><div class="org-col-body">' + this._orgFeedHTML(feed) + '</div></section>' +
       '</div>' +
       this._orgPanelHTML(this._orgSelected);
+    this._orgBindChartPan(content.querySelector('.org-chart-scroll'));
     try { if (this._orgTreeRO) this._orgTreeRO.disconnect(); } catch (e) {}
     const tree = content.querySelector('.org-tree');
     if (tree && typeof ResizeObserver !== 'undefined') {
@@ -3239,7 +3323,10 @@ class Component extends DCLogic {
       this._orgComputeEdges();
       const chart = content.querySelector('.org-chart-scroll');
       if (centerAfterRender) this._orgCenterTree();
-      else if (chart) chart.scrollLeft = previousScrollLeft;
+      else if (chart) {
+        chart.scrollLeft = previousScrollLeft;
+        chart.scrollTop = previousScrollTop;
+      }
     });
     setTimeout(() => this._orgComputeEdges(), 120);
     this._queuePullToRefreshSync();
@@ -3247,7 +3334,11 @@ class Component extends DCLogic {
   _orgRefreshTimes() {
     if (!this._orgRoot) return;
     this._orgRoot.querySelectorAll('[data-org-relative]').forEach(el => { el.textContent = this._orgUpdatedLabel(el.getAttribute('data-org-relative')); });
-    this._orgRoot.querySelectorAll('[data-org-age]').forEach(el => { el.textContent = this._orgCompactAge(el.getAttribute('data-org-age')); });
+    this._orgRoot.querySelectorAll('[data-org-age]').forEach(el => {
+      const age = this._orgCompactAge(el.getAttribute('data-org-age'));
+      const tmpl = el.getAttribute('data-org-age-tmpl');
+      el.textContent = tmpl ? tmpl.replace('{a}', age) : age;
+    });
   }
   async fetchOrg(background) {
     if (this._orgFetching) return;
@@ -3260,13 +3351,22 @@ class Component extends DCLogic {
       const res = await fetch('/api/org', { cache: 'no-store' });
       if (!res.ok) throw new Error(res.status === 404 ? 'Org data requires a newer gitmoot build.' : ('Could not load Org data (HTTP ' + res.status + ').'));
       const text = await res.text();
-      if (background && this._orgSignature === text) { this._orgRefreshTimes(); return; }
+      if (background && this._orgSignature === text) {
+        if (this._orgError) {
+          this._orgError = '';
+          this.renderOrg(this._orgData);
+        } else {
+          this._orgRefreshTimes();
+        }
+        return;
+      }
       const data = JSON.parse(text || '{}');
       data.roles = Array.isArray(data.roles) ? data.roles : [];
       data.escalations = Array.isArray(data.escalations) ? data.escalations : [];
       data.feed = Array.isArray(data.feed) ? data.feed : [];
       this._orgSignature = text;
       this._orgData = data;
+      this._orgDataReceivedAt = Date.now();
       this._orgError = '';
       this.renderOrg(data);
       if (this._orgSelected) this.fetchOrgRole(this._orgSelected, true);
@@ -3311,6 +3411,7 @@ class Component extends DCLogic {
         data.identity.scope = Array.isArray(data.identity.scope) ? data.identity.scope : [];
         data.identity.path = Array.isArray(data.identity.path) ? data.identity.path : [];
       }
+      if (!this._orgData || !Array.isArray(this._orgData.roles) || !this._orgData.roles.some(r => r && r.name === name)) return;
       this._orgRoleCache[name] = data;
       if (this._orgSelected === name) { this._orgDetailStatus = 'ready'; this._orgDetailError = ''; this.renderOrg(this._orgData); }
     } catch (err) {
@@ -3573,7 +3674,7 @@ class Component extends DCLogic {
     }
     if (wrap) wrap.scrollTop = prevScroll;
     const foot = this._jobsRoot.querySelector('#jb-foot');
-    if (foot) foot.textContent = filtered.length > CAP ? ('showing ' + CAP + ' of ' + filtered.length + ' — refine filters') : '';
+    if (foot) foot.textContent = filtered.length > CAP ? ('showing ' + CAP + ' of ' + filtered.length + ' - refine filters') : '';
   }
 
   _jobsRowHtml(j, esc) {
@@ -3586,16 +3687,16 @@ class Component extends DCLogic {
     const tin = this._fmtTokens(j.tokensIn), tout = this._fmtTokens(j.tokensOut);
     const tok = (tin || tout) ? ((tin || '0') + '↓ / ' + (tout || '0') + '↑') : '';
     const rtBadge = rt ? '<span class="jb-rt" style="color:' + rtCol + ';border-color:' + rtCol + '55">' + esc(rt) + '</span>' : '';
-    const agentCell = j.agent ? (esc(j.agent) + rtBadge) : (rt ? rtBadge : '—');
+    const agentCell = j.agent ? (esc(j.agent) + rtBadge) : (rt ? rtBadge : '-');
     return '<tr data-id="' + esc(j.id) + '"' + (isSel ? ' class="sel"' : '') + '>' +
       '<td><span class="jb-sdot" style="background:' + col + (running ? ';animation:dotpulse 1.4s ease-in-out infinite' : '') + '"></span><span class="jb-slabel" style="color:' + col + '">' + esc(state) + '</span></td>' +
       '<td class="jb-tt">' + esc(j.title || j.id) + '</td>' +
       '<td><span class="jb-agent">' + agentCell + '</span></td>' +
-      '<td class="jb-mono">' + esc(j.repo || '—') + '</td>' +
-      '<td>' + (j.kind ? '<span class="jb-kind">' + esc(j.kind) + '</span>' : '—') + '</td>' +
+      '<td class="jb-mono">' + esc(j.repo || '-') + '</td>' +
+      '<td>' + (j.kind ? '<span class="jb-kind">' + esc(j.kind) + '</span>' : '-') + '</td>' +
       '<td class="jb-mono jb-center">' + (j.depth != null ? j.depth : 0) + '</td>' +
-      '<td class="jb-mono">' + (tok ? esc(tok) : '—') + '</td>' +
-      '<td class="jb-mono">' + esc(j.started ? this._relFromMs(j.started) : '—') + '</td>' +
+      '<td class="jb-mono">' + (tok ? esc(tok) : '-') + '</td>' +
+      '<td class="jb-mono">' + esc(j.started ? this._relFromMs(j.started) : '-') + '</td>' +
       '<td class="jb-mono">' + esc(this._fmtDur(j.duration)) + '</td>' +
     '</tr>';
   }
@@ -3616,7 +3717,7 @@ class Component extends DCLogic {
     const dur = esc(this._fmtDur(j.duration));
     return '<div class="jb-card' + (isSel ? ' sel' : '') + '" data-id="' + esc(j.id) + '">' +
       '<div class="jc-r1"><span class="jb-sdot" style="background:' + col + (running ? ';animation:dotpulse 1.4s ease-in-out infinite' : '') + '"></span><span class="jc-title">' + esc(j.title || j.id) + '</span></div>' +
-      '<div class="jc-r2">' + (agentTxt || rtBadge || j.repo ? (agentTxt + rtBadge + (j.repo ? '<span class="jc-repo">' + esc(j.repo) + '</span>' : '')) : '<span>—</span>') + '</div>' +
+      '<div class="jc-r2">' + (agentTxt || rtBadge || j.repo ? (agentTxt + rtBadge + (j.repo ? '<span class="jc-repo">' + esc(j.repo) + '</span>' : '')) : '<span>-</span>') + '</div>' +
       '<div class="jc-r3">' + kind + (age ? '<span>' + age + '</span>' : '') + (dur ? '<span>' + dur + '</span>' : '') + '</div>' +
     '</div>';
   }
@@ -3659,13 +3760,13 @@ class Component extends DCLogic {
     const title = (job && job.title) || (summary && summary.title) || (summary && summary.id) || '';
     const runtime = (job && job.runtime) || (summary && summary.runtime) || '';
     const model = (job && job.model) || '';
-    const sub = runtime ? (runtime + (model ? ' · ' + model : '')) : (model || '—');
+    const sub = runtime ? (runtime + (model ? ' · ' + model : '')) : (model || '-');
     const worker = (job && job.workerId) || '';
     const startedAt = (job && job.startedAt) || (summary && summary.started) || 0;
     const endedAt = (job && job.endedAt) || 0;
-    const startedLabel = startedAt > 0 ? new Date(startedAt).toLocaleString() : '—';
-    const elapsedLabel = (endedAt && startedAt) ? (((endedAt - startedAt) / 1000).toFixed(1) + 's') : ((summary && summary.duration) ? this._fmtDur(summary.duration) : '—');
-    const runtimeLabel = runtime ? (runtime + (model ? ' · ' + model : '')) : '—';
+    const startedLabel = startedAt > 0 ? new Date(startedAt).toLocaleString() : '-';
+    const elapsedLabel = (endedAt && startedAt) ? (((endedAt - startedAt) / 1000).toFixed(1) + 's') : ((summary && summary.duration) ? this._fmtDur(summary.duration) : '-');
+    const runtimeLabel = runtime ? (runtime + (model ? ' · ' + model : '')) : '-';
     const prUrl = (job && job.prUrl) || null;
 
     let evHtml = '';
@@ -3674,7 +3775,7 @@ class Component extends DCLogic {
       const base = (evs[0] && evs[0].t) || startedAt || 0;
       evHtml = evs.map((ev, i) => {
         const dt = (ev.t && base) ? Math.max(0, (ev.t - base) / 1000) : 0;
-        const tlabel = (ev.t && base) ? ('+' + dt.toFixed(1) + 's') : '—';
+        const tlabel = (ev.t && base) ? ('+' + dt.toFixed(1) + 's') : '-';
         const c = /fail/i.test(ev.label || '') ? '#f7768e' : /succeed|opened|complete|passed/i.test(ev.label || '') ? '#9ece6a' : '#7aa2f7';
         const last = i === evs.length - 1;
         return '<div class="jd-ev"><div class="rail"><span class="dot" style="background:' + c + ';box-shadow:0 0 6px ' + c + '"></span>' + (last ? '' : '<span class="line"></span>') + '</div>' +
@@ -3684,8 +3785,8 @@ class Component extends DCLogic {
       const msg = status === 'loading' ? 'loading…' : status === 'error' ? '(events unavailable)' : 'no events';
       evHtml = '<div class="jd-ev"><div class="rail"><span class="dot" style="background:#5a6088"></span></div><div style="flex:1"><div class="lbl" style="color:#5a6088">' + msg + '</div></div></div>';
     }
-    const prompt = (job && job.prompt) || (status === 'loading' ? 'loading…' : '—');
-    const output = (job && job.output) || (status === 'loading' ? 'loading…' : running ? '… running …' : '—');
+    const prompt = (job && job.prompt) || (status === 'loading' ? 'loading…' : '-');
+    const output = (job && job.output) || (status === 'loading' ? 'loading…' : running ? '… running …' : '-');
 
     const parts = [
       '<div class="jd-head">',
@@ -4039,10 +4140,10 @@ class Component extends DCLogic {
       : '';
     const miniCol = st === 'failing' ? '#f7768e' : '#868db5';
     const mini = '<span class="ag-rmini" style="color:' + miniCol + '">' + (a.runningCount || 0) + '▶ ' + (a.failedCount || 0) + '✗</span>';
-    const active = a.lastActive ? esc(this._agRelShort(a.lastActive)) : '—';
+    const active = a.lastActive ? esc(this._agRelShort(a.lastActive)) : '-';
     return '<div class="ag-row' + (sel ? ' sel' : '') + '" data-agent="' + esc(a.name) + '" title="' + esc(a.name) + '">' +
       dot +
-      '<span class="ag-rname">' + esc(a.name || '—') + '</span>' +
+      '<span class="ag-rname">' + esc(a.name || '-') + '</span>' +
       rtChip +
       '<span class="ag-rspace"></span>' +
       mini +
@@ -4182,7 +4283,7 @@ class Component extends DCLogic {
     const jobs = (this._agAllJobs || []).filter(j => (j.agent || '') === name);
     let durSum = 0, durCnt = 0;
     for (let i = 0; i < jobs.length; i++) { if (jobs[i].duration > 0) { durSum += jobs[i].duration; durCnt++; } }
-    const avgDur = durCnt ? this._fmtDur(Math.round(durSum / durCnt)) : '—';
+    const avgDur = durCnt ? this._fmtDur(Math.round(durSum / durCnt)) : '-';
     const recent = jobs.slice(0, 8);
 
     // Stat tiles.
@@ -4193,12 +4294,12 @@ class Component extends DCLogic {
 
     // Config rows (contract fields only — no tokens row; the contract lacks it).
     const model = (cfg && cfg.model) || a.model || '';
-    const concurrency = (cfg && cfg.maxBackground) ? String(cfg.maxBackground) : '—';
-    const timeout = (cfg && (cfg.jobTimeout || cfg.idleTimeout)) || '—';
+    const concurrency = (cfg && cfg.maxBackground) ? String(cfg.maxBackground) : '-';
+    const timeout = (cfg && (cfg.jobTimeout || cfg.idleTimeout)) || '-';
     const cfgRow = (k, v) => '<div class="ag-cfg-row"><span class="ag-cfg-k">' + esc(k) + '</span><span class="ag-cfg-v">' + esc(v) + '</span></div>';
     const cfgHtml = '<div class="ag-cfg">' +
-      cfgRow('runtime', runtime || '—') +
-      cfgRow('model', model || '—') +
+      cfgRow('runtime', runtime || '-') +
+      cfgRow('model', model || '-') +
       cfgRow('concurrency', concurrency) +
       cfgRow('timeout', timeout) +
       cfgRow('avg duration', avgDur) +
@@ -4211,7 +4312,7 @@ class Component extends DCLogic {
     if (versions.length) {
       vhHtml = '<div class="ag-vh">' + versions.map(v => {
         const cur = !!v.current;
-        const when = this._agRelShort(v.promotedAt || v.createdAt) || '—';
+        const when = this._agRelShort(v.promotedAt || v.createdAt) || '-';
         const num = v.number != null ? ('v' + v.number) : 'v?';
         const stateTxt = String(v.state == null ? '' : v.state);
         const desc = v.description || v.name || '';
@@ -4233,7 +4334,7 @@ class Component extends DCLogic {
       const tmplVer = (curV && curV.number != null) ? ('v' + curV.number) : '';
       const content = tmpl.content || '';
       const excerpt = content ? String(content).split('\n').slice(0, 6).join('\n') : '';
-      tmplHtml = '<div class="ag-tmpl-head"><span class="ag-tmpl-name">' + esc(tmpl.name || tmpl.id || '—') + '</span>' + (tmplVer ? '<span class="ag-tmpl-ver">' + esc(tmplVer) + '</span>' : '') + '</div>' +
+      tmplHtml = '<div class="ag-tmpl-head"><span class="ag-tmpl-name">' + esc(tmpl.name || tmpl.id || '-') + '</span>' + (tmplVer ? '<span class="ag-tmpl-ver">' + esc(tmplVer) + '</span>' : '') + '</div>' +
         '<div class="ag-tmpl-box">' +
           (excerpt ? '<div class="ag-tmpl-excerpt">' + esc(excerpt) + '</div>' : '<div class="ag-vempty">no prompt recorded</div>') +
           (content ? this._promptViewerHtml(esc, 'view full prompt', content, true) : '') +
@@ -4252,8 +4353,8 @@ class Component extends DCLogic {
           '<span class="ag-run-dot" style="background:' + col + (rp ? ';box-shadow:0 0 6px ' + col + ';animation:dotpulse 1.4s ease-in-out infinite' : '') + '"></span>' +
           '<span class="ag-run-title">' + esc(j.title || j.id) + '</span>' +
           '<span class="ag-run-repo">' + esc(j.repo || '') + '</span>' +
-          '<span class="ag-run-dur">' + esc(j.duration > 0 ? this._fmtDur(j.duration) : '—') + '</span>' +
-          '<span class="ag-run-age">' + esc(this._agRelShort(j.started || j.updated) || '—') + '</span>' +
+          '<span class="ag-run-dur">' + esc(j.duration > 0 ? this._fmtDur(j.duration) : '-') + '</span>' +
+          '<span class="ag-run-age">' + esc(this._agRelShort(j.started || j.updated) || '-') + '</span>' +
         '</div>';
       }).join('') + '</div>';
     } else {
@@ -4277,7 +4378,7 @@ class Component extends DCLogic {
       '</div>' +
       '<div class="ag-tiles">' +
         this._agTileHtml('TOTAL RUNS', String(jobCount), '#eef0ff') +
-        this._agTileHtml('SUCCESS', pct == null ? '—' : pct + '%', pctCol) +
+        this._agTileHtml('SUCCESS', pct == null ? '-' : pct + '%', pctCol) +
         this._agTileHtml('RUNNING', String(running), '#7aa2f7') +
         this._agTileHtml('FAILED', String(failed), failed > 0 ? '#f7768e' : '#868db5') +
       '</div>' +
@@ -4430,7 +4531,7 @@ class Component extends DCLogic {
       '<div class="ch-card">',
       '  <div class="ch-chead"><span class="ch-ct">Tokens / day</span><span class="ch-toktot" id="ch-tok-total"></span>' + scaleToggle + '</div>',
       '  <div class="ch-plot" id="ch-tokens"></div>',
-      '  <div class="ch-foot"><span class="ico">ⓘ</span><span class="txt">codex &amp; kimi token usage not yet captured — claude only</span></div>',
+      '  <div class="ch-foot"><span class="ico">ⓘ</span><span class="txt">codex &amp; kimi token usage not yet captured - claude only</span></div>',
       '</div>',
       '<div class="ch-two">',
       '  <div class="ch-card"><div class="ch-chead"><span class="ch-ct">Top agents</span>' + rtLegend + '</div><div class="ch-plot" id="ch-agents"></div></div>',
@@ -4517,7 +4618,7 @@ class Component extends DCLogic {
   _chartsTilesHtml(t, data, range) {
     const jobs = t.jobs || 0, ok = t.succeeded || 0, fail = t.failed || 0;
     const fi = (n) => (n || 0).toLocaleString('en-US');
-    const pct = (num) => jobs > 0 ? (num / jobs * 100).toFixed(1) + '%' : '—';
+    const pct = (num) => jobs > 0 ? (num / jobs * 100).toFixed(1) + '%' : '-';
     const nAgents = t.activeAgents || 0, nRepos = ((data && data.repos) || []).length;
     const rl = range ? (range + 'd') : 'all';
     const tile = (cls, label, val, valCol, sub) =>
@@ -4549,12 +4650,12 @@ class Component extends DCLogic {
     const tp = root.querySelector('#ch-tokens'); if (tp) tp.innerHTML = days.length ? this._chartTokens(tp, days) : '<div class="ch-empty">no tokens in range</div>';
     const ap = root.querySelector('#ch-agents');
     if (ap) {
-      const rows = (data.agents || []).map(a => ({ name: a.name || '—', value: a.jobs || 0, color: this._runtimeColor(a.runtime || '') }));
+      const rows = (data.agents || []).map(a => ({ name: a.name || '-', value: a.jobs || 0, color: this._runtimeColor(a.runtime || '') }));
       ap.innerHTML = rows.length ? '<div class="ch-rows">' + this._chartsAgentRows(rows) + '</div>' : this._chartsAgentRows(rows);
     }
     const rp = root.querySelector('#ch-repos');
     if (rp) {
-      const rows = (data.repos || []).map(r => ({ repo: r.repo || '—', value: r.jobs || 0 }));
+      const rows = (data.repos || []).map(r => ({ repo: r.repo || '-', value: r.jobs || 0 }));
       rp.innerHTML = rows.length ? '<div class="ch-rows">' + this._chartsRepoRows(rows) + '</div>' : this._chartsRepoRows(rows);
     }
   }
@@ -4739,7 +4840,7 @@ class Component extends DCLogic {
     return m + 'm';
   }
   _fmtCountdown(ms) {
-    if (ms == null) return '—';
+    if (ms == null) return '-';
     if (ms <= 0) return 'expired';
     let s = Math.floor(ms / 1000);
     const h = Math.floor(s / 3600); s -= h * 3600;
@@ -4814,7 +4915,7 @@ class Component extends DCLogic {
     root.innerHTML = [
       '<div class="at-scroll">',
       '<div class="at-head"><div class="at-title">Needs a human<span class="at-tdot">.</span></div><div class="at-updated" id="at-updated"></div></div>',
-      '<div class="at-sub">Everything parked on an explicit human decision — retry, approve, reject, continue or escalate.</div>',
+      '<div class="at-sub">Everything parked on an explicit human decision - retry, approve, reject, continue or escalate.</div>',
       '<div class="at-hero" id="at-hero"></div>',
       '<div class="at-section"><div class="at-h">Blocked job gates <span class="at-hc" id="at-gates-c"></span></div><div class="at-list" id="at-gates"></div></div>',
       '<div class="at-section"><div class="at-h">Pending synth approvals <span class="at-hc" id="at-synth-c"></span></div><div class="at-list" id="at-synth"></div></div>',
@@ -5122,13 +5223,13 @@ class Component extends DCLogic {
     // plus non-branch resource locks (TTL'd runtime sessions etc. — shown with an
     // expiry countdown instead of a release command). Aged past 24h -> AGING, 7d -> CRITICAL.
     const allLocks = branchLocks.map(l => ({
-      kind: 'branch', name: (l.branch || '?') + ' @ ' + (l.repo || '?'), owner: l.owner || '—',
+      kind: 'branch', name: (l.branch || '?') + ' @ ' + (l.repo || '?'), owner: l.owner || '-',
       since: l.acquiredAt || 0, exp: 0,
       cmd: 'gitmoot lock release ' + (l.repo || '') + ' ' + (l.branch || '') + ' --owner ' + (l.owner || '')
     })).concat(resLocks.map(l => {
       const key = l.key || ''; const ci = key.indexOf(':');
       return { kind: ci > 0 ? key.slice(0, ci) : 'lock', name: ci > 0 ? key.slice(ci + 1) : (key || '?'),
-        owner: l.owner || '—', since: l.acquiredAt || 0, exp: l.expiresAt || 0, cmd: '' };
+        owner: l.owner || '-', since: l.acquiredAt || 0, exp: l.expiresAt || 0, cmd: '' };
     }));
     const agingLocks = allLocks.filter(l => l.since > 0 && (now - l.since) > DAY);
 
@@ -5235,14 +5336,14 @@ class Component extends DCLogic {
     if (!running) {
       return '<div class="hl-banner down">' +
         '<div class="hl-bnicon">✕</div>' +
-        '<div class="hl-bntext"><div class="hl-bntitle">Daemon stopped — orchestration paused</div>' +
+        '<div class="hl-bntext"><div class="hl-bntitle">Daemon stopped - orchestration paused</div>' +
         '<div class="hl-bnsub">no heartbeat · workers idle' + verSeg + '</div></div>' +
         (updHtml ? '<div class="hl-bnright">' + updHtml + '</div>' : '') + '</div>';
     }
     if (s.allClear) {
       return '<div class="hl-banner ok">' +
         '<div class="hl-bnicon">✓</div>' +
-        '<div class="hl-bntext"><div class="hl-bntitle">All clear — daemon healthy</div>' +
+        '<div class="hl-bntext"><div class="hl-bntitle">All clear - daemon healthy</div>' +
         '<div class="hl-bnsub">' + upSeg + ' · no stuck jobs · no aging locks · failures within threshold</div></div>' +
         '<div class="hl-bnright">' + updHtml + '<button class="hl-toggle" data-hl-toggle="1" type="button">view live state ▸</button></div></div>';
     }
@@ -5251,7 +5352,7 @@ class Component extends DCLogic {
     const sub = upSeg + ' · ' + s.blocked + ' blocked · ' + s.stuckWorkers + ' stuck · ' + s.aging + ' locks aging · ' + s.failures + ' recent failures';
     return '<div class="hl-banner attention">' +
       '<div class="hl-bnicon">⚠</div>' +
-      '<div class="hl-bntext"><div class="hl-bntitle">Daemon healthy — ' + n + ' ' + noun + ' your attention</div>' +
+      '<div class="hl-bntext"><div class="hl-bntitle">Daemon healthy - ' + n + ' ' + noun + ' your attention</div>' +
       '<div class="hl-bnsub">' + sub + '</div></div>' +
       '<div class="hl-bnright">' + updHtml + '<button class="hl-toggle" data-hl-toggle="1" type="button">preview all-clear ▸</button></div></div>';
   }
@@ -5271,7 +5372,7 @@ class Component extends DCLogic {
       '<div class="hl-sline">' + dot +
         '<span class="hl-stitle">' + esc(j.title || j.id) + '</span>' + ag + repo +
         '<span class="hl-grow"></span>' +
-        '<span class="hl-sage hl-age" data-since="' + (j.since || 0) + '">—</span>' + why +
+        '<span class="hl-sage hl-age" data-since="' + (j.since || 0) + '">-</span>' + why +
       '</div>' + body + '</div>';
   }
 
@@ -5281,10 +5382,10 @@ class Component extends DCLogic {
     const esc = (s) => this._galaxyEsc(s);
     const dot = '<span class="hl-dot" style="background:' + tone + ';box-shadow:0 0 8px ' + tone + '"></span>';
     const chip = lvl ? '<span class="hl-esc" style="color:' + tone + ';background:' + this._hlTint(tone, 0.12) + ';border:1px solid ' + this._hlTint(tone, 0.28) + '">' + lvl + '</span>' : '';
-    const age = '<span class="hl-lage hl-age" data-since="' + (l.since || 0) + '" style="color:' + tone + '">—</span>';
+    const age = '<span class="hl-lage hl-age" data-since="' + (l.since || 0) + '" style="color:' + tone + '">-</span>';
     const tail = l.cmd
       ? '<div class="hl-cmd"><code>' + esc(l.cmd) + '</code><button class="gm-copy" data-cmd="' + esc(l.cmd) + '" type="button">copy</button></div>'
-      : '<div class="hl-exppill">ttl <span class="hl-exp" data-exp="' + (l.exp || 0) + '">—</span></div>';
+      : '<div class="hl-exppill">ttl <span class="hl-exp" data-exp="' + (l.exp || 0) + '">-</span></div>';
     return '<div class="hl-lrow">' + dot +
       '<span class="hl-lname"><span class="hl-lkind">' + esc(l.kind) + '</span> · ' + esc(l.name) + '</span>' +
       '<span class="hl-lheld">held by ' + esc(l.owner) + '</span>' + chip +
@@ -5312,8 +5413,8 @@ class Component extends DCLogic {
     const root = this._healthRoot; if (!root) return;
     const up = root.querySelector('#hl-uptime');
     if (up) { const s = +up.getAttribute('data-started'); up.textContent = s > 0 ? this._fmtUptime(Date.now() - s) : ''; }
-    root.querySelectorAll('.hl-age').forEach(el => { const s = +el.getAttribute('data-since'); el.textContent = s > 0 ? this._relFromMs(s).replace(/ ago$/, '') : '—'; });
-    root.querySelectorAll('.hl-exp').forEach(el => { const s = +el.getAttribute('data-exp'); el.textContent = s > 0 ? this._fmtCountdown(s - Date.now()) : '—'; });
+    root.querySelectorAll('.hl-age').forEach(el => { const s = +el.getAttribute('data-since'); el.textContent = s > 0 ? this._relFromMs(s).replace(/ ago$/, '') : '-'; });
+    root.querySelectorAll('.hl-exp').forEach(el => { const s = +el.getAttribute('data-exp'); el.textContent = s > 0 ? this._fmtCountdown(s - Date.now()) : '-'; });
   }
 
   _healthJobSummary(id) {
@@ -5404,13 +5505,13 @@ class Component extends DCLogic {
     const title = (job && job.title) || (summary && summary.title) || (summary && summary.id) || '';
     const runtime = (job && job.runtime) || (summary && summary.runtime) || '';
     const model = (job && job.model) || '';
-    const sub = runtime ? (runtime + (model ? ' · ' + model : '')) : (model || '—');
+    const sub = runtime ? (runtime + (model ? ' · ' + model : '')) : (model || '-');
     const worker = (job && job.workerId) || '';
     const startedAt = (job && job.startedAt) || (summary && summary.started) || 0;
     const endedAt = (job && job.endedAt) || 0;
-    const startedLabel = startedAt > 0 ? new Date(startedAt).toLocaleString() : '—';
-    const elapsedLabel = (endedAt && startedAt) ? (((endedAt - startedAt) / 1000).toFixed(1) + 's') : ((summary && summary.duration) ? this._fmtDur(summary.duration) : '—');
-    const runtimeLabel = runtime ? (runtime + (model ? ' · ' + model : '')) : '—';
+    const startedLabel = startedAt > 0 ? new Date(startedAt).toLocaleString() : '-';
+    const elapsedLabel = (endedAt && startedAt) ? (((endedAt - startedAt) / 1000).toFixed(1) + 's') : ((summary && summary.duration) ? this._fmtDur(summary.duration) : '-');
+    const runtimeLabel = runtime ? (runtime + (model ? ' · ' + model : '')) : '-';
     const prUrl = (job && job.prUrl) || null;
     let evHtml = '';
     const evs = (job && Array.isArray(job.events)) ? job.events : [];
@@ -5418,7 +5519,7 @@ class Component extends DCLogic {
       const base = (evs[0] && evs[0].t) || startedAt || 0;
       evHtml = evs.map((ev, i) => {
         const dt = (ev.t && base) ? Math.max(0, (ev.t - base) / 1000) : 0;
-        const tlabel = (ev.t && base) ? ('+' + dt.toFixed(1) + 's') : '—';
+        const tlabel = (ev.t && base) ? ('+' + dt.toFixed(1) + 's') : '-';
         const c = /fail/i.test(ev.label || '') ? '#f7768e' : /succeed|opened|complete|passed/i.test(ev.label || '') ? '#9ece6a' : '#7aa2f7';
         const last = i === evs.length - 1;
         return '<div class="xd-ev"><div class="rail"><span class="dot" style="background:' + c + ';box-shadow:0 0 6px ' + c + '"></span>' + (last ? '' : '<span class="line"></span>') + '</div>' +
@@ -5428,8 +5529,8 @@ class Component extends DCLogic {
       const msg = status === 'loading' ? 'loading…' : status === 'error' ? '(events unavailable)' : 'no events';
       evHtml = '<div class="xd-ev"><div class="rail"><span class="dot" style="background:#5a6088"></span></div><div style="flex:1"><div class="lbl" style="color:#5a6088">' + msg + '</div></div></div>';
     }
-    const prompt = (job && job.prompt) || (status === 'loading' ? 'loading…' : '—');
-    const output = (job && job.output) || (status === 'loading' ? 'loading…' : running ? '… running …' : '—');
+    const prompt = (job && job.prompt) || (status === 'loading' ? 'loading…' : '-');
+    const output = (job && job.output) || (status === 'loading' ? 'loading…' : running ? '… running …' : '-');
     const parts = [
       '<div class="xd-head"><div class="xd-hrow">',
       '<span class="xd-dot" style="background:' + col + ';box-shadow:0 0 10px ' + col + (running ? ';animation:dotpulse 1.4s ease-in-out infinite' : '') + '"></span>',
@@ -5717,10 +5818,10 @@ class Component extends DCLogic {
         const auth = key && key.proxyAuth != null ? String(key.proxyAuth) : '';
         const proxy = upstream || auth
           ? '<div class="cfg-keychain-proxy">' + (upstream ? '<span class="cfg-keychain-upstream">' + esc(upstream) + '</span>' : '') + (auth ? '<span class="cfg-keychain-auth">' + esc(auth) + '</span>' : '') + '</div>'
-          : '<span class="cfg-keychain-dash">—</span>';
+          : '<span class="cfg-keychain-dash">-</span>';
         const grants = Array.isArray(key && key.grants) ? key.grants : [];
-        const grantHTML = grants.length ? grants.map(grant => '<span class="cfg-keychain-grant">' + esc(grant && grant.consumerKind || '') + ':' + esc(grant && grant.consumerID || '') + '</span>').join('') : '<span class="cfg-keychain-dash">—</span>';
-        return '<tr><td class="cfg-keychain-name">' + esc(key && key.name || '') + '</td><td><span class="cfg-keychain-mode ' + modeClass + '">' + esc(mode || '—') + '</span></td><td>' + proxy + '</td><td><div class="cfg-keychain-grants">' + grantHTML + '</div></td><td class="cfg-keychain-created">' + esc(key && key.createdAt || '—') + '</td></tr>';
+        const grantHTML = grants.length ? grants.map(grant => '<span class="cfg-keychain-grant">' + esc(grant && grant.consumerKind || '') + ':' + esc(grant && grant.consumerID || '') + '</span>').join('') : '<span class="cfg-keychain-dash">-</span>';
+        return '<tr><td class="cfg-keychain-name">' + esc(key && key.name || '') + '</td><td><span class="cfg-keychain-mode ' + modeClass + '">' + esc(mode || '-') + '</span></td><td>' + proxy + '</td><td><div class="cfg-keychain-grants">' + grantHTML + '</div></td><td class="cfg-keychain-created">' + esc(key && key.createdAt || '-') + '</td></tr>';
       }).join('');
       body = '<div class="cfg-keychain-table-wrap"><table class="cfg-keychain-table"><thead><tr><th>Name</th><th>Mode</th><th>Upstream / Auth</th><th>Grants</th><th>Created</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
     } else if (q && allKeys.length) {
@@ -5748,7 +5849,7 @@ class Component extends DCLogic {
     }
     if (data.exists === false) {
       this._configRenderAnchors([]);
-      box.innerHTML = '<div class="cfg-state missing"><div class="cfg-state-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 3 20h18L12 3Z"/><path d="M12 9v5M12 17h.01"/></svg></div><div class="cfg-state-title">config.toml not found</div><div class="cfg-state-copy">No config file at the expected path — the daemon is running on built-in defaults. This is normal for a fresh install; write a config to override.</div><div class="cfg-state-meta">' + this._galaxyEsc(data.path || 'config.toml') + ' · missing</div></div>';
+      box.innerHTML = '<div class="cfg-state missing"><div class="cfg-state-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 3 20h18L12 3Z"/><path d="M12 9v5M12 17h.01"/></svg></div><div class="cfg-state-title">config.toml not found</div><div class="cfg-state-copy">No config file at the expected path - the daemon is running on built-in defaults. This is normal for a fresh install; write a config to override.</div><div class="cfg-state-meta">' + this._galaxyEsc(data.path || 'config.toml') + ' · missing</div></div>';
       return;
     }
     const esc = (s) => this._galaxyEsc(s == null ? '' : String(s));
@@ -5798,7 +5899,7 @@ class Component extends DCLogic {
       anchors.push({ id: id, label: 'Per-agent', count: agents.length });
       const rt = a => { const runtime = String(a.runtime || 'shell').toLowerCase(), cls = /claude/.test(runtime) ? 'claude' : /codex/.test(runtime) ? 'codex' : /kimi/.test(runtime) ? 'kimi' : 'shell'; return '<span class="cfg-runtime ' + cls + '">' + esc(a.runtime || 'shell') + '</span>'; };
       const bool = (v, label) => '<span class="cfg-bool' + (v ? ' on' : '') + '"><i></i>' + label + '</span>';
-      const trs = agents.map(a => '<tr><td class="name">' + esc(a.name) + '</td><td>' + rt(a) + '</td><td>' + bool(!!a.memory, '') + '</td><td>' + bool(!!a.chat_autorespond, '') + '</td><td>' + esc((Array.isArray(a.capabilities) ? a.capabilities : []).join(', ') || '—') + '</td><td>' + esc(a.autonomy_policy || '—') + '</td><td>' + esc(a.max_background == null ? '—' : a.max_background) + '</td><td>' + esc(a.model || '—') + '</td></tr>').join('');
+      const trs = agents.map(a => '<tr><td class="name">' + esc(a.name) + '</td><td>' + rt(a) + '</td><td>' + bool(!!a.memory, '') + '</td><td>' + bool(!!a.chat_autorespond, '') + '</td><td>' + esc((Array.isArray(a.capabilities) ? a.capabilities : []).join(', ') || '-') + '</td><td>' + esc(a.autonomy_policy || '-') + '</td><td>' + esc(a.max_background == null ? '-' : a.max_background) + '</td><td>' + esc(a.model || '-') + '</td></tr>').join('');
       const cards = agents.map(a => '<article class="cfg-agent-card"><div class="cfg-agent-top"><span class="cfg-agent-name">' + esc(a.name) + '</span>' + rt(a) + '</div><div class="cfg-agent-meta">' + bool(!!a.memory, 'mem') + bool(!!a.chat_autorespond, 'ar') + '<span class="cfg-agent-model">' + esc(a.model || 'default') + '</span></div></article>').join('');
       out.push('<section id="' + id + '" class="cfg-section" data-cfg-section><div class="cfg-section-head">Per-agent overrides <span class="cfg-section-meta">' + agents.length + ' agents · ' + memoryN + ' memory-enrolled · ' + autoN + ' auto-respond</span></div><div class="cfg-agent-wrap"><table class="cfg-agent-table"><thead><tr><th>Agent</th><th>Runtime</th><th>Memory</th><th>Auto-resp</th><th>Capabilities</th><th>Policy</th><th>Max bg</th><th>Model</th></tr></thead><tbody>' + trs + '</tbody></table></div><div class="cfg-agent-cards">' + cards + '</div></section>');
     }
@@ -5806,7 +5907,7 @@ class Component extends DCLogic {
     if (unknown.length) anchors.push({ id: this._configSlug('unknown'), label: 'Unknown', count: unknown.length });
     if (!out.length && !unknown.length) out.push('<div class="cfg-no-match">No keys match “' + esc(this._configQuery || '') + '”</div>');
     const modified = data.modified_at ? new Date(data.modified_at).toLocaleString() : 'not available';
-    const unknownHtml = unknown.length ? '<div id="' + this._configSlug('unknown') + '" class="cfg-unknown" data-cfg-section><span>unknown keys</span>' + unknown.map(k => '<span class="cfg-uk">' + esc(k) + '</span>').join('') + '<span>— present in file, not in the allowlist · shown by name only</span></div>' : '';
+    const unknownHtml = unknown.length ? '<div id="' + this._configSlug('unknown') + '" class="cfg-unknown" data-cfg-section><span>unknown keys</span>' + unknown.map(k => '<span class="cfg-uk">' + esc(k) + '</span>').join('') + '<span>- present in file, not in the allowlist · shown by name only</span></div>' : '';
     out.push('<footer class="cfg-trust"><div class="cfg-trust-line"><span class="cfg-trust-path">' + esc(data.path || 'config.toml') + '</span><span>·</span><span>modified ' + esc(modified) + '</span><span>·</span><span>read-only · allowlisted values only · secrets never serialized</span></div>' + unknownHtml + '</footer>');
     box.innerHTML = out.join('');
     this._configRenderAnchors(anchors);
@@ -6261,8 +6362,8 @@ class Component extends DCLogic {
 
   _brainMetaHtml(e) {
     const esc = v => this._galaxyEsc(v), cells = [
-      ['memory_id', e.memoryId != null ? e.memoryId : '—'], ['scope', e.scope || '—'],
-      ['actor', e.actor || '—'], ['at', this._brainAbsTime(e.at)]
+      ['memory_id', e.memoryId != null ? e.memoryId : '-'], ['scope', e.scope || '-'],
+      ['actor', e.actor || '-'], ['at', this._brainAbsTime(e.at)]
     ];
     return '<div class="bc-meta">' + cells.map(c => '<div class="bc-mcell"><b>' + esc(c[0]) + '</b><span>' + esc(c[1]) + '</span></div>').join('') + '</div>';
   }
@@ -6290,7 +6391,7 @@ class Component extends DCLogic {
       const sid = d.superseded_by, successorKey = sid == null ? '' : String(sid);
       const resolved = !!(successorKey && this._brainFacts && Object.prototype.hasOwnProperty.call(this._brainFacts, successorKey));
       const successor = resolved ? this._brainFacts[successorKey] : null;
-      body += '<div class="bc-box"><div>This fact was superseded — its content was replaced by a newer fact.</div><div style="margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span class="bc-boxlabel">successor</span>' +
+      body += '<div class="bc-box"><div>This fact was superseded - its content was replaced by a newer fact.</div><div style="margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span class="bc-boxlabel">successor</span>' +
         (successor && successor.key ? '<button class="bc-action" style="color:#7dcfff;font-family:\'JetBrains Mono\',monospace" data-bc-successor="' + encodeURIComponent(successor.key) + '" data-bc-memory="' + esc(successor.id) + '">' + esc(successor.key) + '</button><button class="bc-action" data-bc-graph="' + esc(successor.id) + '">view successor in graph →</button>' : '<span style="font-family:\'JetBrains Mono\',monospace;color:#5a627e">' + (sid != null ? 'memory ' + esc(sid) + (resolved ? ' (no longer available)' : ' · resolving…') : 'not recorded') + '</span>') + '</div></div>';
     } else if (e.kind === 'cluster_rename') {
       body += '<div class="bc-box"><span class="bc-boxlabel">cluster rename</span><div style="margin-top:7px;font-family:\'JetBrains Mono\',monospace"><span style="color:#8b93ac">' + esc(d.previous_label || 'unlabeled') + '</span> <span style="color:#5a627e">→</span> <span style="color:#bb9af7">' + esc(d.label || 'unlabeled') + '</span></div><div style="margin-top:5px;color:#5a627e">' + esc(d.cluster_id || '') + '</div></div>';
@@ -6298,7 +6399,7 @@ class Component extends DCLogic {
       const rows = Array.isArray(d.clusters) ? d.clusters : [];
       body += '<div class="bc-box"><span class="bc-boxlabel">recomputed clusters</span><div class="bc-burstkeys">' + rows.map(c => { const delta = Number(c.MemberCountDelta || 0); return '<span style="color:#bb9af7">' + esc(c.Label || c.ClusterID || 'cluster') + ' <b style="color:' + (delta < 0 ? '#e0697f' : '#9ece6a') + '">' + (delta > 0 ? '+' : '') + delta + '</b></span>'; }).join('') + (rows.length ? '' : '<span>no member deltas recorded</span>') + '</div></div>';
     } else if (e.kind === 'promoted') {
-      body += '<div class="bc-box"><span class="bc-boxlabel">previous owner</span><div style="margin-top:6px;font-family:\'JetBrains Mono\',monospace">' + esc((d.from_owner_kind || '—') + (d.from_owner_ref ? ':' + d.from_owner_ref : '')) + '</div></div>';
+      body += '<div class="bc-box"><span class="bc-boxlabel">previous owner</span><div style="margin-top:6px;font-family:\'JetBrains Mono\',monospace">' + esc((d.from_owner_kind || '-') + (d.from_owner_ref ? ':' + d.from_owner_ref : '')) + '</div></div>';
     } else if (e.kind === 'ingested') {
       body += '<div class="bc-box"><span class="bc-boxlabel">source</span><div style="margin-top:6px;font-family:\'JetBrains Mono\',monospace">' + esc(d.source || ('ingested by ' + (e.actor || 'unknown actor'))) + '</div></div>';
     }
@@ -6989,7 +7090,7 @@ class Component extends DCLogic {
       '<span class="lr-c-name lr-tn">' + esc(m.name) + '</span>' +
       '<span class="lr-c-ver"><span class="lr-vchip">v' + esc(m.version) + '</span></span>' +
       '<span class="lr-c-score">' + scoreCell + '</span>' +
-      '<span class="lr-c-changed">' + esc(m.changedMs ? this._relFromMs(m.changedMs) : '—') + '</span>' +
+      '<span class="lr-c-changed">' + esc(m.changedMs ? this._relFromMs(m.changedMs) : '-') + '</span>' +
     '</div>';
   }
 
@@ -8521,7 +8622,7 @@ class Component extends DCLogic {
     const empty = built.factCount === 0;
     const emptyEl = this._learningRoot.querySelector('#lr-empty');
     if (empty && emptyEl) {
-      emptyEl.innerHTML = 'knowledge graph is empty — facts appear as enrolled agents hit qualifying outcomes <b>(' + built.agentCount + ' agent' + (built.agentCount === 1 ? '' : 's') + ' enrolled)</b>';
+      emptyEl.innerHTML = 'knowledge graph is empty - facts appear as enrolled agents hit qualifying outcomes <b>(' + built.agentCount + ' agent' + (built.agentCount === 1 ? '' : 's') + ' enrolled)</b>';
       emptyEl.style.display = 'block';
     } else if (emptyEl) { emptyEl.style.display = 'none'; }
     this._knowEmpty = empty;
@@ -8823,7 +8924,7 @@ class Component extends DCLogic {
     el.innerHTML = [
       '<div class="lr-dhead"><div class="lr-drow">',
       '<span class="lr-ddot" style="background:' + col + ';box-shadow:0 0 10px ' + col + '"></span>',
-      '<div style="flex:1;min-width:0"><div class="lr-dtitle">confirmed fact</div><div class="lr-dsub">owned by ' + esc(node.owner || '—') + '</div></div>',
+      '<div style="flex:1;min-width:0"><div class="lr-dtitle">confirmed fact</div><div class="lr-dsub">owned by ' + esc(node.owner || '-') + '</div></div>',
       '<button class="lr-dclose" title="close">✕</button>',
       '</div><div class="lr-dbadges">',
       '<span class="lr-dbadge" style="color:' + scopeCol + ';background:color-mix(in srgb,' + scopeCol + ' 12%, transparent);border:1px solid color-mix(in srgb,' + scopeCol + ' 30%, transparent)">' + esc(scope) + '</span>',
@@ -8835,7 +8936,7 @@ class Component extends DCLogic {
       '<div class="lr-dmd">' + this._knowRenderMarkdown(node.content || '') + '</div>',
       provHtml,
       '<div class="lr-dgrid">',
-      '<div class="lr-dcell"><div class="lr-dk">owner</div><div class="lr-dv hi">' + esc(node.owner || '—') + '</div></div>',
+      '<div class="lr-dcell"><div class="lr-dk">owner</div><div class="lr-dv hi">' + esc(node.owner || '-') + '</div></div>',
       '<div class="lr-dcell"><div class="lr-dk">witnesses</div><div class="lr-dv hi">' + (node.witnesses || 0) + '</div></div>',
       (node.key ? '<div class="lr-dcell"><div class="lr-dk">key</div><div class="lr-dv">' + esc(node.key) + '</div></div>' : ''),
       '<div class="lr-dcell"><div class="lr-dk">scope</div><div class="lr-dv">' + esc(scope) + '</div></div>',
@@ -9377,7 +9478,7 @@ class Component extends DCLogic {
     return h + 'h ' + rm + 'm ' + s + 's';
   }
   _plFmtCountdown(ms, now) {
-    if (!ms || ms <= 0) return '—';
+    if (!ms || ms <= 0) return '-';
     const d = ms - (now || Date.now());
     if (d <= 0) return 'due now';
     return 'due in ' + this._fmtEta(d);
@@ -9769,7 +9870,7 @@ class Component extends DCLogic {
     const table = this._pipelinesRoot.querySelector('#pl-table');
     if (!table) return;
     if (!list.length) {
-      table.innerHTML = '<div class="pl-empty">' + (this._pipelinesLoaded ? 'no pipelines declared yet — <code>gitmoot pipeline add &lt;spec.yaml&gt;</code>' : 'loading…') + '</div>';
+      table.innerHTML = '<div class="pl-empty">' + (this._pipelinesLoaded ? 'no pipelines declared yet - <code>gitmoot pipeline add &lt;spec.yaml&gt;</code>' : 'loading…') + '</div>';
       return;
     }
     const groups = {};
@@ -9828,10 +9929,10 @@ class Component extends DCLogic {
       const state = (p && p.lastStatus) || '';
       return '<span class="pl-group-dot" style="background:' + this._plLedgerStateColor(state) + '" title="' + esc((p && p.name) || '') + ' · ' + esc(state || 'no runs') + '"></span>';
     }).join('');
-    const activity = latestAt ? esc(this._relFromMs(latestAt)) : '—';
+    const activity = latestAt ? esc(this._relFromMs(latestAt)) : '-';
     const due = Number.isFinite(dueAt)
       ? '<span class="pl-ledger-due" data-due="' + dueAt + '">' + esc(this._plFmtLedgerDue(dueAt)) + '</span>'
-      : '<span class="pl-ledger-none">—</span>';
+      : '<span class="pl-ledger-none">-</span>';
     const system = name === 'Gitmoot System';
     const children = expanded ? '<div class="pl-group-rows">' + pipes.map(p => this._pipelineRowHtml(p)).join('') + '</div>' : '';
     return '<section class="pl-group' + (system ? ' system' : '') + '">' +
@@ -9864,9 +9965,9 @@ class Component extends DCLogic {
       const sub = [halt ? ('@ ' + esc(halt)) : '', rel ? esc(rel) : ''].filter(Boolean).join(' · ');
       lastChip = chip + (sub ? '<div class="pl-rate">' + sub + '</div>' : '');
     } else {
-      lastChip = '<span class="pl-nohist">—</span>';
+      lastChip = '<span class="pl-nohist">-</span>';
     }
-    const due = p.nextDueAt ? '<span class="pl-due" data-due="' + p.nextDueAt + '">' + esc(this._plFmtCountdown(p.nextDueAt)) + '</span>' : '<span class="pl-nohist">—</span>';
+    const due = p.nextDueAt ? '<span class="pl-due" data-due="' + p.nextDueAt + '">' + esc(this._plFmtCountdown(p.nextDueAt)) + '</span>' : '<span class="pl-nohist">-</span>';
     const recent = Array.isArray(p.recent) ? p.recent : [];
     const strip = recent.length
       ? '<div class="pl-strip">' + recent.map(r => { const c = this._plLedgerStateColor(r.state); return '<span class="pl-pip" style="background:' + c + '" title="' + esc(r.state) + (r.startedAt ? ' · ' + esc(this._relFromMs(r.startedAt)) : '') + '"></span>'; }).join('') + '</div>'
@@ -10019,7 +10120,7 @@ class Component extends DCLogic {
     return '<span class="pl-rail-foot-dot"></span><span class="pl-rail-foot-txt pl-nextdue" data-due="' + due + '">' + esc(this._plNextRunLabel(due)) + '</span>';
   }
   _plNextRunLabel(ms, now) {
-    if (!ms || ms <= 0) return 'next run —';
+    if (!ms || ms <= 0) return 'next run -';
     const d = ms - (now || Date.now());
     if (d <= 0) return 'next run now';
     return 'next run in ' + this._fmtEta(d);
@@ -10307,7 +10408,7 @@ class Component extends DCLogic {
       '<div class="pl-node-sum">' + esc(summary) + '</div>' +
       (running && this._plStageHasProgress(s) ? '<div class="pl-node-progress"></div>' : '') +
       '<div class="pl-node-foot">' +
-        '<span class="pl-node-dur" style="color:' + col + '">' + esc(elapsed || '—') + '</span>' +
+        '<span class="pl-node-dur" style="color:' + col + '">' + esc(elapsed || '-') + '</span>' +
         (clickable ? '<span class="pl-node-job">job ▸</span>' : '') +
       '</div>' +
     '</div>';
@@ -10400,7 +10501,7 @@ class Component extends DCLogic {
       '<span class="xd-badge mut">no job yet</span>',
       '</div></div>',
       '<div class="xd-body">',
-      '<div class="xd-sec">Command</div><div class="xd-block">' + esc(stage.cmd || '—') + '</div>',
+      '<div class="xd-sec">Command</div><div class="xd-block">' + esc(stage.cmd || '-') + '</div>',
       (deps.length ? '<div class="xd-sec">Depends on</div><div class="xd-block">' + esc(deps.join(', ')) + '</div>' : ''),
       (needs.length ? '<div class="xd-sec">Needs</div><div class="xd-block">' + esc(needs.join('\n')) + '</div>' : ''),
       (stage.summary ? '<div class="xd-sec">Summary</div><div class="xd-block">' + esc(stage.summary) + '</div>' : ''),
@@ -10419,9 +10520,9 @@ class Component extends DCLogic {
 
   // Absolute local time (month/day + HH:MM), matching the Jobs/Health idiom.
   _plFmtAbsTime(ms) {
-    if (!ms || ms <= 0) return '—';
+    if (!ms || ms <= 0) return '-';
     try { return new Date(ms).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); }
-    catch (e) { return '—'; }
+    catch (e) { return '-'; }
   }
 
   // Trigger badge (manual | schedule | bridge) — an empty string for anything else.
@@ -10496,7 +10597,7 @@ class Component extends DCLogic {
     // The matrix compares stages ACROSS runs — with fewer than 2 runs it would be a
     // one-column duplicate of the DAG, so show a note instead of hiding silently.
     if (mx) mx.innerHTML = runs.length >= 2 ? this._plMatrixHtml(detail)
-      : '<div class="pl-mxnote">The stage &times; run matrix needs at least 2 runs to compare — this pipeline has ' + runs.length + '.</div>';
+      : '<div class="pl-mxnote">The stage &times; run matrix needs at least 2 runs to compare - this pipeline has ' + runs.length + '.</div>';
     this._plRenderKeysTab(detail);
     if (runs.length && !this._plSelectedRun) {
       // the list's recent strip was empty/stale but history has runs: pick newest.
@@ -10539,7 +10640,7 @@ class Component extends DCLogic {
       keyCount += entries.length;
       const stageID = stage && stage.id != null ? String(stage.id) : '';
       const kind = stage && stage.kind != null ? String(stage.kind) : '';
-      const kindLabel = this._plStageKindBadge(kind) || kind || '—';
+      const kindLabel = this._plStageKindBadge(kind) || kind || '-';
       let rows = '';
       if (entries.length) {
         entries.forEach((entry, index) => {
@@ -10550,8 +10651,8 @@ class Component extends DCLogic {
           rows += '<tr>' + (index === 0 ? '<td class="pl-keys-stage" rowspan="' + entries.length + '">' + esc(stageID) + '</td>' +
             '<td class="pl-keys-kind" rowspan="' + entries.length + '">' + esc(kindLabel) + '</td>' : '') +
             '<td class="pl-keys-name">' + esc(entry && entry.name != null ? entry.name : '') + '</td>' +
-            '<td><span class="pl-keys-badge ' + sourceClass + '">' + esc(source || '—') + '</span></td>' +
-            '<td><span class="pl-keys-badge ' + modeClass + '">' + esc(mode || '—') + '</span></td></tr>';
+            '<td><span class="pl-keys-badge ' + sourceClass + '">' + esc(source || '-') + '</span></td>' +
+            '<td><span class="pl-keys-badge ' + modeClass + '">' + esc(mode || '-') + '</span></td></tr>';
         });
       } else {
         rows = '<tr><td class="pl-keys-stage">' + esc(stageID) + '</td><td class="pl-keys-kind">' + esc(kindLabel) +
@@ -10592,7 +10693,7 @@ class Component extends DCLogic {
         const mk = marks.find(m => m && m.id === sid);
         const shortId = String(r.id || '').split('-').pop();
         const rel = r.startedAt ? this._relFromMs(r.startedAt) : '';
-        const state = mk ? mk.state : '—';
+        const state = mk ? mk.state : '-';
         const tip = '#' + shortId + (rel ? ' · ' + rel : '') + ' · ' + sid + ': ' + state;
         if (mk) {
           const col = this._plStageColor(mk.state);
@@ -10617,13 +10718,13 @@ class Component extends DCLogic {
     const rows = runs.map(r => {
       const col = this._galaxyStateColor(r.state);
       const shortId = String(r.id || '').split('-').pop();
-      const abs = r.startedAt ? this._plFmtAbsTime(r.startedAt) : '—';
+      const abs = r.startedAt ? this._plFmtAbsTime(r.startedAt) : '-';
       const rel = r.startedAt ? this._relFromMs(r.startedAt) : '';
-      const dur = (r.finishedAt > r.startedAt) ? this._fmtDur(r.finishedAt - r.startedAt) : (r.state === 'running' ? 'running' : '—');
-      const halt = r.haltStage ? esc(r.haltStage) : '—';
+      const dur = (r.finishedAt > r.startedAt) ? this._fmtDur(r.finishedAt - r.startedAt) : (r.state === 'running' ? 'running' : '-');
+      const halt = r.haltStage ? esc(r.haltStage) : '-';
       const stateChip = '<span class="pl-statechip" style="color:' + col + ';background:color-mix(in srgb,' + col + ' 12%, transparent);border:1px solid color-mix(in srgb,' + col + ' 30%, transparent)">' + esc(r.state) + '</span>';
       const sel = (r.id === this._plSelectedRun) ? ' sel' : '';
-      const trig = this._plTriggerBadge(r.trigger) || '<span class="pl-nohist">—</span>';
+      const trig = this._plTriggerBadge(r.trigger) || '<span class="pl-nohist">-</span>';
       return '<tr class="pl-htrow' + sel + '" data-run="' + esc(r.id) + '" title="open #' + esc(shortId) + '">' +
         '<td><div class="pl-mono">' + esc(abs) + '</div>' + (rel ? '<div class="pl-repo">' + esc(rel) + '</div>' : '') + '</td>' +
         '<td>' + trig + '</td>' +
@@ -10645,7 +10746,7 @@ class Component extends DCLogic {
     if (!declared.length) return '<div class="pl-empty">no stages declared for this pipeline</div>';
     const name = detail.name || this._plDetailName || '';
     const cmd = 'gitmoot pipeline run ' + name;
-    const note = '<div class="pl-declared-note">never run yet — <code>' + esc(cmd) + '</code>' +
+    const note = '<div class="pl-declared-note">never run yet - <code>' + esc(cmd) + '</code>' +
       '<button class="gm-copy" data-cmd="' + esc(cmd) + '">copy</button></div>';
     return note + this._pipelineStageDag(declared);
   }
@@ -11186,7 +11287,7 @@ class Component extends DCLogic {
       if (!this._chatLoaded) msg = 'loading…';
       else if (!data.length) msg = 'No chat threads yet.<br>Create one with <code>gitmoot chat create &lt;name&gt; --repo owner/repo</code>';
       else if (q) msg = 'No threads match “' + esc(q) + '”';
-      else if (filter === 'open') msg = 'No open threads — try <b>All</b>';
+      else if (filter === 'open') msg = 'No open threads - try <b>All</b>';
       else msg = 'No threads';
       list.innerHTML = '<div class="ch-empty">' + msg + '</div>';
       return;
@@ -11543,7 +11644,7 @@ class Component extends DCLogic {
     const badge = this._chatKindBadge(kind, esc);
     const av = this._chatAvatarHtml(author, ak, 34);
     const contCls = kind === 'system' ? 'cd-cont gate' : (kind === 'job_result' ? 'cd-cont code' : 'cd-cont');
-    const askHead = kind === 'system' ? '<div class="cd-askgate">⚠ ask-gate — awaiting an answer</div>' : '';
+    const askHead = kind === 'system' ? '<div class="cd-askgate">⚠ ask-gate - awaiting an answer</div>' : '';
     let promo = '';
     if (kind === 'promotion_request' && m.promotedJobId) {
       promo = '<div class="cd-refs"><span class="cd-promo" data-job="' + esc(m.promotedJobId) + '" title="open job ' + esc(m.promotedJobId) + '">→ promoted job ' + esc(m.promotedJobId) + '</span></div>';
@@ -11843,7 +11944,7 @@ class Component extends DCLogic {
   fmtRun(p) {
     // real run wall-clock: earliest node start -> latest end (or now if running)
     const starts = this.base.map(n => n.startedAt || 0).filter(v => v > 0);
-    if (!starts.length) return '—';
+    if (!starts.length) return '-';
     const minStart = Math.min(...starts);
     const anyRunning = this.base.some(n => n.state === 'running');
     const ends = this.base.map(n => n.endedAt || 0).filter(v => v > 0);
@@ -12086,7 +12187,7 @@ class Component extends DCLogic {
       const P = pos[n.id] || { x: 0, y: 0 };
       const running = s === 'running';
       const dim = s === 'queued' || s === 'blocked';
-      let elapsed = '—';
+      let elapsed = '-';
       if (st.st != null) {
         const end = st.en != null ? st.en : (running ? p : null);
         if (end != null) { let e = Math.min(end, p) - st.st; if (e < 0) e = 0; elapsed = e.toFixed(1) + 's'; }
@@ -12116,7 +12217,7 @@ class Component extends DCLogic {
         ? '+' + this.base.filter(x => x.parentId === n.id).length
         : '';
       return {
-        id: n.id, title: n.title, sub: n.runtime + ' · ' + (n.model || '—'),
+        id: n.id, title: n.title, sub: n.runtime + ' · ' + (n.model || '-'),
         elapsedLabel: elapsed, stateColor: col.c,
         x: P.x, y: P.y, cardStyle, dotStyle,
         showWorker: s !== 'queued' && s !== 'blocked', workerLabel: n.workerId,
@@ -12250,7 +12351,7 @@ class Component extends DCLogic {
       const st = sim[sel.id] || { s: 'queued' };
       const col = CO[st.s] || CO.queued;
       const runningNow = st.s === 'running';
-      let elapsed = '—';
+      let elapsed = '-';
       if (st.st != null) {
         const end = st.en != null ? st.en : (runningNow ? p : null);
         if (end != null) { let e = Math.min(end, p) - st.st; if (e < 0) e = 0; elapsed = e.toFixed(1) + 's'; }
@@ -12264,15 +12365,15 @@ class Component extends DCLogic {
         color: /fail/i.test(ev.label) ? '#f7768e' : /succeed|opened|complete|passed/i.test(ev.label) ? (this.props.accent || '#9ece6a') : '#7aa2f7'
       }));
       detail = {
-        title: sel.title, sub: sel.runtime + ' · ' + (sel.model || '—'),
+        title: sel.title, sub: sel.runtime + ' · ' + (sel.model || '-'),
         runtime: sel.runtime, worker: sel.workerId,
         dotStyle: { width: '11px', height: '11px', borderRadius: '50%', background: col.c, flex: 'none', marginTop: '4px', boxShadow: '0 0 10px ' + col.g, animation: runningNow ? 'dotpulse 1.4s ease-in-out infinite' : 'none' },
         stateLabel: st.s, stateColor: col.c,
         stateBg: 'color-mix(in srgb,' + col.c + ' 12%, transparent)',
         stateBorder: 'color-mix(in srgb,' + col.c + ' 30%, transparent)',
-        startedLabel: st.st != null ? new Date(st.st * 1000).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—',
+        startedLabel: st.st != null ? new Date(st.st * 1000).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-',
         elapsedLabel: elapsed,
-        events: evShown.length ? evShown : [{ time: '—', label: 'waiting to start', color: '#5a6088' }],
+        events: evShown.length ? evShown : [{ time: '-', label: 'waiting to start', color: '#5a6088' }],
         prompt: sel.prompt,
         output: finished ? sel.output : (runningNow ? '… running …' : '… queued …'),
         hasPr: !!st.pr, prUrl: st.pr || '#', prLabel: st.pr ? st.pr.replace('https://github.com/', '') : ''
