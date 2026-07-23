@@ -2937,7 +2937,7 @@ class Component extends DCLogic {
       "#org-root .org-chart-region{flex:1.3;min-height:250px;display:flex;flex-direction:column;position:relative;overflow:hidden;border-bottom:1px solid rgba(160,168,220,.08)}",
       "#org-root .org-sec-head{height:40px;flex:none;display:flex;align-items:center;gap:9px;padding:0 18px;color:#8b90b8;font:600 10px 'JetBrains Mono',monospace;letter-spacing:.14em;text-transform:uppercase}.org-sec-head .org-hint{color:#5a6088;font-size:10px;font-weight:400;letter-spacing:0;text-transform:none}.org-sec-head .org-count{padding:1px 8px;border-radius:10px;background:rgba(160,168,220,.1);color:#c7c9e5;font-size:9.5px;letter-spacing:0}.org-sec-head .org-right{margin-left:auto;color:#5a6088;font-size:9.5px;font-weight:400;letter-spacing:0;text-transform:none}",
       "#org-root .org-title-dot{width:8px;height:8px;border-radius:50%;background:#bb9af7;box-shadow:0 0 8px rgba(187,154,247,.55);flex:none}",
-      "#org-root .org-chart-scroll{flex:1;min-height:0;overflow:auto;position:relative}.org-tree-wrap{position:relative;box-sizing:border-box;min-width:100%;width:max-content;display:flex;justify-content:center;padding:34px 54px 52px}.org-tree-svg{position:absolute;inset:0;overflow:visible;pointer-events:none;z-index:0}.org-tree{position:relative;z-index:1;display:flex;justify-content:center}.org-tree-layout{display:flex;flex-direction:column;align-items:center}.org-roots,.org-children{display:flex;align-items:flex-start;justify-content:center;gap:22px}.org-children{margin-top:42px}.org-branch{display:flex;flex-direction:column;align-items:center}.org-unlinked{display:flex;flex-direction:column;align-items:center;gap:9px;margin-top:42px;padding-top:12px;border-top:1px dashed rgba(160,168,220,.12)}.org-unlinked-head{color:#5a6088;font:9px 'JetBrains Mono',monospace;letter-spacing:.12em;text-transform:uppercase}.org-unlinked-row{display:flex;align-items:flex-start;justify-content:center;gap:12px}",
+      "#org-root .org-chart-scroll{flex:1;min-height:0;overflow-x:auto;overflow-y:auto;position:relative;cursor:grab;touch-action:none}.org-chart-scroll.org-panning{cursor:grabbing;user-select:none}.org-tree-wrap{position:relative;box-sizing:border-box;min-width:100%;width:max-content;display:flex;justify-content:center;padding:34px 54px 52px}.org-tree-svg{position:absolute;inset:0;overflow:visible;pointer-events:none;z-index:0}.org-tree{position:relative;z-index:1;display:flex;justify-content:center}.org-tree-layout{display:flex;flex-direction:column;align-items:center}.org-roots,.org-children{display:flex;align-items:flex-start;justify-content:center;gap:22px}.org-children{margin-top:42px}.org-branch{display:flex;flex-direction:column;align-items:center}.org-unlinked{display:flex;flex-direction:column;align-items:center;gap:9px;margin-top:42px;padding-top:12px;border-top:1px dashed rgba(160,168,220,.12)}.org-unlinked-head{color:#5a6088;font:9px 'JetBrains Mono',monospace;letter-spacing:.12em;text-transform:uppercase}.org-unlinked-row{display:flex;align-items:flex-start;justify-content:center;gap:12px}",
       "#org-root .org-node{appearance:none;display:flex;flex-direction:column;gap:5px;min-width:152px;max-width:196px;padding:9px 12px 10px;border:1px solid rgba(160,168,220,.13);border-radius:10px;background:rgba(13,15,28,.72);color:inherit;text-align:left;cursor:pointer;position:relative;box-shadow:0 1px 2px rgba(0,0,0,.28);transition:border-color .16s,transform .16s,background .16s;z-index:2}.org-node:hover{border-color:rgba(187,154,247,.42);transform:translateY(-1px)}.org-node.sel{border-color:rgba(187,154,247,.5);background:rgba(187,154,247,.1);box-shadow:0 0 0 1px rgba(187,154,247,.18),0 12px 32px rgba(0,0,0,.35)}.org-node.root{background:rgba(187,154,247,.045);border-color:rgba(187,154,247,.25)}",
       "#org-root .org-node-main{display:flex;align-items:center;gap:9px;min-width:0}.org-node-name{color:#eef0ff;font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.org-node-sub{color:#5a6088;font:9.5px 'JetBrains Mono',monospace;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.org-presence{width:9px;height:9px;border-radius:50%;flex:none}.org-presence.working{background:#9ece6a;box-shadow:0 0 8px rgba(158,206,106,.55)}.org-presence.blocked{background:#ff9e64;box-shadow:0 0 8px rgba(255,158,100,.5)}.org-presence.idle{background:#6b7199}.org-presence.never-seen{background:transparent;border:1.5px solid rgba(139,144,184,.75)}",
       "#org-root .org-rootmark{width:21px;height:21px;border:1px solid rgba(187,154,247,.38);border-radius:6px;display:grid;place-items:center;color:#bb9af7;flex:none}.org-rootmark:after{content:'';width:6px;height:6px;border:1px solid currentColor;transform:rotate(45deg)}",
@@ -3113,6 +3113,52 @@ class Component extends DCLogic {
     const sr = scroll.getBoundingClientRect(), nr = node.getBoundingClientRect();
     scroll.scrollLeft += (nr.left + nr.width / 2) - (sr.left + sr.width / 2);
   }
+  _orgBindChartPan(scroll) {
+    if (!scroll) return;
+    let drag = null;
+    let suppressClick = false;
+    const end = (e, cancelled) => {
+      if (!drag || e.pointerId !== drag.pointerId) return;
+      const moved = drag.moved;
+      try { if (scroll.hasPointerCapture(e.pointerId)) scroll.releasePointerCapture(e.pointerId); } catch (_) {}
+      scroll.classList.remove('org-panning');
+      drag = null;
+      if (moved && !cancelled) {
+        suppressClick = true;
+        setTimeout(() => { suppressClick = false; }, 0);
+      }
+    };
+    scroll.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0 || e.isPrimary === false) return;
+      if (e.target.closest && e.target.closest('button,a,[data-org-node],[data-org-workflow]')) return;
+      drag = {
+        pointerId: e.pointerId,
+        x: e.clientX,
+        y: e.clientY,
+        left: scroll.scrollLeft,
+        top: scroll.scrollTop,
+        moved: false
+      };
+      scroll.classList.add('org-panning');
+      try { scroll.setPointerCapture(e.pointerId); } catch (_) {}
+    });
+    scroll.addEventListener('pointermove', (e) => {
+      if (!drag || e.pointerId !== drag.pointerId) return;
+      const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+      if (!drag.moved && Math.abs(dx) <= 4 && Math.abs(dy) <= 4) return;
+      drag.moved = true;
+      e.preventDefault();
+      scroll.scrollLeft = drag.left - dx;
+      scroll.scrollTop = drag.top - dy;
+    });
+    scroll.addEventListener('pointerup', (e) => end(e, false));
+    scroll.addEventListener('pointercancel', (e) => end(e, true));
+    scroll.addEventListener('click', (e) => {
+      if (!suppressClick) return;
+      e.preventDefault();
+      e.stopPropagation();
+    }, true);
+  }
   _orgHealthHTML(data) {
     const h = data.health || {};
     const tile = (value, label, color) => '<div class="org-tile"><b style="color:' + color + '">' + Number(value || 0) + '</b><span>' + label + '</span></div>';
@@ -3245,6 +3291,7 @@ class Component extends DCLogic {
     if (!content) return;
     const previousChart = content.querySelector('.org-chart-scroll');
     const previousScrollLeft = previousChart ? previousChart.scrollLeft : 0;
+    const previousScrollTop = previousChart ? previousChart.scrollTop : 0;
     const centerAfterRender = !!this._orgCenterAfterRender || !previousChart;
     this._orgCenterAfterRender = false;
     if (!roles.length) {
@@ -3265,6 +3312,7 @@ class Component extends DCLogic {
         '<section class="org-col"><div class="org-sec-head"><span class="org-title-dot" style="background:#9ece6a;box-shadow:0 0 8px rgba(158,206,106,.4)"></span><span>Event feed</span><span class="org-right">current signals</span></div><div class="org-col-body">' + this._orgFeedHTML(feed) + '</div></section>' +
       '</div>' +
       this._orgPanelHTML(this._orgSelected);
+    this._orgBindChartPan(content.querySelector('.org-chart-scroll'));
     try { if (this._orgTreeRO) this._orgTreeRO.disconnect(); } catch (e) {}
     const tree = content.querySelector('.org-tree');
     if (tree && typeof ResizeObserver !== 'undefined') {
@@ -3275,7 +3323,10 @@ class Component extends DCLogic {
       this._orgComputeEdges();
       const chart = content.querySelector('.org-chart-scroll');
       if (centerAfterRender) this._orgCenterTree();
-      else if (chart) chart.scrollLeft = previousScrollLeft;
+      else if (chart) {
+        chart.scrollLeft = previousScrollLeft;
+        chart.scrollTop = previousScrollTop;
+      }
     });
     setTimeout(() => this._orgComputeEdges(), 120);
     this._queuePullToRefreshSync();
